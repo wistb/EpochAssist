@@ -34,6 +34,7 @@ public static class Runtime
         LoadedAt = DateTime.Now;
         Config.Init();
         FeatureHost.Register(new MenuFeature(), new HudFeature(), new AutoCastFeature());
+        if (hosted) FeatureHost.Register(new DevBridgeFeature());
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} loaded{(hosted ? " (dev)" : string.Empty)}");
     }

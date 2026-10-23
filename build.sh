@@ -63,9 +63,13 @@ if [ "$mode" = dev ]; then
     build_project "$root/devloader/EpochAssist.DevLoader.csproj"
     loader="$root/devloader/bin/Debug/net6.0/win-x64/EpochAssist.DevLoader.dll"
     mkdir -p "$mods"
-    if ! cmp -s "$loader" "$mods/EpochAssist.DevLoader.dll"; then
+    if [ ! -f "$mods/EpochAssist.DevLoader.dll" ]; then
         wait_for cp "$loader" "$mods/EpochAssist.DevLoader.dll"
         echo "Installed the dev loader; restart the game once to start using it"
+    elif ! cmp -s "$loader" "$mods/EpochAssist.DevLoader.dll"; then
+        # Rebuilds differ byte for byte even without changes; never block a hot reload on the running game.
+        cp "$loader" "$mods/EpochAssist.DevLoader.dll" 2>/dev/null && echo "Updated the dev loader (takes effect on the next game start)" \
+            || echo "Dev loader not updated while the game runs; the mod reload goes ahead"
     fi
     # The loader replaces the normal mod; both at once would run everything twice.
     [ -f "$mods/EpochAssist.dll" ] && wait_for rm -f "$mods/EpochAssist.dll"
