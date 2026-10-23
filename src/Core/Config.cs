@@ -5,33 +5,46 @@ namespace EpochAssist.Core;
 
 internal enum HudCorner { TopLeft, TopRight, BottomLeft, BottomRight }
 
-// Settings live in UserData/MelonPreferences.cfg; each feature registers its own category.
+// The mod's own settings. Values live in UserData/MelonPreferences.cfg; each feature declares its own group too.
 internal static class Config
 {
-    public static MelonPreferences_Entry<KeyCode> MenuKey = null!;
-    public static MelonPreferences_Entry<float> UiScale = null!;
-    public static MelonPreferences_Entry<bool> HudEnabled = null!;
-    public static MelonPreferences_Entry<int> HudCornerIndex = null!;
-    public static MelonPreferences_Entry<float> MenuOpacity = null!;
-    public static MelonPreferences_Entry<float> HudOpacity = null!;
+    public static readonly SettingsGroup Group = new("EpochAssist", "General");
 
-    public static HudCorner HudPosition
+    private static readonly Section Menu = Group.Section("menu", "Menu");
+    public static readonly Key MenuKey = new(Menu, "MenuKey", "Menu key", KeyCode.F2);
+    public static readonly Number UiScale = new(Menu, "UiScale", "UI scale", 1f, 0.75f, 2f)
     {
-        get => (HudCorner)Mathf.Clamp(HudCornerIndex.Value, 0, 3);
-        set => HudCornerIndex.Value = (int)value;
-    }
+        Step = 0.05f, Unit = "x", ApplyOnRelease = true, Help = "Size of the menu and the mini HUD.",
+    };
+    public static readonly Choice<int> Font = new(Menu, "GameFont", "Font", 1, (0, "Unity"), (1, "Pretendard"), (2, "Noto Sans"))
+    {
+        Help = "Fonts the game ships with.",
+    };
+    public static readonly Choice<int> FontWeight = new(Menu, "FontWeight", "Text", 1, (0, "Regular"), (1, "Bold"))
+    {
+        Help = "Weight of labels, buttons and values. Hints stay regular.",
+    };
+    public static readonly Number MenuOpacity = new(Menu, "MenuOpacity", "Background", 1f, 0.2f, 1f)
+    {
+        Step = 0.01f, Percent = true, Help = "Menu background opacity; text and switches stay solid.",
+    };
 
-    public static void Init()
+    private static readonly Section Hud = Group.Section("hud", "Mini HUD");
+    public static readonly Toggle HudEnabled = new(Hud, "HudEnabled", "Show the mini HUD", true)
     {
-        var c = Category("EpochAssist", BuildInfo.Name);
-        MenuKey = Entry(c, "MenuKey", KeyCode.F2, "Menu key");
-        UiScale = Entry(c, "UiScale", 1f, "Menu scale");
-        HudEnabled = Entry(c, "HudEnabled", true, "Show the mini HUD");
-        // An int, not HudCorner: an entry typed by one of our own enums would not match after a reload.
-        HudCornerIndex = Entry(c, "HudCorner", 0, "Mini HUD corner: 0 top left, 1 top right, 2 bottom left, 3 bottom right");
-        MenuOpacity = Entry(c, "MenuOpacity", 1f, "Menu background opacity");
-        HudOpacity = Entry(c, "HudOpacity", 0.85f, "Mini HUD opacity");
-    }
+        Help = "A small status pill while the menu is closed. Click it for quick toggles.",
+    };
+    // An int, not HudCorner: an entry typed by one of our own enums would not match after a reload.
+    public static readonly Choice<int> HudPlacement = new(Hud, "HudCorner", "Corner", 0,
+        (0, "Top left"), (1, "Top right"), (2, "Bottom left"), (3, "Bottom right"));
+    public static readonly Number HudOpacity = new(Hud, "HudOpacity", "Opacity", 0.85f, 0.2f, 1f)
+    {
+        Step = 0.01f, Percent = true, Help = "Full opacity while the cursor is over it.",
+    };
+
+    public static HudCorner HudPosition => (HudCorner)Math.Clamp(HudPlacement.Value, 0, 3);
+
+    public static void Init() => Group.Register();
 
     public static void Save() => MelonPreferences.Save();
 

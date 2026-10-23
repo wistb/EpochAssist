@@ -18,20 +18,39 @@ internal static class Menu
     private const float Height = 520f;
 
     private static readonly string[] s_pageNames = { "Auto-Cast", "Potion", "Settings" };
-    private static readonly string[] s_castTabs = { "Controls", "Pausing", "Targeting", "Enemy gate" };
-    private static readonly string[] s_cornerNames = { "Top left", "Top right", "Bottom left", "Bottom right" };
 
     private static Page s_page;
     private static int s_castTab;
     private static Rect s_rect = new(80, 80, Width, Height);
     private static Vector2 s_scroll;
-    private static bool s_weightsOpen;
-    // Applied on release: rescaling mid-drag moves the slider under the cursor.
-    private static float? s_pendingScale;
+    private static string s_search = string.Empty;
 
     public static bool Visible { get; private set; }
 
     public static void Close() => SetVisible(false);
+
+    /// <summary>The window in screen pixels (top-left origin), after UI scale.</summary>
+    public static Rect ScreenRect
+    {
+        get
+        {
+            float scale = Mathf.Clamp(Config.UiScale.Value, 0.5f, 3f);
+            return new Rect(s_rect.x * scale, s_rect.y * scale, s_rect.width * scale, s_rect.height * scale);
+        }
+    }
+
+    public static void SetTab(int tab)
+    {
+        s_castTab = Math.Clamp(tab, 0, S.Tabs.Length - 1);
+        s_scroll = Vector2.zero;
+    }
+
+    public static void SetSearch(string text)
+    {
+        s_page = Page.Settings;
+        s_search = text;
+        s_scroll = Vector2.zero;
+    }
 
     public static void Open(Page page)
     {
@@ -54,11 +73,7 @@ internal static class Menu
     {
         if (!Visible) return;
 
-        if (s_pendingScale.HasValue && GUIUtility.hotControl == 0)
-        {
-            Config.UiScale.Value = s_pendingScale.Value;
-            s_pendingScale = null;
-        }
+        SettingsView.CommitPending();
 
         GUISkin previousSkin = GUI.skin;
         Matrix4x4 previousMatrix = GUI.matrix;
@@ -177,17 +192,13 @@ internal static class Menu
         }
     }
 
-    private static void PageHeader(string title, AutoCast.State? state, MelonLoader.MelonPreferences_Entry<bool>? toggle)
+    private static void PageHeader(string title, AutoCast.State? state, Toggle? toggle)
     {
         GUILayout.BeginHorizontal(GUILayout.Height(30f));
         GUILayout.Label(title, Style(() => Theme.PageTitle, GUI.skin.label));
         if (state.HasValue) StateBadge(state.Value);
         GUILayout.FlexibleSpace();
-        if (toggle != null)
-        {
-            bool value = InlineSwitch(toggle.Value);
-            if (value != toggle.Value) toggle.Value = value;
-        }
+        if (toggle != null) toggle.Value = InlineSwitch(toggle.Value);
         if (GUILayout.Button("×", Style(() => Theme.Close, GUI.skin.button))) SetVisible(false);
         GUILayout.EndHorizontal();
         GUILayout.Space(8f);
@@ -223,9 +234,9 @@ internal static class Menu
         GUILayout.Space(8f);
 
         GUILayout.BeginHorizontal();
-        for (int i = 0; i < s_castTabs.Length; i++)
+        for (int i = 0; i < S.Tabs.Length; i++)
         {
-            if (GUILayout.Toggle(s_castTab == i, s_castTabs[i], Style(() => Theme.SubTab, GUI.skin.button), GUILayout.ExpandWidth(false)) && s_castTab != i)
+            if (GUILayout.Toggle(s_castTab == i, S.Tabs[i].Title, Style(() => Theme.SubTab, GUI.skin.button), GUILayout.ExpandWidth(false)) && s_castTab != i)
             {
                 s_castTab = i;
                 s_scroll = Vector2.zero;
@@ -239,71 +250,24 @@ internal static class Menu
         GUI.enabled = S.Enabled.Value;
         if (!GUI.enabled) GUI.color = new Color(1f, 1f, 1f, 0.45f);
 
-        s_scroll = GUILayout.BeginScrollView(s_scroll);
-        switch (s_castTab)
+        BeginScroll();
+        Section tab = S.Tabs[Math.Clamp(s_castTab, 0, S.Tabs.Length - 1)];
+        SettingsView.Rows(tab.Settings);
+        if (tab == S.Gate && S.RequireEnemies.Value)
         {
-            case 0: DrawControls(); break;
-            case 1: DrawPausing(); break;
-            case 2: DrawTargeting(); break;
-            default: DrawEnemyGate(); break;
+            string gate = AutoCast.EnemyGateOpen ? Colored("casting", Theme.Good) : Colored("holding", Theme.Pause);
+            Hint($"In range: {AutoCast.EnemiesInRange} enemies, weight {AutoCast.EnemyWeightInRange:F0}  ·  {gate}");
         }
-        GUILayout.EndScrollView();
+        if (!tab.IsDefault)
+        {
+            GUILayout.Space(6f);
+            if (GUILayout.Button($"Reset {tab.Title.ToLowerInvariant()}", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
+                tab.Reset();
+        }
+        EndScroll();
 
         GUI.color = previousColor;
         GUI.enabled = wasEnabled;
-    }
-
-    private static void DrawControls()
-    {
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("Modifier", Style(() => Theme.RowLabel, GUI.skin.label), GUILayout.Width(LabelWidth), GUILayout.Height(30f));
-        for (int i = 0; i < AutoCast.ModifierKeys.Length; i++)
-        {
-            bool selected = S.ModifierKey.Value == AutoCast.ModifierKeys[i];
-            if (GUILayout.Toggle(selected, AutoCast.ModifierKeyNames[i], Style(() => Theme.Segment, GUI.skin.button)) && !selected)
-                S.ModifierKey.Value = AutoCast.ModifierKeys[i];
-        }
-        GUILayout.EndHorizontal();
-        KeyRow("Hold to pause", S.HoldToPauseKey, clearable: true);
-        Hint("While held, auto-cast stops and lets go of any channel.");
-    }
-
-    private static void DrawPausing()
-    {
-        Switch(S.PauseOnZoneChange, "Pause on zone change");
-        Hint("Press any skill yourself to resume.");
-        GUILayout.Space(4f);
-        Switch(S.PauseInNonCombatZones, "Pause in non-combat zones");
-    }
-
-    private static void DrawTargeting()
-    {
-        Switch(S.AimAtClosestEnemy, "Aim at closest enemy");
-        if (S.AimAtClosestEnemy.Value) Slider(S.AimRange, "Aim range", 2f, 60f, " m");
-        Hint("Uses the cursor when nothing is in range.");
-    }
-
-    private static void DrawEnemyGate()
-    {
-        Switch(S.RequireEnemies, "Only cast with enemies in range");
-        if (!S.RequireEnemies.Value) return;
-
-        Slider(S.EnemyRange, "Range", 2f, 60f, " m");
-        Slider(S.EnemyMinWeight, "Minimum weight", 1f, 50f);
-        Switch(S.ShowRangeRing, "Show range ring");
-        string gate = AutoCast.EnemyGateOpen ? Colored("casting", Theme.Good) : Colored("holding", Theme.Pause);
-        Hint($"In range: {AutoCast.EnemiesInRange} enemies, weight {AutoCast.EnemyWeightInRange:F0}  ·  {gate}");
-
-        GUILayout.Space(4f);
-        s_weightsOpen = GUILayout.Toggle(s_weightsOpen, s_weightsOpen ? "Hide enemy weights" : "Enemy weights",
-            Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false));
-        if (s_weightsOpen)
-        {
-            Slider(S.WeightNormal, "Normal", 0f, 50f);
-            Slider(S.WeightMagic, "Magic", 0f, 50f);
-            Slider(S.WeightRare, "Rare", 0f, 50f);
-            Slider(S.WeightBoss, "Boss", 0f, 50f);
-        }
     }
 
     private static void DrawPotion()
@@ -317,33 +281,26 @@ internal static class Menu
     private static void DrawSettings()
     {
         PageHeader("Settings", null, null);
-        s_scroll = GUILayout.BeginScrollView(s_scroll);
 
-        BeginCard("MENU");
-        KeyRow("Menu key", Config.MenuKey, clearable: false);
-        float current = s_pendingScale ?? Config.UiScale.Value;
-        float scale = Mathf.Round(SliderRow("UI scale", current, 0.75f, 2f, $"{current:F2}x", (float)Config.UiScale.DefaultValue) * 20f) / 20f;
-        if (scale != current) s_pendingScale = scale;
-        PercentSlider(Config.MenuOpacity, "Background", 0.2f, 1f);
-        Hint("Scale applies when you let go of the slider. Background opacity leaves text and switches solid. Double-click any slider to reset it.");
-        EndCard();
-
-        BeginCard("MINI HUD");
-        Switch(Config.HudEnabled, "Show the mini HUD");
-        Hint("A small status pill while the menu is closed. Click it for quick toggles.");
         GUILayout.BeginHorizontal();
-        for (int i = 0; i < s_cornerNames.Length; i++)
-        {
-            bool selected = (int)Config.HudPosition == i;
-            if (GUILayout.Toggle(selected, s_cornerNames[i], Style(() => Theme.Segment, GUI.skin.button)) && !selected)
-                Config.HudPosition = (HudCorner)i;
-        }
+        GUILayout.Label("Search", Style(() => Theme.RowLabel, GUI.skin.label), GUILayout.Width(60f), GUILayout.Height(26f));
+        s_search = GUILayout.TextField(s_search, Style(() => Theme.SearchField, GUI.skin.textField));
+        if (s_search.Length > 0 && GUILayout.Button("Clear", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
+            s_search = string.Empty;
         GUILayout.EndHorizontal();
-        PercentSlider(Config.HudOpacity, "Opacity", 0.2f, 1f);
-        Hint("Full opacity while the cursor is over it.");
-        EndCard();
+        GUILayout.Space(8f);
 
-        GUILayout.EndScrollView();
+        BeginScroll();
+        if (s_search.Trim().Length > 0)
+        {
+            SettingsView.SearchResults(s_search);
+        }
+        else
+        {
+            foreach (var section in Config.Group.Sections) SettingsView.Card(section);
+            Hint("Double-click a slider to reset it. Search finds settings from every page.");
+        }
+        EndScroll();
     }
 
     /// <summary>Five slot chips across the available width.</summary>
@@ -371,8 +328,37 @@ internal static class Menu
             Theme.ChipNumber.normal.textColor = live ? Theme.AccentText : toggled ? Theme.Pause : Theme.Dim;
             Theme.ChipName.normal.textColor = toggled ? Theme.Text : Theme.Dim;
             GUI.Label(new Rect(chip.x, chip.y + 6f, chip.width, 22f), (i + 1).ToString(), Theme.ChipNumber);
-            GUI.Label(new Rect(chip.x + 3f, chip.y + 28f, chip.width - 6f, 16f), name, Theme.ChipName);
+            GUI.Label(new Rect(chip.x + 3f, chip.y + 28f, chip.width - 6f, 16f), Fit(name, Theme.ChipName, chip.width - 8f), Theme.ChipName);
         }
+    }
+
+    // Page width inside the main area: window minus sidebar, page padding, and the vertical scrollbar with its margin.
+    private const float ContentWidth = Width - Theme.SidebarWidth - 32f - 22f;
+
+    // Vertical scrolling only; content is held to the visible width so nothing runs off the right edge.
+    private static void BeginScroll()
+    {
+        s_scroll = GUILayout.BeginScrollView(s_scroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+        GUILayout.BeginVertical(GUILayout.Width(ContentWidth));
+        SettingsView.RowWidth = ContentWidth;
+    }
+
+    private static void EndScroll()
+    {
+        GUILayout.EndVertical();
+        GUILayout.EndScrollView();
+    }
+
+    /// <summary>Text shortened with an ellipsis until it fits the width.</summary>
+    private static string Fit(string text, GUIStyle style, float width)
+    {
+        if (style.CalcSize(new GUIContent(text)).x <= width) return text;
+        for (int n = text.Length - 1; n > 1; n--)
+        {
+            string cut = text.Substring(0, n).TrimEnd() + "…";
+            if (style.CalcSize(new GUIContent(cut)).x <= width) return cut;
+        }
+        return text.Substring(0, 1);
     }
 
     private static void DividerLine()

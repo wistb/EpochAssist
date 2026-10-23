@@ -1,44 +1,72 @@
 using EpochAssist.Core;
-using MelonLoader;
 using UnityEngine;
 
 namespace EpochAssist.Features;
 
 internal static class AutoCastSettings
 {
-    public static MelonPreferences_Entry<bool> Enabled = null!;
-    public static MelonPreferences_Entry<KeyCode> ModifierKey = null!;
-    public static MelonPreferences_Entry<KeyCode> HoldToPauseKey = null!;
-    public static MelonPreferences_Entry<bool> PauseOnZoneChange = null!;
-    public static MelonPreferences_Entry<bool> PauseInNonCombatZones = null!;
-    public static MelonPreferences_Entry<bool> AimAtClosestEnemy = null!;
-    public static MelonPreferences_Entry<float> AimRange = null!;
-    public static MelonPreferences_Entry<bool> RequireEnemies = null!;
-    public static MelonPreferences_Entry<float> EnemyRange = null!;
-    public static MelonPreferences_Entry<bool> ShowRangeRing = null!;
-    public static MelonPreferences_Entry<float> EnemyMinWeight = null!;
-    public static MelonPreferences_Entry<float> WeightNormal = null!;
-    public static MelonPreferences_Entry<float> WeightMagic = null!;
-    public static MelonPreferences_Entry<float> WeightRare = null!;
-    public static MelonPreferences_Entry<float> WeightBoss = null!;
+    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Auto-Cast");
 
-    public static void Register()
+    private static readonly Section Main = Group.Section("main", "Auto-Cast");
+    public static readonly Toggle Enabled = new(Main, "Enabled", "Auto-cast", false) { QuickLabel = "Auto-cast" };
+
+    public static readonly Section Controls = Group.Section("controls", "Controls");
+    public static readonly Choice<KeyCode> ModifierKey = new(Controls, "ModifierKey", "Modifier", KeyCode.LeftControl,
+        (KeyCode.LeftControl, "Left Ctrl"), (KeyCode.LeftAlt, "Left Alt"), (KeyCode.LeftShift, "Left Shift"))
     {
-        var c = Config.Category("EpochAssist_AutoCast", "Epoch Assist - Auto-Cast");
-        Enabled = Config.Entry(c, "Enabled", false);
-        ModifierKey = Config.Entry(c, "ModifierKey", KeyCode.LeftControl);
-        HoldToPauseKey = Config.Entry(c, "HoldToPauseKey", KeyCode.None);
-        PauseOnZoneChange = Config.Entry(c, "PauseOnZoneChange", true);
-        PauseInNonCombatZones = Config.Entry(c, "PauseInNonCombatZones", false);
-        AimAtClosestEnemy = Config.Entry(c, "AimAtClosestEnemy", false);
-        AimRange = Config.Entry(c, "AimRange", 20f);
-        RequireEnemies = Config.Entry(c, "RequireEnemies", false);
-        EnemyRange = Config.Entry(c, "EnemyRange", 15f);
-        ShowRangeRing = Config.Entry(c, "ShowRangeRing", false);
-        EnemyMinWeight = Config.Entry(c, "EnemyMinWeight", 1f);
-        WeightNormal = Config.Entry(c, "WeightNormal", 1f);
-        WeightMagic = Config.Entry(c, "WeightMagic", 2f);
-        WeightRare = Config.Entry(c, "WeightRare", 5f);
-        WeightBoss = Config.Entry(c, "WeightBoss", 20f);
-    }
+        Help = "Hold it and press a skill's key to toggle that slot.",
+    };
+    public static readonly Key HoldToPauseKey = new(Controls, "HoldToPauseKey", "Hold to pause", KeyCode.None)
+    {
+        Clearable = true, Help = "While held, auto-cast stops and lets go of any channel.",
+    };
+
+    public static readonly Section Pausing = Group.Section("pausing", "Pausing");
+    public static readonly Toggle PauseOnZoneChange = new(Pausing, "PauseOnZoneChange", "Pause on zone change", true)
+    {
+        Help = "Press any skill yourself to resume.",
+    };
+    public static readonly Toggle PauseInNonCombatZones = new(Pausing, "PauseInNonCombatZones", "Pause in non-combat zones", false);
+
+    public static readonly Section Targeting = Group.Section("targeting", "Targeting");
+    public static readonly Toggle AimAtClosestEnemy = new(Targeting, "AimAtClosestEnemy", "Aim at closest enemy", false)
+    {
+        QuickLabel = "Aim at closest enemy", Help = "Uses the cursor when nothing is in range.",
+    };
+    public static readonly Number AimRange = new(Targeting, "AimRange", "Aim range", 20f, 2f, 60f)
+    {
+        Unit = " m", VisibleWhen = () => AimAtClosestEnemy.Value,
+    };
+
+    public static readonly Section Gate = Group.Section("gate", "Enemy gate");
+    public static readonly Toggle RequireEnemies = new(Gate, "RequireEnemies", "Only cast with enemies in range", false)
+    {
+        QuickLabel = "Enemy gate",
+    };
+    public static readonly Number EnemyRange = new(Gate, "EnemyRange", "Range", 15f, 2f, 60f)
+    {
+        Unit = " m", VisibleWhen = () => RequireEnemies.Value,
+    };
+    public static readonly Number EnemyMinWeight = new(Gate, "EnemyMinWeight", "Minimum weight", 1f, 1f, 50f)
+    {
+        VisibleWhen = () => RequireEnemies.Value, Help = "Total weight of enemies in range needed to cast.",
+    };
+    public static readonly Toggle ShowRangeRing = new(Gate, "ShowRangeRing", "Show range ring", false)
+    {
+        QuickLabel = "Show range ring", VisibleWhen = () => RequireEnemies.Value,
+    };
+    public static readonly Number WeightNormal = Weight("WeightNormal", "Normal", 1f);
+    public static readonly Number WeightMagic = Weight("WeightMagic", "Magic", 2f);
+    public static readonly Number WeightRare = Weight("WeightRare", "Rare", 5f);
+    public static readonly Number WeightBoss = Weight("WeightBoss", "Boss", 20f);
+
+    /// <summary>The sections shown as tabs on the Auto-Cast page.</summary>
+    public static readonly Section[] Tabs = { Controls, Pausing, Targeting, Gate };
+
+    public static void Register() => Group.Register();
+
+    private static Number Weight(string id, string label, float defaultValue) => new(Gate, id, label, defaultValue, 0f, 50f)
+    {
+        Fold = "Enemy weights", VisibleWhen = () => RequireEnemies.Value,
+    };
 }

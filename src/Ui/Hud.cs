@@ -13,12 +13,27 @@ internal static class Hud
     private const float PillHeight = 32f;
     private const float PipSize = 18f;
     private const float PanelWidth = 260f;
-    private const float PanelHeight = 196f;
+    private const float PanelChrome = 84f;
+    private const float RowHeight = 28f;
 
     private static bool s_panelOpen;
     // Screen-space areas from the last repaint, for blocking game clicks under the cursor.
     private static Rect s_pillScreen;
     private static Rect s_panelScreen;
+
+    /// <summary>Pill and open panel together, in screen pixels; empty when hidden.</summary>
+    public static Rect ScreenRect
+    {
+        get
+        {
+            if (s_pillScreen.width <= 0f) return Rect.zero;
+            if (s_panelScreen.width <= 0f) return s_pillScreen;
+            return Rect.MinMaxRect(Mathf.Min(s_pillScreen.xMin, s_panelScreen.xMin), Mathf.Min(s_pillScreen.yMin, s_panelScreen.yMin),
+                Mathf.Max(s_pillScreen.xMax, s_panelScreen.xMax), Mathf.Max(s_pillScreen.yMax, s_panelScreen.yMax));
+        }
+    }
+
+    public static void SetPanel(bool open) => s_panelOpen = open;
 
     private static bool Shown => Config.HudEnabled.Value && !Menu.Visible && Player.Exists;
 
@@ -75,7 +90,8 @@ internal static class Hud
         float pillWidth = 8f + 8f + 8f + labelWidth + 8f + AutoCast.Slots * PipSize + (AutoCast.Slots - 1) * 3f + 10f;
         var pill = new Rect(right ? screenW - Margin - pillWidth : Margin, bottom ? screenH - Margin - PillHeight : Margin, pillWidth, PillHeight);
 
-        var panel = new Rect(right ? pill.xMax - PanelWidth : pill.x, bottom ? pill.y - 8f - PanelHeight : pill.yMax + 8f, PanelWidth, PanelHeight);
+        float panelHeight = PanelChrome + SettingsRegistry.QuickToggles.Count() * RowHeight;
+        var panel = new Rect(right ? pill.xMax - PanelWidth : pill.x, bottom ? pill.y - 8f - panelHeight : pill.yMax + 8f, PanelWidth, panelHeight);
 
         Event e = Event.current;
         if (s_panelOpen && e.type == EventType.MouseDown && !panel.Contains(e.mousePosition) && !pill.Contains(e.mousePosition))
@@ -131,10 +147,7 @@ internal static class Hud
     {
         GUILayout.BeginArea(panel, Theme.Panel);
         GUILayout.Label("QUICK TOGGLES", Theme.CardTitle);
-        Switch(S.Enabled, "Auto-cast");
-        Switch(S.RequireEnemies, "Enemy gate");
-        Switch(S.AimAtClosestEnemy, "Aim at closest enemy");
-        Switch(S.ShowRangeRing, "Show range ring");
+        foreach (var toggle in SettingsRegistry.QuickToggles) toggle.Value = Switch(toggle.QuickLabel!, toggle.Value);
         GUILayout.Space(6f);
         if (GUILayout.Button($"Open full menu  ·  {Config.MenuKey.Value}", Theme.SmallButton))
         {

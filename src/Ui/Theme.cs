@@ -28,12 +28,19 @@ internal static class Theme
 
     private static GUISkin? s_skin;
     private static bool s_failed;
+    // Fonts made with Font.CreateDynamicFontFromOSFont garble IMGUI text in this game, so weight comes from
+    // FontStyle on Unity's built-in font. The skin is rebuilt when the setting changes.
+    private static int s_builtWeight = -1;
+    private static int s_builtFont = -1;
+    // Config.Font options: game font asset names; null keeps Unity's built-in font. The game owns these, never destroy them.
+    private static readonly string?[] s_gameFonts = { null, "PretendardVariable", "NotoSansJP-Regular" };
+    private static FontStyle s_body = FontStyle.Normal;
     private static readonly List<Texture2D> s_textures = new();
 
     public static GUIStyle Sidebar = null!, NavTitle = null!, NavVersion = null!, NavItem = null!, Main = null!;
     public static GUIStyle PageTitle = null!, Badge = null!, Close = null!;
     public static GUIStyle Card = null!, CardTitle = null!, RowLabel = null!, Hint = null!, Value = null!;
-    public static GUIStyle SubTab = null!, Segment = null!, SmallButton = null!, KeyChip = null!;
+    public static GUIStyle SearchField = null!, SubTab = null!, Segment = null!, SmallButton = null!, KeyChip = null!;
     public static GUIStyle Track = null!, TrackFill = null!, SliderBody = null!, Thumb = null!;
     public static GUIStyle ChipNumber = null!, ChipName = null!;
     public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!;
@@ -50,6 +57,7 @@ internal static class Theme
         get
         {
             if (s_failed) return null;
+            if (s_skin != null && (s_builtWeight != Config.FontWeight.Value || s_builtFont != Config.Font.Value)) Release();
             if (s_skin != null) return s_skin;
             try
             {
@@ -69,12 +77,17 @@ internal static class Theme
     {
         var skin = UnityEngine.Object.Instantiate((UnityEngine.Object)GUI.skin).Cast<GUISkin>();
         skin.hideFlags = HideFlags.HideAndDontSave;
+        s_builtWeight = Config.FontWeight.Value;
+        s_builtFont = Config.Font.Value;
+        Font? gameFont = FindGameFont(s_builtFont);
+        if (gameFont != null) skin.font = gameFont;
+        s_body = s_builtWeight == 1 ? FontStyle.Bold : FontStyle.Normal;
 
         skin.window = new GUIStyle(skin.window) { border = Offset(14), padding = Offset(0), overflow = Offset(0), contentOffset = Vector2.zero };
         WindowBg = Rounded(14, 14, s_windowFill, s_edge, 1f);
         Background(skin.window, null);
 
-        skin.label = new GUIStyle(skin.label) { fontSize = 13, wordWrap = false, richText = true, padding = new RectOffset(0, 0, 2, 2) };
+        skin.label = new GUIStyle(skin.label) { fontSize = 13, fontStyle = s_body, wordWrap = false, richText = true, padding = new RectOffset(0, 0, 2, 2) };
         TextColor(skin.label, Text);
         skin.button = MakeButton(skin.button, s_control, s_controlHover, s_controlActive, Accent);
         skin.box = new GUIStyle(skin.box) { border = Offset(10), padding = Offset(10) };
@@ -128,10 +141,24 @@ internal static class Theme
         Card = new GUIStyle(skin.box) { margin = new RectOffset(0, 0, 0, 10), padding = new RectOffset(14, 14, 10, 12) };
         CardTitle = new GUIStyle(skin.label) { fontSize = 11, fontStyle = FontStyle.Bold, padding = new RectOffset(0, 0, 0, 4) };
         TextColor(CardTitle, Dim);
-        RowLabel = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleLeft };
-        Hint = new GUIStyle(skin.label) { fontSize = 12, wordWrap = true };
+        // No left margin, so layout labels line up with the switch rows, which draw their label at the row's edge.
+        RowLabel = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleLeft, margin = new RectOffset(0, 4, 0, 0) };
+        Hint = new GUIStyle(skin.label) { fontSize = 12, fontStyle = FontStyle.Normal, wordWrap = true, margin = new RectOffset(0, 0, 2, 4) };
         TextColor(Hint, Dim);
-        Value = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleRight };
+        Value = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleRight, margin = new RectOffset(4, 0, 0, 0) };
+
+        skin.textField = new GUIStyle(skin.textField)
+        {
+            border = Offset(8), padding = new RectOffset(9, 9, 5, 5), margin = new RectOffset(0, 6, 0, 0),
+            fontSize = 13, fontStyle = FontStyle.Normal, fixedHeight = 26f, alignment = TextAnchor.MiddleLeft, wordWrap = false,
+        };
+        Background(skin.textField, Rounded(8, 8, Hex(0x0F1115), Hex(0x2F3644), 1f));
+        skin.textField.focused.background = Rounded(8, 8, Hex(0x0F1115), Accent, 1f);
+        skin.textField.onFocused.background = skin.textField.focused.background;
+        TextColor(skin.textField, Text);
+        skin.settings.cursorColor = Text;
+        skin.settings.selectionColor = Hex(0x4C8DFF, 0.45f);
+        SearchField = skin.textField;
 
         SubTab = MakeButton(skin.button, Color.clear, s_controlHover, s_controlActive, s_control);
         SubTab.fontSize = 12;
@@ -147,6 +174,7 @@ internal static class Theme
         SmallButton.fontSize = 12;
         SmallButton.fixedHeight = 24f;
         SmallButton.padding = new RectOffset(10, 10, 2, 3);
+        SmallButton.margin = new RectOffset(0, 4, 2, 2);
         KeyChip = new GUIStyle(skin.label)
         {
             alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = Offset(8),
@@ -197,9 +225,23 @@ internal static class Theme
         s_skin = skin;
     }
 
+    private static Font? FindGameFont(int choice)
+    {
+        string? name = choice >= 0 && choice < s_gameFonts.Length ? s_gameFonts[choice] : null;
+        if (name == null) return null;
+        foreach (var obj in Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Font>()))
+        {
+            if (obj.name == name) return obj.Cast<Font>();
+        }
+        Log.Warn($"Game font '{name}' not loaded, using the default");
+        return null;
+    }
+
     /// <summary>Destroys the skin and every texture made for it; the next use builds them again.</summary>
     public static void Release()
     {
+        s_builtWeight = -1;
+        s_builtFont = -1;
         foreach (var texture in s_textures)
         {
             if (texture != null) UnityEngine.Object.Destroy(texture);
@@ -246,7 +288,7 @@ internal static class Theme
         var style = new GUIStyle(from)
         {
             border = Offset(8), padding = new RectOffset(10, 10, 4, 5), overflow = Offset(0),
-            fontSize = 13, alignment = TextAnchor.MiddleCenter, fixedHeight = 26f,
+            fontSize = 13, fontStyle = s_body, alignment = TextAnchor.MiddleCenter, fixedHeight = 26f,
         };
         style.normal.background = Rounded(8, 8, normal, normal, 0f);
         style.hover.background = Rounded(8, 8, hover, hover, 0f);

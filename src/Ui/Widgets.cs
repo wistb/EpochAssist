@@ -1,5 +1,4 @@
 using EpochAssist.Core;
-using MelonLoader;
 using UnityEngine;
 
 namespace EpochAssist.Ui;
@@ -12,17 +11,11 @@ internal static class Widgets
     /// <summary>Set by the caller at the start of each OnGUI pass.</summary>
     public static bool Themed;
 
-    // The key entry being rebound, or null.
-    public static MelonPreferences_Entry<KeyCode>? Capturing;
+    // The key setting being rebound, or null.
+    public static Key? Capturing;
     private static KeyCode[]? s_bindableKeys;
 
     public static GUIStyle Style(Func<GUIStyle> themed, GUIStyle fallback) => Themed ? themed() : fallback;
-
-    public static void Switch(MelonPreferences_Entry<bool> entry, string label)
-    {
-        bool value = Switch(label, entry.Value);
-        if (value != entry.Value) entry.Value = value;
-    }
 
     // A full-width row with the label on the left and a switch on the right; the whole row is clickable.
     public static bool Switch(string label, bool value)
@@ -57,19 +50,6 @@ internal static class Widgets
         return next;
     }
 
-    // Whole-number slider with a filled track.
-    public static void Slider(MelonPreferences_Entry<float> entry, string label, float min, float max, string unit = "")
-    {
-        float value = Mathf.Round(SliderRow(label, entry.Value, min, max, $"{entry.Value:F0}{unit}", (float)entry.DefaultValue));
-        if (value != entry.Value) entry.Value = value;
-    }
-
-    public static void PercentSlider(MelonPreferences_Entry<float> entry, string label, float min, float max)
-    {
-        float value = Mathf.Round(SliderRow(label, entry.Value, min, max, $"{entry.Value * 100f:F0}%", (float)entry.DefaultValue) * 100f) / 100f;
-        if (value != entry.Value) entry.Value = value;
-    }
-
     // Double-clicking the slider returns resetTo, when given.
     public static float SliderRow(string label, float value, float min, float max, string valueText, float? resetTo = null)
     {
@@ -102,13 +82,13 @@ internal static class Widgets
         return value;
     }
 
-    public static void KeyRow(string label, MelonPreferences_Entry<KeyCode> entry, bool clearable)
+    public static void KeyRow(Key key)
     {
         GUIStyle button = Style(() => Theme.SmallButton, GUI.skin.button);
         GUIStyle rowLabel = Style(() => Theme.RowLabel, GUI.skin.label);
         GUILayout.BeginHorizontal(GUILayout.Height(30f));
-        GUILayout.Label(label, rowLabel, GUILayout.Width(LabelWidth), GUILayout.Height(30f));
-        if (Capturing == entry)
+        GUILayout.Label(key.Label, rowLabel, GUILayout.Width(LabelWidth), GUILayout.Height(30f));
+        if (Capturing == key)
         {
             GUILayout.Label(Colored("Press a key...", Theme.AccentText), rowLabel, GUILayout.Height(30f));
             GUILayout.FlexibleSpace();
@@ -116,21 +96,27 @@ internal static class Widgets
         }
         else
         {
-            GUILayout.Label(entry.Value == KeyCode.None ? "Not set" : entry.Value.ToString(), Style(() => Theme.KeyChip, GUI.skin.box));
+            GUILayout.Label(key.Value == KeyCode.None ? "Not set" : key.Value.ToString(), Style(() => Theme.KeyChip, GUI.skin.box));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Change", button)) Capturing = entry;
-            if (clearable && entry.Value != KeyCode.None && GUILayout.Button("Clear", button))
-                entry.Value = KeyCode.None;
-            else if (!clearable && entry.Value != (KeyCode)entry.DefaultValue && GUILayout.Button("Reset", button))
-                entry.Value = (KeyCode)entry.DefaultValue;
+            if (GUILayout.Button("Change", button)) Capturing = key;
+            if (key.Clearable && key.Value != KeyCode.None && GUILayout.Button("Clear", button))
+                key.Value = KeyCode.None;
+            else if (!key.Clearable && !key.IsDefault && GUILayout.Button("Reset", button))
+                key.Reset();
         }
         GUILayout.EndHorizontal();
     }
 
-    public static void BeginCard(string title)
+    /// <summary>Starts a card; returns true when its Reset button was pressed (shown only when canReset).</summary>
+    public static bool BeginCard(string title, bool canReset = false)
     {
         GUILayout.BeginVertical(Style(() => Theme.Card, GUI.skin.box));
+        GUILayout.BeginHorizontal();
         GUILayout.Label(title, Style(() => Theme.CardTitle, GUI.skin.label));
+        GUILayout.FlexibleSpace();
+        bool reset = canReset && GUILayout.Button("Reset", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false));
+        GUILayout.EndHorizontal();
+        return reset;
     }
 
     public static void EndCard() => GUILayout.EndVertical();
