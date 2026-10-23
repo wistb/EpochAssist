@@ -29,12 +29,15 @@ public class Entry : MelonMod
     public override void OnUpdate()
     {
         Run("Menu", Menu.OnUpdate);
+        Run("Hud", Hud.OnUpdate);
+        Run("InputGate", InputGate.Apply);
         Run("AutoCast", AutoCast.OnUpdate);
     }
 
     public override void OnGUI()
     {
         Run("AutoCast.OnGUI", AutoCast.OnGUI);
+        Run("Hud.OnGUI", Hud.OnGUI);
         Run("Menu.OnGUI", Menu.OnGUI);
     }
 

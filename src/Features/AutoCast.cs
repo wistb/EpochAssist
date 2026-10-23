@@ -105,37 +105,73 @@ internal static class AutoCast
         }
     }
 
-    /// <summary>One-line state for the menu, so a silent pause is visible.</summary>
-    public static string StatusText => BuildStatus(includeMomentary: true);
+    public enum State { Off, Waiting, Active, Holding, Paused }
+
+    public const int Slots = SlotCount;
+
+    public static State CurrentState => Describe(includeMomentary: true, out _);
+
+    /// <summary>Why auto-cast is in its current state, for the menu.</summary>
+    public static string StateDetail
+    {
+        get
+        {
+            Describe(includeMomentary: true, out string detail);
+            return detail;
+        }
+    }
+
+    public static bool IsSlotToggled(int slot)
+    {
+        s_togglesByForm.TryGetValue(s_formKey, out var toggles);
+        return toggles != null && toggles[slot];
+    }
+
+    public static string? SlotAbilityName(int slot) => s_slots[slot].Ability?.abilityName;
 
     // The enemy gate and the hold-to-pause key flip constantly in combat, so they are left out of the logged status.
-    private static string BuildStatus(bool includeMomentary)
+    private static State Describe(bool includeMomentary, out string detail)
     {
-        if (!s_active) return "off";
-        if (s_blockedReason.Length > 0) return "waiting: " + s_blockedReason;
-
-        s_togglesByForm.TryGetValue(s_formKey, out var toggles);
-        var slots = new System.Text.StringBuilder();
-        for (int i = 0; i < SlotCount; i++)
+        detail = string.Empty;
+        if (!s_active) return State.Off;
+        if (s_blockedReason.Length > 0)
         {
-            if (i > 0) slots.Append("  ");
-            slots.Append(i + 1).Append(':').Append(toggles != null && toggles[i] ? "ON" : "off");
-            if (s_slots[i].Ability == null) slots.Append('?');
+            detail = s_blockedReason;
+            return State.Waiting;
         }
 
         if (!s_suspended)
         {
             if (includeMomentary && s_holdToPauseHeld)
             {
-                return "holding (" + S.HoldToPauseKey.Value + " held)   " + slots;
+                detail = S.HoldToPauseKey.Value + " held";
+                return State.Holding;
             }
-            return includeMomentary && S.RequireEnemies.Value && !s_enemyGateOpen
-                ? "holding (not enough enemies in range)   " + slots
-                : "active   " + slots;
+            if (includeMomentary && S.RequireEnemies.Value && !s_enemyGateOpen)
+            {
+                detail = "not enough enemies in range";
+                return State.Holding;
+            }
+            return State.Active;
         }
-        return S.PauseInNonCombatZones.Value && InNonCombatZone()
-            ? "paused (non-combat zone)   " + slots
-            : "paused (press any skill to resume)   " + slots;
+        detail = S.PauseInNonCombatZones.Value && InNonCombatZone() ? "non-combat zone" : "press any skill to resume";
+        return State.Paused;
+    }
+
+    private static string BuildStatus(bool includeMomentary)
+    {
+        State state = Describe(includeMomentary, out string detail);
+        var text = new System.Text.StringBuilder(state.ToString().ToLowerInvariant());
+        if (detail.Length > 0) text.Append(" (").Append(detail).Append(')');
+        if (state == State.Off || state == State.Waiting) return text.ToString();
+
+        text.Append("  ");
+        for (int i = 0; i < SlotCount; i++)
+        {
+            text.Append("  ").Append(i + 1).Append(':').Append(IsSlotToggled(i) ? "ON" : "off");
+            if (s_slots[i].Ability == null) text.Append('?');
+        }
+        return text.ToString();
     }
 
     public static void OnUpdate()
