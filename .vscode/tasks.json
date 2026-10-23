@@ -1,0 +1,35 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Epoch Assist: build",
+            "type": "shell",
+            "command": "${workspaceFolder}/build.sh",
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Epoch Assist: build and deploy to game",
+            "type": "shell",
+            "command": "${workspaceFolder}/build.sh",
+            "args": [
+                "deploy"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": "build"
+        },
+        {
+            "label": "Epoch Assist: release zip",
+            "type": "shell",
+            "command": "${workspaceFolder}/build.sh",
+            "args": [
+                "release"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": "build"
+        }
+    ]
+}

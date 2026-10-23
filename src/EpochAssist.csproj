@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>EpochAssist</AssemblyName>
+    <RootNamespace>EpochAssist</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <ML>$(LE_ML)</ML>
+    <Il2Cpp>$(ML)\Il2CppAssemblies</Il2Cpp>
+    <!-- Read from BuildInfo.Version in Core/Entry.cs. -->
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Core\Entry.cs')), 'string Version = "([^"]+)"').Groups[1].Value)</Version>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <Reference Private="false" />
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader" HintPath="$(ML)\net6\MelonLoader.dll" />
+    <Reference Include="0Harmony" HintPath="$(ML)\net6\0Harmony.dll" />
+    <Reference Include="Il2CppInterop.Runtime" HintPath="$(ML)\net6\Il2CppInterop.Runtime.dll" />
+    <Reference Include="Il2CppInterop.Common" HintPath="$(ML)\net6\Il2CppInterop.Common.dll" />
+    <Reference Include="Il2Cppmscorlib" HintPath="$(Il2Cpp)\Il2Cppmscorlib.dll" />
+    <Reference Include="Il2CppSystem" HintPath="$(Il2Cpp)\Il2CppSystem.dll" />
+    <Reference Include="Il2CppLE" HintPath="$(Il2Cpp)\Il2CppLE.dll" />
+    <Reference Include="Il2CppRewired_Core" HintPath="$(Il2Cpp)\Il2CppRewired_Core.dll" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(Il2Cpp)\UnityEngine.CoreModule.dll" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Il2Cpp)\UnityEngine.IMGUIModule.dll" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Il2Cpp)\UnityEngine.InputLegacyModule.dll" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(Il2Cpp)\UnityEngine.TextRenderingModule.dll" />
+  </ItemGroup>
+
+  <!-- Release builds write dist/EpochAssist-v<version>.zip. -->
+  <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <StagingDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)package\</StagingDir>
+      <DistDir>$(MSBuildProjectDirectory)\..\dist\</DistDir>
+      <ReleaseZip>$(DistDir)$(AssemblyName)-v$(Version).zip</ReleaseZip>
+    </PropertyGroup>
+    <Error Condition="'$(Version)' == ''" Text="Could not read BuildInfo.Version from Core/Entry.cs." />
+    <RemoveDir Directories="$(StagingDir)" />
+    <MakeDir Directories="$(StagingDir)Mods;$(DistDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(StagingDir)Mods" />
+    <ZipDirectory SourceDirectory="$(StagingDir)" DestinationFile="$(ReleaseZip)" Overwrite="true" />
+    <Message Importance="high" Text="Release package: $(ReleaseZip)" />
+  </Target>
+
+</Project>

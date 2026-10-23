@@ -1,0 +1,18 @@
+// No "$" in commands: Zed blanks shell variables.
+[
+  {
+    "label": "Epoch Assist: build",
+    "command": "if [ -x ./build.sh ]; then ./build.sh; else ./*/build.sh; fi",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Epoch Assist: build and deploy to game",
+    "command": "if [ -x ./build.sh ]; then ./build.sh deploy; else ./*/build.sh deploy; fi",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Epoch Assist: release zip",
+    "command": "if [ -x ./build.sh ]; then ./build.sh release; else ./*/build.sh release; fi",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]
