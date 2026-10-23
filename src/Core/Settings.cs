@@ -49,7 +49,9 @@ internal abstract class Setting<T> : Setting
         get => _entry != null ? _entry.Value : Default;
         set
         {
-            if (_entry != null && !EqualityComparer<T>.Default.Equals(_entry.Value, value)) _entry.Value = value;
+            if (_entry == null || EqualityComparer<T>.Default.Equals(_entry.Value, value)) return;
+            _entry.Value = value;
+            Config.MarkDirty();
         }
     }
 

@@ -38,8 +38,6 @@ internal static class AutoCast
     private const string HostileAlignmentName = "Evil";
     private const string HostileNeutralAlignmentName = "HostileNeutral";
 
-    public static readonly KeyCode[] ModifierKeys = { KeyCode.LeftControl, KeyCode.LeftAlt, KeyCode.LeftShift };
-    public static readonly string[] ModifierKeyNames = { "Left Ctrl", "Left Alt", "Left Shift" };
 
     // The game's input action for each bar slot, and the key or mouse button currently bound to it.
     private static readonly int[] s_slotActionIds =
@@ -94,14 +92,7 @@ internal static class AutoCast
     private static LocalTreeData? s_treeData;
     private static Il2CppRewired.Player? s_rewiredPlayer;
 
-    public static string ModifierKeyName
-    {
-        get
-        {
-            int index = Array.IndexOf(ModifierKeys, S.ModifierKey.Value);
-            return index >= 0 ? ModifierKeyNames[index] : S.ModifierKey.Value.ToString();
-        }
-    }
+    public static string ModifierKeyName => S.ModifierKey.ValueLabel;
 
     public enum State { Off, Waiting, Active, Holding, Paused }
 
@@ -476,15 +467,7 @@ internal static class AutoCast
 
     private static UseAbilityProcessor? TryGetProcessor()
     {
-        try
-        {
-            EpochInputManager? input = Game.Input;
-            return input == null ? null : input.useAbilityProcessor;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+        return Game.AbilityProcessor;
     }
 
     private static void ClearRefs()
@@ -728,7 +711,7 @@ internal static class AutoCast
             if (!focused || i >= manualHoldIndex) continue;
 
             bool channelling = slot.Channelled && s_abilityState != null && s_abilityState.channelling;
-            bool ready = !channelling && !IsOnCooldown(slot.Ability) && Time.time >= slot.NextPressAt;
+            bool ready = !channelling && !IsOnCooldown(slot.Ability) && Time.unscaledTime >= slot.NextPressAt;
             if (ready)
             {
                 // Only one new press per frame; lower slots win.
@@ -737,7 +720,7 @@ internal static class AutoCast
                 SendBarCommand(processor, i, keyDown: true, targetPosition, hitTransform);
                 pressedThisFrame = true;
                 slot.Held = true;
-                slot.NextPressAt = Time.time + PressThrottleSeconds;
+                slot.NextPressAt = Time.unscaledTime + PressThrottleSeconds;
             }
             else
             {

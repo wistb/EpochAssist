@@ -46,7 +46,25 @@ internal static class Config
 
     public static void Init() => Group.Register();
 
-    public static void Save() => MelonPreferences.Save();
+    private const float SaveDelaySeconds = 1f;
+    private static float s_dirtySince = -1f;
+
+    public static void Save()
+    {
+        s_dirtySince = -1f;
+        MelonPreferences.Save();
+    }
+
+    /// <summary>A setting changed; it is written shortly after, so changes made with the menu closed persist too.</summary>
+    public static void MarkDirty()
+    {
+        if (s_dirtySince < 0f) s_dirtySince = UnityEngine.Time.unscaledTime;
+    }
+
+    public static void SaveIfDirty()
+    {
+        if (s_dirtySince >= 0f && UnityEngine.Time.unscaledTime - s_dirtySince >= SaveDelaySeconds) Save();
+    }
 
     // Get-or-create, so registering again (a restart or a reload) reuses what is already there.
     public static MelonPreferences_Category Category(string id, string displayName) =>

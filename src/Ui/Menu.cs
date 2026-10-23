@@ -146,13 +146,17 @@ internal static class Menu
     {
         foreach (var feature in FeatureHost.All)
         {
-            if (feature.State is not (FeatureState.Faulted or FeatureState.Unavailable)) continue;
+            bool degraded = feature.Degraded;
+            if (feature.State is not (FeatureState.Faulted or FeatureState.Unavailable) && !degraded) continue;
             bool unavailable = feature.State == FeatureState.Unavailable;
+            string detail = degraded
+                ? string.Join("; ", feature.MissingGroups.Select(g => $"without {g} (game update)").Concat(feature.PatchFailures.Select(f => "patch failed: " + f)))
+                : feature.LastError ?? string.Empty;
             GUILayout.BeginHorizontal(Style(() => Theme.Card, GUI.skin.box));
-            string title = Colored(feature.Name + (unavailable ? " unavailable" : " stopped"), Theme.Pause);
-            GUILayout.Label($"{title}  {feature.LastError}", Style(() => Theme.Hint, GUI.skin.label));
+            string title = Colored(feature.Name + (degraded ? " partly working" : unavailable ? " unavailable" : " stopped"), Theme.Pause);
+            GUILayout.Label($"{title}  {detail}", Style(() => Theme.Hint, GUI.skin.label));
             // A restart can't bring back what the game no longer has; an update of the mod can.
-            if (!unavailable && GUILayout.Button("Restart", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
+            if (!unavailable && !degraded && GUILayout.Button("Restart", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
                 FeatureHost.Restart(feature);
             GUILayout.EndHorizontal();
         }
@@ -162,8 +166,9 @@ internal static class Menu
     {
         GUILayout.BeginVertical(Style(() => Theme.Sidebar, GUI.skin.box), GUILayout.Width(Theme.SidebarWidth), GUILayout.ExpandHeight(true));
         GUILayout.Label(BuildInfo.Name, Style(() => Theme.NavTitle, GUI.skin.label));
-        string version = "v" + BuildInfo.Version + (Runtime.Hosted ? $"  ·  dev {Runtime.LoadedAt:HH:mm:ss}" : string.Empty);
-        GUILayout.Label(version, Style(() => Theme.NavVersion, GUI.skin.label));
+        GUILayout.Label($"v{BuildInfo.Version}  ·  {Runtime.BuildId}", Style(() => Theme.NavVersion, GUI.skin.label));
+        if (Runtime.Hosted) GUILayout.Label($"dev · loaded {Runtime.LoadedAt:HH:mm:ss}", Style(() => Theme.NavVersion, GUI.skin.label));
+        GUILayout.Space(10f);
 
         for (int i = 0; i < s_pageNames.Length; i++)
         {
@@ -178,7 +183,8 @@ internal static class Menu
             Rect item = GUILayoutUtility.GetLastRect();
             if (Themed && page != Page.Settings && Event.current.type == EventType.Repaint)
             {
-                Color dot = page == Page.AutoCast ? Theme.StateColor(AutoCast.CurrentState) : Theme.Off;
+                bool castRunning = FeatureHost.Get<AutoCastFeature>()?.State == FeatureState.Running;
+                Color dot = page == Page.AutoCast && castRunning ? Theme.StateColor(AutoCast.CurrentState) : Theme.Off;
                 if (selected && page == Page.AutoCast && AutoCast.CurrentState == AutoCast.State.Off) dot = Color.white;
                 DrawDot(new Rect(item.x + 10f, item.center.y - 4f, 8f, 8f), dot);
             }

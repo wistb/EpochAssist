@@ -89,13 +89,10 @@ internal static class GameState
         RaiseZone(new ZoneChange(Scene, Kind, Monolith: false));
     }
 
+    // Subscribers and the scene are kept: features unsubscribe in their own Shutdown, and a restart of this feature must
+    // neither cut them off nor report the zone the player is still in as a new one.
     public static void Reset()
     {
-        ZoneChanged = null;
-        PlayerSpawned = null;
-        PlayerDied = null;
-        Scene = string.Empty;
-        Kind = SceneKind.None;
         s_hadPlayer = s_wasAlive = false;
     }
 

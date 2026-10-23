@@ -143,14 +143,33 @@ internal static class DevBridge
                 Report(Find(p.Length > 1 ? p[1] : string.Empty));
                 break;
             case "state":
-                Report($"ok state: scene '{GameState.Scene}' {GameState.Kind}, in game {GameState.InGame}, online {GameState.Online?.ToString() ?? "?"}, "
-                    + $"alive {GameState.PlayerAlive} (health {(Player.Health is Il2Cpp.PlayerHealth h ? $"{h.currentHealth:F0}/{h.maxHealth:F0}" : "none")}), typing {GameState.Typing}; features "
+                Report($"ok state: build {Runtime.BuildId}, scene '{GameState.Scene}' {GameState.Kind}, in game {GameState.InGame}, online {GameState.Online?.ToString() ?? "?"}, "
+                    + $"alive {GameState.PlayerAlive} (health {(Player.Health is Il2Cpp.PlayerHealth h ? $"{h.currentHealth:F0}/{h.maxHealth:F0}" : "none")}), typing {GameState.Typing}; "
+                    + MovementState() + "; features "
                     + string.Join(", ", FeatureHost.All.Select(f => $"{f.Id}={f.State}" + (f.LastError != null ? $" ({f.LastError})" : string.Empty))));
                 break;
             case "compat":
                 var report = FeatureHost.All.Select(f => (f.Id, Missing: Compat.Missing(f))).ToList();
                 report.Add(("selftest", Compat.Missing(new CompatProbeFeature())));
-                Report("ok compat: " + string.Join("; ", report.Select(r => $"{r.Id}: {(r.Missing.Count == 0 ? "ok" : string.Join(", ", r.Missing))}")));
+                Report("ok compat: " + string.Join("; ", report.Select(r => $"{r.Id}: {(r.Missing.Count == 0 ? "ok" : string.Join(", ", r.Missing.Select(m => m.Group == null ? m.Text : $"{m.Text} [optional {m.Group}]")))}")));
+                break;
+            case "move":
+                // move <x> <y> [held]: feeds the game a keyboard movement direction, as a held key would.
+                var mpm = Game.Input?.movementProcessor;
+                if (!Game.Alive(mpm) || p.Length < 3
+                    || !float.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float mx)
+                    || !float.TryParse(p[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float my))
+                {
+                    Report($"error {command}: usage move <x> <y> [true|false]");
+                    break;
+                }
+                mpm!.ProcessKeyboardMovement(new Vector2(mx, my), Arg(3) != "false");
+                Report($"ok {command}");
+                break;
+            case "stopmove":
+                var mps = Game.Input?.movementProcessor;
+                if (Game.Alive(mps)) mps!.StopActiveMovement();
+                Report(Game.Alive(mps) ? $"ok {command}" : $"error {command}: no movement processor");
                 break;
             case "fonts":
                 var fonts = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Font>());
@@ -169,6 +188,16 @@ internal static class DevBridge
         }
     }
 
+    private static string MovementState()
+    {
+        var input = Game.Input;
+        if (input == null) return "movement: no input manager";
+        var mp = input.movementProcessor;
+        string pos = Player.Transform is Transform t ? $"pos ({t.position.x:F2}, {t.position.z:F2}), " : string.Empty;
+        return $"movement: {pos}focused {Application.isFocused}, ours {InputGate.Blocking}, blocked {input.forceDisableInput}, mouseMoveBlocked {input.blockMouseMovementInput}, input {input.input}, lastInput {input.lastInput}, kbHeld {input.isKeyboardMovementButtonHeld}, "
+            + (Game.Alive(mp) ? $"moving {mp.IsMoving}, kbActive {mp.IsKeyboardMovementActive}" : "no movement processor");
+    }
+
     // probe <type> [filter]: the type's declared methods, fields and properties, from the game's interop assemblies.
     private static string Probe(string typeName, string? filter)
     {
@@ -185,7 +214,7 @@ internal static class DevBridge
             .Where(m => filter == null || m.Contains(filter, StringComparison.OrdinalIgnoreCase))
             .Distinct().OrderBy(m => m).ToList();
 
-        Directory.CreateDirectory(ShotDir);
+        Directory.CreateDirectory(Dir);
         File.WriteAllLines(Path.Combine(Dir, "probe.txt"), members.Prepend(type.FullName ?? typeName));
         return $"ok probe {type.FullName}: {members.Count} members in probe.txt";
     }
@@ -225,9 +254,9 @@ internal static class DevBridge
         {
             case Toggle t when bool.TryParse(value, out bool b): t.Value = b; return true;
             case Number n when float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f): n.Value = n.Snap(f); return true;
-            case Choice<int> c when int.TryParse(value, out int i): c.Value = i; return true;
+            case Choice<int> c when int.TryParse(value, out int i) && c.Options.Any(o => o.Value == i): c.Value = i; return true;
             case Key k when Enum.TryParse(value, true, out KeyCode key): k.Value = key; return true;
-            case Choice<KeyCode> c when Enum.TryParse(value, true, out KeyCode key): c.Value = key; return true;
+            case Choice<KeyCode> c when Enum.TryParse(value, true, out KeyCode key) && c.Options.Any(o => o.Value == key): c.Value = key; return true;
             default: return false;
         }
     }
@@ -363,11 +392,24 @@ internal sealed class CompatProbeFeature : Feature
 {
     public override string Id => "selftest";
     public override string Name => "Compat self-test";
-    public override Requirement[] Requirements => new[] { Need<Il2Cpp.CameraManager>("noSuchMember") };
-    public override Type[] PatchClasses => new[] { typeof(MissingTargetPatch) };
+    public override Requirement[] Requirements => new[]
+    {
+        Need<Il2Cpp.CameraManager>("noSuchMember"),
+        Need<Il2Cpp.CameraManager>(nameof(Il2Cpp.CameraManager.targetZoom), "interop field"),
+        Need<Il2Cpp.CameraManager>("noSuchField", "optional"),
+    };
+    public override Type[] PatchClasses => new[] { typeof(MissingTargetPatch), typeof(MissingOptionalPatch) };
+    public override IReadOnlyDictionary<Type, string> PatchGroups { get; } =
+        new Dictionary<Type, string> { [typeof(MissingOptionalPatch)] = "optional" };
 
     [HarmonyLib.HarmonyPatch(typeof(Il2Cpp.CameraManager), "NoSuchMethod")]
     private static class MissingTargetPatch
+    {
+        private static void Postfix() { }
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(Il2Cpp.CameraManager), "NoSuchOptionalMethod")]
+    private static class MissingOptionalPatch
     {
         private static void Postfix() { }
     }

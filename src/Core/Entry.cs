@@ -28,26 +28,41 @@ public static class Runtime
     /// <summary>When this copy of the mod started; under the dev loader it changes with every reload.</summary>
     public static DateTime LoadedAt { get; private set; }
 
+    /// <summary>Six hex characters stamped at compile time; every build has its own.</summary>
+    public static string BuildId { get; } =
+        typeof(Runtime).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .Cast<System.Reflection.AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "BuildId")?.Value ?? "unknown";
+
     public static void Init(bool hosted)
     {
         Hosted = hosted;
         LoadedAt = DateTime.Now;
         Config.Init();
-        FeatureHost.Register(new GameStateFeature(), new MenuFeature(), new HudFeature(), new AutoCastFeature());
+        FeatureHost.Register(new GameStateFeature(), new MenuFeature(), new HudFeature(), new InputGateFeature(), new AutoCastFeature());
         if (hosted) FeatureHost.Register(new DevBridgeFeature());
         FeatureHost.StartAll();
-        Log.Info($"{BuildInfo.Name} {BuildInfo.Version} loaded{(hosted ? " (dev)" : string.Empty)}");
+        Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");
     }
 
     public static void Update()
     {
         FeatureHost.UpdateAll();
-        InputGate.Apply();
+        Config.SaveIfDirty();
     }
 
     public static void OnGUI() => FeatureHost.GuiAll();
 
-    public static void SceneChanged() => FeatureHost.SceneChangedAll();
+    private static string s_lastScene = string.Empty;
+
+    // MelonLoader reports both loads and unloads; pass on only a change of the active scene, once.
+    public static void SceneChanged()
+    {
+        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
+        if (string.Equals(scene, s_lastScene, StringComparison.Ordinal)) return;
+        s_lastScene = scene;
+        FeatureHost.SceneChangedAll();
+    }
 
     public static void Save() => Config.Save();
 
@@ -57,6 +72,7 @@ public static class Runtime
         FeatureHost.StopAll();
         InputGate.Release();
         Theme.Release();
+        Draw.Release();
         Config.Save();
     }
 }

@@ -37,8 +37,21 @@ internal abstract class Feature
     public virtual void OnSceneChanged() { }
     public virtual void Shutdown() { }
 
-    protected static Requirement Need<T>(string member) => new(typeof(T), member);
-    protected static Requirement Need(Type type, string member) => new(type, member);
+    protected static Requirement Need<T>(string member, string? group = null) => new(typeof(T), member, group);
+    protected static Requirement Need(Type type, string member, string? group = null) => new(type, member, group);
+
+    /// <summary>Patch classes that belong to an optional requirement group; they are skipped when the group is missing.</summary>
+    public virtual IReadOnlyDictionary<Type, string> PatchGroups => s_noPatchGroups;
+    private static readonly IReadOnlyDictionary<Type, string> s_noPatchGroups = new Dictionary<Type, string>();
+
+    /// <summary>Optional requirement groups the game lacks; the feature runs without them.</summary>
+    public HashSet<string> MissingGroups { get; } = new();
+
+    /// <summary>False when an optional requirement group is missing from the game.</summary>
+    public bool Has(string group) => !MissingGroups.Contains(group);
+
+    /// <summary>Running, but with patch failures or missing optional groups.</summary>
+    public bool Degraded => State == FeatureState.Running && (PatchFailures.Count > 0 || MissingGroups.Count > 0);
 
     /// <summary>The [HarmonyPatch] classes nested in a type.</summary>
     protected static Type[] NestedPatches(Type owner) =>

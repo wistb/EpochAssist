@@ -40,12 +40,19 @@ internal static class FeatureHost
                 feature.SettingsRegistered = true;
             }
             var missing = Compat.Missing(feature);
-            if (missing.Count > 0)
+            var required = missing.Where(m => m.Group == null).Select(m => m.Text).ToList();
+            if (required.Count > 0)
             {
                 feature.State = FeatureState.Unavailable;
-                feature.LastError = "the game no longer has " + string.Join(", ", missing.Take(3)) + (missing.Count > 3 ? $" and {missing.Count - 3} more" : string.Empty);
-                Log.Warn($"{feature.Name} unavailable: {string.Join(", ", missing)}");
+                feature.LastError = "the game no longer has " + string.Join(", ", required.Take(3)) + (required.Count > 3 ? $" and {required.Count - 3} more" : string.Empty);
+                Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
                 return;
+            }
+            feature.MissingGroups.Clear();
+            foreach (var group in missing.GroupBy(m => m.Group!))
+            {
+                feature.MissingGroups.Add(group.Key);
+                Log.Warn($"{feature.Name} runs without '{group.Key}': the game no longer has {string.Join(", ", group.Select(m => m.Text))}");
             }
             Patch(feature);
             feature.Start();
@@ -155,6 +162,7 @@ internal static class FeatureHost
         feature.HarmonyInstance ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
         foreach (var type in classes)
         {
+            if (feature.PatchGroups.TryGetValue(type, out string? group) && !feature.Has(group)) continue;
             try
             {
                 feature.HarmonyInstance.CreateClassProcessor(type).Patch();

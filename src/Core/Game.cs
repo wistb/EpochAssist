@@ -10,7 +10,6 @@ namespace EpochAssist.Core;
 internal static class Game
 {
     public static EpochInputManager? Input => Get(() => EpochInputManager.instance);
-    public static CameraManager? Camera => Get(() => CameraManager.instance);
     public static ActorManager? Actors => Get(() => ActorManager.instance);
     public static UseAbilityProcessor? AbilityProcessor => Get(() => Input?.useAbilityProcessor);
     public static LocalTreeData? LocalTree => Get(() => PlayerFinder.getLocalTreeData());

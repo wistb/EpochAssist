@@ -12,6 +12,12 @@ internal static class Draw
 
     public static void End() => s_camera = null;
 
+    public static void Release()
+    {
+        if (s_white != null) UnityEngine.Object.Destroy(s_white);
+        s_white = null;
+    }
+
     public static void WorldLine(Vector3 a, Vector3 b, Color color, float width)
     {
         var camera = s_camera ?? Camera.main;

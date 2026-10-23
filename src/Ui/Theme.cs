@@ -110,7 +110,7 @@ internal static class Theme
         Sidebar = new GUIStyle { border = new RectOffset(14, 2, 14, 14), padding = new RectOffset(10, 10, 14, 12) };
         SidebarBg = Rounded(14, 0, s_sidebar, s_sidebar, 0f);
         NavTitle = new GUIStyle(skin.label) { fontSize = 15, fontStyle = FontStyle.Bold, padding = new RectOffset(6, 0, 0, 0) };
-        NavVersion = new GUIStyle(skin.label) { fontSize = 11, padding = new RectOffset(6, 0, 0, 10) };
+        NavVersion = new GUIStyle(skin.label) { fontSize = 11, padding = new RectOffset(6, 0, 0, 0) };
         TextColor(NavVersion, Dim);
         NavItem = MakeButton(skin.button, Color.clear, Hex(0x1C2029), Hex(0x232935), Accent);
         NavItem.alignment = TextAnchor.MiddleLeft;

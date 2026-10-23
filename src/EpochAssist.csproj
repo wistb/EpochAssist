@@ -11,9 +11,18 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <ML>$(LE_ML)</ML>
     <Il2Cpp>$(ML)\Il2CppAssemblies</Il2Cpp>
+    <!-- A fresh id per compile, shown in the menu and the log so a report names the exact build. -->
+    <BuildId>$([System.Guid]::NewGuid().ToString("N").Substring(0, 6))</BuildId>
     <!-- Read from BuildInfo.Version in Core/Entry.cs. -->
     <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Core\Entry.cs')), 'string Version = "([^"]+)"').Groups[1].Value)</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildId</_Parameter1>
+      <_Parameter2>$(BuildId)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <ItemDefinitionGroup>
     <Reference Private="false" />

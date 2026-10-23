@@ -35,19 +35,17 @@ internal static class Hud
 
     public static void SetPanel(bool open) => s_panelOpen = open;
 
-    private static bool Shown => Config.HudEnabled.Value && !Menu.Visible && Player.Exists;
+    /// <summary>Whether a screen point (top-left origin) is on the pill or the open panel; InputGate blocks clicks there.</summary>
+    public static bool HitTest(Vector2 screenPoint) =>
+        Shown && (s_pillScreen.Contains(screenPoint) || (s_panelOpen && s_panelScreen.Contains(screenPoint)));
+
+    // The pill is auto-cast's status, so it goes when auto-cast isn't running (unavailable or stopped by errors).
+    private static bool Shown => Config.HudEnabled.Value && !Menu.Visible && Player.Exists
+        && FeatureHost.Get<AutoCastFeature>()?.State == FeatureState.Running;
 
     public static void OnUpdate()
     {
-        if (!Shown)
-        {
-            s_panelOpen = false;
-            InputGate.Hud = false;
-            return;
-        }
-
-        var mouse = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
-        InputGate.Hud = s_pillScreen.Contains(mouse) || (s_panelOpen && s_panelScreen.Contains(mouse));
+        if (!Shown) s_panelOpen = false;
     }
 
     public static void OnGUI()

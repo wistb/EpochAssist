@@ -121,8 +121,10 @@ public class DevLoader : MelonMod
         }
         catch (Exception e)
         {
-            Clear();
             LoggerInstance.Error($"Build #{_generation} failed to load: {(e as TargetInvocationException)?.InnerException ?? e}");
+            // Init may have started and patched features before it threw; undo them before dropping the build.
+            Call(_shutdown, "shutdown after failed load");
+            Clear();
         }
     }
 
