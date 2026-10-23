@@ -28,6 +28,7 @@ internal static class Theme
 
     private static GUISkin? s_skin;
     private static bool s_failed;
+    private static readonly List<Texture2D> s_textures = new();
 
     public static GUIStyle Sidebar = null!, NavTitle = null!, NavVersion = null!, NavItem = null!, Main = null!;
     public static GUIStyle PageTitle = null!, Badge = null!, Close = null!;
@@ -196,6 +197,20 @@ internal static class Theme
         s_skin = skin;
     }
 
+    /// <summary>Destroys the skin and every texture made for it; the next use builds them again.</summary>
+    public static void Release()
+    {
+        foreach (var texture in s_textures)
+        {
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        }
+        s_textures.Clear();
+        if (s_skin != null) UnityEngine.Object.Destroy(s_skin);
+        s_skin = null;
+        s_failed = false;
+        s_sliced.Clear();
+    }
+
     private static readonly Dictionary<int, GUIStyle> s_sliced = new();
 
     /// <summary>Draws a rounded texture 9-sliced, so its corners keep their shape at any size.</summary>
@@ -355,6 +370,7 @@ internal static class Theme
             }
         }
         texture.Apply();
+        s_textures.Add(texture);
         return texture;
     }
 }

@@ -1,3 +1,4 @@
+using EpochAssist.Core;
 using MelonLoader;
 using UnityEngine;
 
@@ -21,23 +22,23 @@ internal static class AutoCastSettings
     public static MelonPreferences_Entry<float> WeightRare = null!;
     public static MelonPreferences_Entry<float> WeightBoss = null!;
 
-    public static void Init()
+    public static void Register()
     {
-        var c = MelonPreferences.CreateCategory("EpochAssist_AutoCast", "Epoch Assist - Auto-Cast");
-        Enabled = c.CreateEntry("Enabled", false);
-        ModifierKey = c.CreateEntry("ModifierKey", KeyCode.LeftControl);
-        HoldToPauseKey = c.CreateEntry("HoldToPauseKey", KeyCode.None);
-        PauseOnZoneChange = c.CreateEntry("PauseOnZoneChange", true);
-        PauseInNonCombatZones = c.CreateEntry("PauseInNonCombatZones", false);
-        AimAtClosestEnemy = c.CreateEntry("AimAtClosestEnemy", false);
-        AimRange = c.CreateEntry("AimRange", 20f);
-        RequireEnemies = c.CreateEntry("RequireEnemies", false);
-        EnemyRange = c.CreateEntry("EnemyRange", 15f);
-        ShowRangeRing = c.CreateEntry("ShowRangeRing", false);
-        EnemyMinWeight = c.CreateEntry("EnemyMinWeight", 1f);
-        WeightNormal = c.CreateEntry("WeightNormal", 1f);
-        WeightMagic = c.CreateEntry("WeightMagic", 2f);
-        WeightRare = c.CreateEntry("WeightRare", 5f);
-        WeightBoss = c.CreateEntry("WeightBoss", 20f);
+        var c = Config.Category("EpochAssist_AutoCast", "Epoch Assist - Auto-Cast");
+        Enabled = Config.Entry(c, "Enabled", false);
+        ModifierKey = Config.Entry(c, "ModifierKey", KeyCode.LeftControl);
+        HoldToPauseKey = Config.Entry(c, "HoldToPauseKey", KeyCode.None);
+        PauseOnZoneChange = Config.Entry(c, "PauseOnZoneChange", true);
+        PauseInNonCombatZones = Config.Entry(c, "PauseInNonCombatZones", false);
+        AimAtClosestEnemy = Config.Entry(c, "AimAtClosestEnemy", false);
+        AimRange = Config.Entry(c, "AimRange", 20f);
+        RequireEnemies = Config.Entry(c, "RequireEnemies", false);
+        EnemyRange = Config.Entry(c, "EnemyRange", 15f);
+        ShowRangeRing = Config.Entry(c, "ShowRangeRing", false);
+        EnemyMinWeight = Config.Entry(c, "EnemyMinWeight", 1f);
+        WeightNormal = Config.Entry(c, "WeightNormal", 1f);
+        WeightMagic = Config.Entry(c, "WeightMagic", 2f);
+        WeightRare = Config.Entry(c, "WeightRare", 5f);
+        WeightBoss = Config.Entry(c, "WeightBoss", 20f);
     }
 }

@@ -11,6 +11,14 @@ internal static class InputGate
     private static bool s_blocked;
     private static bool s_before;
 
+    /// <summary>Gives input back to the game, whatever was blocking it.</summary>
+    public static void Release()
+    {
+        Menu = false;
+        Hud = false;
+        Apply();
+    }
+
     public static void Apply()
     {
         bool block = Menu || Hud;

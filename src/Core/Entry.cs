@@ -1,10 +1,10 @@
 using EpochAssist.Features;
 using EpochAssist.Ui;
-using HarmonyLib;
 using MelonLoader;
 
 [assembly: MelonInfo(typeof(EpochAssist.Core.Entry), EpochAssist.Core.BuildInfo.Name, EpochAssist.Core.BuildInfo.Version, EpochAssist.Core.BuildInfo.Author)]
 [assembly: MelonGame("Eleventh Hour Games", "Last Epoch")]
+// Each feature applies its own patches through FeatureHost.
 [assembly: HarmonyDontPatchAll]
 
 namespace EpochAssist.Core;
@@ -21,25 +21,18 @@ public class Entry : MelonMod
     public override void OnInitializeMelon()
     {
         Config.Init();
-        AutoCastSettings.Init();
-        ApplyPatches(new HarmonyLib.Harmony("EpochAssist"));
+        FeatureHost.Register(new MenuFeature(), new HudFeature(), new AutoCastFeature());
+        FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} loaded");
     }
 
     public override void OnUpdate()
     {
-        Run("Menu", Menu.OnUpdate);
-        Run("Hud", Hud.OnUpdate);
-        Run("InputGate", InputGate.Apply);
-        Run("AutoCast", AutoCast.OnUpdate);
+        FeatureHost.UpdateAll();
+        InputGate.Apply();
     }
 
-    public override void OnGUI()
-    {
-        Run("AutoCast.OnGUI", AutoCast.OnGUI);
-        Run("Hud.OnGUI", Hud.OnGUI);
-        Run("Menu.OnGUI", Menu.OnGUI);
-    }
+    public override void OnGUI() => FeatureHost.GuiAll();
 
     public override void OnSceneWasLoaded(int buildIndex, string sceneName) => OnSceneChanged();
 
@@ -47,34 +40,20 @@ public class Entry : MelonMod
 
     public override void OnApplicationQuit() => Config.Save();
 
+    public override void OnDeinitializeMelon() => Shutdown();
+
+    /// <summary>Undoes everything the mod did: features stopped and unpatched, input given back, textures freed.</summary>
+    public static void Shutdown()
+    {
+        FeatureHost.StopAll();
+        InputGate.Release();
+        Theme.Release();
+        Config.Save();
+    }
+
     private static void OnSceneChanged()
     {
         Player.Reset();
-        Run("AutoCast.OnSceneChanged", AutoCast.OnSceneChanged);
-    }
-
-    // One class at a time, so a stale target can't stop the rest from binding.
-    private static void ApplyPatches(HarmonyLib.Harmony harmony)
-    {
-        int failed = 0;
-        foreach (Type type in AccessTools.GetTypesFromAssembly(typeof(Entry).Assembly))
-        {
-            try
-            {
-                harmony.CreateClassProcessor(type).Patch();
-            }
-            catch (Exception e)
-            {
-                failed++;
-                Log.Error($"Patch failed: {type.FullName}: {e.InnerException?.Message ?? e.Message}");
-            }
-        }
-        if (failed > 0) Log.Warn($"{failed} patch class(es) failed");
-    }
-
-    private static void Run(string feature, Action action)
-    {
-        try { action(); }
-        catch (Exception e) { Log.ErrorThrottled(feature, $"{feature}: {e}"); }
+        FeatureHost.SceneChangedAll();
     }
 }

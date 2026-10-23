@@ -66,7 +66,7 @@ internal static class Hud
     private static void Draw(float scale)
     {
         float screenW = Screen.width / scale, screenH = Screen.height / scale;
-        HudCorner corner = Config.HudPosition.Value;
+        HudCorner corner = Config.HudPosition;
         bool right = corner is HudCorner.TopRight or HudCorner.BottomRight;
         bool bottom = corner is HudCorner.BottomLeft or HudCorner.BottomRight;
 

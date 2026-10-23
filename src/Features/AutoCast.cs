@@ -443,6 +443,9 @@ internal static class AutoCast
         }
     }
 
+    /// <summary>Lets go of everything auto-cast holds: channels, toggles, tinted icons.</summary>
+    public static void Shutdown() => Deactivate();
+
     private static void Deactivate()
     {
         s_active = false;

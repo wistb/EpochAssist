@@ -31,6 +31,8 @@ internal static class Menu
 
     public static bool Visible { get; private set; }
 
+    public static void Close() => SetVisible(false);
+
     public static void Open(Page page)
     {
         s_page = page;
@@ -110,6 +112,7 @@ internal static class Menu
         GUILayout.BeginHorizontal();
         DrawSidebar();
         GUILayout.BeginVertical(Style(() => Theme.Main, GUIStyle.none));
+        FaultBanners();
         switch (s_page)
         {
             case Page.AutoCast: DrawAutoCast(); break;
@@ -121,6 +124,20 @@ internal static class Menu
 
         // Controls claim their clicks first; this only gets clicks on empty space near the top.
         GUI.DragWindow(new Rect(0f, 0f, s_rect.width, 48f));
+    }
+
+    // A feature stopped by repeated errors says so at the top of every page, with a way to try again.
+    private static void FaultBanners()
+    {
+        foreach (var feature in FeatureHost.All)
+        {
+            if (feature.State != FeatureState.Faulted) continue;
+            GUILayout.BeginHorizontal(Style(() => Theme.Card, GUI.skin.box));
+            GUILayout.Label($"{Colored(feature.Name + " stopped", Theme.Pause)}  {feature.LastError}", Style(() => Theme.Hint, GUI.skin.label));
+            if (GUILayout.Button("Restart", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
+                FeatureHost.Restart(feature);
+            GUILayout.EndHorizontal();
+        }
     }
 
     private static void DrawSidebar()
@@ -316,9 +333,9 @@ internal static class Menu
         GUILayout.BeginHorizontal();
         for (int i = 0; i < s_cornerNames.Length; i++)
         {
-            bool selected = (int)Config.HudPosition.Value == i;
+            bool selected = (int)Config.HudPosition == i;
             if (GUILayout.Toggle(selected, s_cornerNames[i], Style(() => Theme.Segment, GUI.skin.button)) && !selected)
-                Config.HudPosition.Value = (HudCorner)i;
+                Config.HudPosition = (HudCorner)i;
         }
         GUILayout.EndHorizontal();
         PercentSlider(Config.HudOpacity, "Opacity", 0.2f, 1f);
