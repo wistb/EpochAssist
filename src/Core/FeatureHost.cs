@@ -39,6 +39,14 @@ internal static class FeatureHost
                 feature.RegisterSettings();
                 feature.SettingsRegistered = true;
             }
+            var missing = Compat.Missing(feature);
+            if (missing.Count > 0)
+            {
+                feature.State = FeatureState.Unavailable;
+                feature.LastError = "the game no longer has " + string.Join(", ", missing.Take(3)) + (missing.Count > 3 ? $" and {missing.Count - 3} more" : string.Empty);
+                Log.Warn($"{feature.Name} unavailable: {string.Join(", ", missing)}");
+                return;
+            }
             Patch(feature);
             feature.Start();
             feature.State = FeatureState.Running;
@@ -51,7 +59,7 @@ internal static class FeatureHost
 
     public static void Stop(Feature feature)
     {
-        if (feature.State == FeatureState.Stopped) return;
+        if (feature.State is FeatureState.Stopped or FeatureState.Unavailable) return;
         bool wasRunning = feature.State == FeatureState.Running;
         feature.State = FeatureState.Stopped;
         if (wasRunning) ShutdownQuietly(feature);

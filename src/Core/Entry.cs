@@ -33,7 +33,7 @@ public static class Runtime
         Hosted = hosted;
         LoadedAt = DateTime.Now;
         Config.Init();
-        FeatureHost.Register(new MenuFeature(), new HudFeature(), new AutoCastFeature());
+        FeatureHost.Register(new GameStateFeature(), new MenuFeature(), new HudFeature(), new AutoCastFeature());
         if (hosted) FeatureHost.Register(new DevBridgeFeature());
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} loaded{(hosted ? " (dev)" : string.Empty)}");
@@ -47,11 +47,7 @@ public static class Runtime
 
     public static void OnGUI() => FeatureHost.GuiAll();
 
-    public static void SceneChanged()
-    {
-        Player.Reset();
-        FeatureHost.SceneChangedAll();
-    }
+    public static void SceneChanged() => FeatureHost.SceneChangedAll();
 
     public static void Save() => Config.Save();
 

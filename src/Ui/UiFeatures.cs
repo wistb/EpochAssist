@@ -8,6 +8,12 @@ internal sealed class MenuFeature : Feature
     public override string Name => "Menu";
     public override GuiLayer Layer => GuiLayer.Menu;
     public override Type[] PatchClasses => NestedPatches(typeof(InputGate.Patches));
+    public override Requirement[] Requirements => new[]
+    {
+        Need<Il2Cpp.EpochInputManager>(nameof(Il2Cpp.EpochInputManager.forceDisableInput)),
+        Need<Il2Cpp.CameraManager>(nameof(Il2Cpp.CameraManager.targetZoom)),
+        Need<Il2Cpp.CameraManager>(nameof(Il2Cpp.CameraManager.currentZoom)),
+    };
 
     public override void Update() => Menu.OnUpdate();
     public override void OnGUI() => Menu.OnGUI();

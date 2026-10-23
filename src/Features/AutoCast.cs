@@ -37,7 +37,6 @@ internal static class AutoCast
 
     private const string HostileAlignmentName = "Evil";
     private const string HostileNeutralAlignmentName = "HostileNeutral";
-    private static readonly string[] s_menuScenes = { "ClientSplash", "PersistentUI", "Login", "CharacterSelectScene" };
 
     public static readonly KeyCode[] ModifierKeys = { KeyCode.LeftControl, KeyCode.LeftAlt, KeyCode.LeftShift };
     public static readonly string[] ModifierKeyNames = { "Left Ctrl", "Left Alt", "Left Shift" };
@@ -75,7 +74,6 @@ internal static class AutoCast
     private static float s_nextStatusLogAt;
     private static string s_blockedReason = string.Empty;
     private static string s_lastLoggedStatus = string.Empty;
-    private static string s_sceneName = string.Empty;
 
     // Hostile actors near the player, refreshed a few times a second while the enemy gate is on.
     private static float s_nextEnemyScanAt;
@@ -199,7 +197,7 @@ internal static class AutoCast
             return;
         }
 
-        EpochInputManager? input = EpochInputManager.instance;
+        EpochInputManager? input = Game.Input;
         if (input == null)
         {
             s_blockedReason = "input manager not found";
@@ -300,15 +298,21 @@ internal static class AutoCast
         Log.Info($"AutoCast status: {status}");
     }
 
-    public static void OnSceneChanged()
+    public static void Start() => GameState.ZoneChanged += OnZoneChanged;
+
+    private static void OnZoneChanged(ZoneChange change)
     {
-        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
-        if (string.Equals(sceneName, s_sceneName, StringComparison.Ordinal)) return;
+        // An echo transition keeps the scene, so references stay valid; only the bar may change.
+        if (change.Monolith)
+        {
+            if (!S.Enabled.Value) return;
+            if (S.PauseOnZoneChange.Value) Suspend(TryGetProcessor());
+            s_nextSlotRefreshAt = 0f;
+            return;
+        }
 
-        s_sceneName = sceneName;
         ClearRefs();
-
-        if (Array.IndexOf(s_menuScenes, s_sceneName) >= 0)
+        if (change.Kind == SceneKind.Menu)
         {
             ClearToggles();
         }
@@ -444,7 +448,11 @@ internal static class AutoCast
     }
 
     /// <summary>Lets go of everything auto-cast holds: channels, toggles, tinted icons.</summary>
-    public static void Shutdown() => Deactivate();
+    public static void Shutdown()
+    {
+        GameState.ZoneChanged -= OnZoneChanged;
+        Deactivate();
+    }
 
     private static void Deactivate()
     {
@@ -470,7 +478,7 @@ internal static class AutoCast
     {
         try
         {
-            EpochInputManager? input = EpochInputManager.instance;
+            EpochInputManager? input = Game.Input;
             return input == null ? null : input.useAbilityProcessor;
         }
         catch (Exception)
@@ -522,7 +530,7 @@ internal static class AutoCast
 
             if (s_playerTransform == null) s_playerTransform = Player.Transform;
 
-            if (s_treeData == null) s_treeData = PlayerFinder.getLocalTreeData();
+            if (s_treeData == null) s_treeData = Game.LocalTree;
             if (s_treeData == null) return null;
 
             PlayerAbilityList? abilityList = s_treeData.playerAbilityList;
@@ -559,7 +567,7 @@ internal static class AutoCast
         // The bar icon knows exactly which ability its slot shows, online and offline.
         try
         {
-            var icons = AbilityBarIcon.all;
+            var icons = Game.BarIcons;
             if (icons != null)
             {
                 for (int i = 0; i < icons.Count; i++)
@@ -661,7 +669,7 @@ internal static class AutoCast
 
     private static void Suspend(UseAbilityProcessor? processor)
     {
-        if (!s_suspended) Log.Info($"AutoCast: paused (scene '{s_sceneName}')");
+        if (!s_suspended) Log.Info($"AutoCast: paused (scene '{GameState.Scene}')");
         s_suspended = true;
         ReleaseHeldChannels(processor);
         for (int i = 0; i < SlotCount; i++)
@@ -684,19 +692,7 @@ internal static class AutoCast
         Log.Info("AutoCast: resumed");
     }
 
-    private static bool InNonCombatZone()
-    {
-        if (string.IsNullOrEmpty(s_sceneName)) return false;
-
-        try
-        {
-            return SceneList.IsNonCombatZone(s_sceneName);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
+    private static bool InNonCombatZone() => GameState.Kind == SceneKind.NonCombat;
 
     private static bool IsModifierHeld()
     {
@@ -799,7 +795,7 @@ internal static class AutoCast
         float weight = 0f;
         ActorVisuals? closest = null;
 
-        ActorManager? manager = ActorManager.instance;
+        ActorManager? manager = Game.Actors;
         if (manager != null && s_playerTransform != null)
         {
             Vector3 playerPosition = s_playerTransform.position;
@@ -975,7 +971,7 @@ internal static class AutoCast
             return;
         }
 
-        var icons = AbilityBarIcon.all;
+        var icons = Game.BarIcons;
         if (icons == null) return;
 
         float pulse = (Mathf.Sin(Time.unscaledTime * 5f) + 1f) * 0.5f;
@@ -1010,7 +1006,7 @@ internal static class AutoCast
     {
         s_iconsTinted = false;
 
-        var icons = AbilityBarIcon.all;
+        var icons = Game.BarIcons;
         if (icons == null) return;
 
         for (int i = 0; i < icons.Count; i++)
@@ -1052,26 +1048,5 @@ internal static class AutoCast
         {
             return !s_fromAutoCast || __1 != PlayerVoiceEventManager.VoiceLineEvent.CannotUseSkill;
         }
-    }
-
-    // Monolith echo transitions don't always surface as a scene change.
-    [HarmonyPatch(typeof(MonolithZoneManager), nameof(MonolithZoneManager.initialise))]
-    private static class MonolithZoneInitialise_Patch
-    {
-        private static void Postfix() => OnMonolithZoneChanged();
-    }
-
-    [HarmonyPatch(typeof(MonolithRunsManager), nameof(MonolithRunsManager.onRestZoneEnteredAfterEchoCompleted))]
-    private static class MonolithRestZoneEntered_Patch
-    {
-        private static void Postfix() => OnMonolithZoneChanged();
-    }
-
-    private static void OnMonolithZoneChanged()
-    {
-        if (!S.Enabled.Value) return;
-
-        if (S.PauseOnZoneChange.Value) Suspend(TryGetProcessor());
-        s_nextSlotRefreshAt = 0f;
     }
 }

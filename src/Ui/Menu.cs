@@ -146,10 +146,13 @@ internal static class Menu
     {
         foreach (var feature in FeatureHost.All)
         {
-            if (feature.State != FeatureState.Faulted) continue;
+            if (feature.State is not (FeatureState.Faulted or FeatureState.Unavailable)) continue;
+            bool unavailable = feature.State == FeatureState.Unavailable;
             GUILayout.BeginHorizontal(Style(() => Theme.Card, GUI.skin.box));
-            GUILayout.Label($"{Colored(feature.Name + " stopped", Theme.Pause)}  {feature.LastError}", Style(() => Theme.Hint, GUI.skin.label));
-            if (GUILayout.Button("Restart", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
+            string title = Colored(feature.Name + (unavailable ? " unavailable" : " stopped"), Theme.Pause);
+            GUILayout.Label($"{title}  {feature.LastError}", Style(() => Theme.Hint, GUI.skin.label));
+            // A restart can't bring back what the game no longer has; an update of the mod can.
+            if (!unavailable && GUILayout.Button("Restart", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
                 FeatureHost.Restart(feature);
             GUILayout.EndHorizontal();
         }

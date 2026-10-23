@@ -2,7 +2,8 @@ using HarmonyLib;
 
 namespace EpochAssist.Core;
 
-internal enum FeatureState { Stopped, Running, Faulted }
+// Unavailable: the game lacks something the feature needs (usually after a game update); it is never started.
+internal enum FeatureState { Stopped, Running, Faulted, Unavailable }
 
 // Where a feature draws; the host draws layers in this order, so the menu ends up on top.
 internal enum GuiLayer { None, World, Hud, Menu }
@@ -20,6 +21,9 @@ internal abstract class Feature
     /// <summary>Harmony patch classes owned by this feature, applied on start and removed on stop.</summary>
     public virtual Type[] PatchClasses => Array.Empty<Type>();
 
+    /// <summary>Game members the feature relies on beyond its patch targets, checked before it starts.</summary>
+    public virtual Requirement[] Requirements => Array.Empty<Requirement>();
+
     public FeatureState State { get; internal set; }
     public string? LastError { get; internal set; }
     public List<string> PatchFailures { get; } = new();
@@ -32,6 +36,9 @@ internal abstract class Feature
     public virtual void OnGUI() { }
     public virtual void OnSceneChanged() { }
     public virtual void Shutdown() { }
+
+    protected static Requirement Need<T>(string member) => new(typeof(T), member);
+    protected static Requirement Need(Type type, string member) => new(type, member);
 
     /// <summary>The [HarmonyPatch] classes nested in a type.</summary>
     protected static Type[] NestedPatches(Type owner) =>

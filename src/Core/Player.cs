@@ -12,8 +12,12 @@ internal static class Player
     private static Actor? s_actor;
     private static GameObject? s_object;
     private static float s_nextLookupAt;
+    private static PlayerHealth? s_health;
 
     public static bool Exists => Object != null;
+
+    /// <summary>True online, false offline, null until the player is found (the two modes spawn differently named objects).</summary>
+    public static bool? Online { get; private set; }
 
     public static Actor? Actor
     {
@@ -35,11 +39,25 @@ internal static class Player
 
     public static Transform? Transform => Object?.transform;
 
+    /// <summary>The player's health component (Actor.health is not it online).</summary>
+    public static PlayerHealth? Health
+    {
+        get
+        {
+            GameObject? obj = Object;
+            if (obj == null) return null;
+            if (!Game.Alive(s_health)) s_health = obj.GetComponent<PlayerHealth>();
+            return Game.Alive(s_health) ? s_health : null;
+        }
+    }
+
     public static void Reset()
     {
         s_actor = null;
         s_object = null;
+        s_health = null;
         s_nextLookupAt = 0f;
+        Online = null;
     }
 
     private static void Refresh()
@@ -55,5 +73,10 @@ internal static class Player
             s_object = GameObject.Find(s_objectNames[i]);
         }
         if (s_actor == null && s_object != null) s_actor = s_object.GetComponent<Actor>();
+        if (s_object != null)
+        {
+            string name = s_object.name;
+            Online = name == "Local Player(Clone)" ? true : name == "MainPlayer(Clone)" ? false : null;
+        }
     }
 }

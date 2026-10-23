@@ -8,7 +8,7 @@ namespace EpochAssist.Ui;
 /// Dev builds only: runs commands written to UserData/EpochAssist/dev/commands.txt (one per line, one per frame)
 /// and reports to result.txt, ending with "done". tools/shot.sh drives it.
 ///   menu open autocast|potion|settings [tab]   menu close   menu search [text]
-///   hud panel open|close   set [setting id] [value]   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]
+///   hud panel open|close   set [setting id] [value]   state   compat   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
@@ -141,6 +141,16 @@ internal static class DevBridge
                 break;
             case "find":
                 Report(Find(p.Length > 1 ? p[1] : string.Empty));
+                break;
+            case "state":
+                Report($"ok state: scene '{GameState.Scene}' {GameState.Kind}, in game {GameState.InGame}, online {GameState.Online?.ToString() ?? "?"}, "
+                    + $"alive {GameState.PlayerAlive} (health {(Player.Health is Il2Cpp.PlayerHealth h ? $"{h.currentHealth:F0}/{h.maxHealth:F0}" : "none")}), typing {GameState.Typing}; features "
+                    + string.Join(", ", FeatureHost.All.Select(f => $"{f.Id}={f.State}" + (f.LastError != null ? $" ({f.LastError})" : string.Empty))));
+                break;
+            case "compat":
+                var report = FeatureHost.All.Select(f => (f.Id, Missing: Compat.Missing(f))).ToList();
+                report.Add(("selftest", Compat.Missing(new CompatProbeFeature())));
+                Report("ok compat: " + string.Join("; ", report.Select(r => $"{r.Id}: {(r.Missing.Count == 0 ? "ok" : string.Join(", ", r.Missing))}")));
                 break;
             case "fonts":
                 var fonts = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Font>());
@@ -346,4 +356,19 @@ internal sealed class DevBridgeFeature : Feature
 
     public override void Update() => DevBridge.Update();
     public override void Shutdown() => DevBridge.Reset();
+}
+
+// Requires things the game doesn't have, so `compat` shows that missing members and patch targets are caught.
+internal sealed class CompatProbeFeature : Feature
+{
+    public override string Id => "selftest";
+    public override string Name => "Compat self-test";
+    public override Requirement[] Requirements => new[] { Need<Il2Cpp.CameraManager>("noSuchMember") };
+    public override Type[] PatchClasses => new[] { typeof(MissingTargetPatch) };
+
+    [HarmonyLib.HarmonyPatch(typeof(Il2Cpp.CameraManager), "NoSuchMethod")]
+    private static class MissingTargetPatch
+    {
+        private static void Postfix() { }
+    }
 }
