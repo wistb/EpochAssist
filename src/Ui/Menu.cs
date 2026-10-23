@@ -144,7 +144,8 @@ internal static class Menu
     {
         GUILayout.BeginVertical(Style(() => Theme.Sidebar, GUI.skin.box), GUILayout.Width(Theme.SidebarWidth), GUILayout.ExpandHeight(true));
         GUILayout.Label(BuildInfo.Name, Style(() => Theme.NavTitle, GUI.skin.label));
-        GUILayout.Label("v" + BuildInfo.Version, Style(() => Theme.NavVersion, GUI.skin.label));
+        string version = "v" + BuildInfo.Version + (Runtime.Hosted ? $"  ·  dev {Runtime.LoadedAt:HH:mm:ss}" : string.Empty);
+        GUILayout.Label(version, Style(() => Theme.NavVersion, GUI.skin.label));
 
         for (int i = 0; i < s_pageNames.Length; i++)
         {

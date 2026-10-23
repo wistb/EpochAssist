@@ -16,31 +16,43 @@ public static class BuildInfo
     public const string Version = "0.1.0";
 }
 
-public class Entry : MelonMod
+/// <summary>
+/// The mod's whole lifetime. MelonLoader drives it through <see cref="Entry"/> in a release;
+/// in development the dev loader finds this class by name and drives it instead, so keep these signatures.
+/// </summary>
+public static class Runtime
 {
-    public override void OnInitializeMelon()
+    /// <summary>True when running under the dev loader.</summary>
+    public static bool Hosted { get; private set; }
+
+    /// <summary>When this copy of the mod started; under the dev loader it changes with every reload.</summary>
+    public static DateTime LoadedAt { get; private set; }
+
+    public static void Init(bool hosted)
     {
+        Hosted = hosted;
+        LoadedAt = DateTime.Now;
         Config.Init();
         FeatureHost.Register(new MenuFeature(), new HudFeature(), new AutoCastFeature());
         FeatureHost.StartAll();
-        Log.Info($"{BuildInfo.Name} {BuildInfo.Version} loaded");
+        Log.Info($"{BuildInfo.Name} {BuildInfo.Version} loaded{(hosted ? " (dev)" : string.Empty)}");
     }
 
-    public override void OnUpdate()
+    public static void Update()
     {
         FeatureHost.UpdateAll();
         InputGate.Apply();
     }
 
-    public override void OnGUI() => FeatureHost.GuiAll();
+    public static void OnGUI() => FeatureHost.GuiAll();
 
-    public override void OnSceneWasLoaded(int buildIndex, string sceneName) => OnSceneChanged();
+    public static void SceneChanged()
+    {
+        Player.Reset();
+        FeatureHost.SceneChangedAll();
+    }
 
-    public override void OnSceneWasUnloaded(int buildIndex, string sceneName) => OnSceneChanged();
-
-    public override void OnApplicationQuit() => Config.Save();
-
-    public override void OnDeinitializeMelon() => Shutdown();
+    public static void Save() => Config.Save();
 
     /// <summary>Undoes everything the mod did: features stopped and unpatched, input given back, textures freed.</summary>
     public static void Shutdown()
@@ -50,10 +62,15 @@ public class Entry : MelonMod
         Theme.Release();
         Config.Save();
     }
+}
 
-    private static void OnSceneChanged()
-    {
-        Player.Reset();
-        FeatureHost.SceneChangedAll();
-    }
+public class Entry : MelonMod
+{
+    public override void OnInitializeMelon() => Runtime.Init(hosted: false);
+    public override void OnUpdate() => Runtime.Update();
+    public override void OnGUI() => Runtime.OnGUI();
+    public override void OnSceneWasLoaded(int buildIndex, string sceneName) => Runtime.SceneChanged();
+    public override void OnSceneWasUnloaded(int buildIndex, string sceneName) => Runtime.SceneChanged();
+    public override void OnApplicationQuit() => Runtime.Save();
+    public override void OnDeinitializeMelon() => Runtime.Shutdown();
 }

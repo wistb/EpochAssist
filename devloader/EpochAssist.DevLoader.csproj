@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Development only: loads EpochAssist.dll from the dev folder and reloads it in place. Never shipped. -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>EpochAssist.DevLoader</AssemblyName>
+    <RootNamespace>EpochAssist.DevLoader</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ML>$(LE_ML)</ML>
+    <Il2Cpp>$(ML)\Il2CppAssemblies</Il2Cpp>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <Reference Private="false" />
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <Compile Include="..\src\Core\NullableAttributes.cs" Link="NullableAttributes.cs" />
+    <Reference Include="MelonLoader" HintPath="$(ML)\net6\MelonLoader.dll" />
+    <Reference Include="Il2CppInterop.Runtime" HintPath="$(ML)\net6\Il2CppInterop.Runtime.dll" />
+    <Reference Include="Il2Cppmscorlib" HintPath="$(Il2Cpp)\Il2Cppmscorlib.dll" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(Il2Cpp)\UnityEngine.CoreModule.dll" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Il2Cpp)\UnityEngine.InputLegacyModule.dll" />
+  </ItemGroup>
+
+</Project>
