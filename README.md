@@ -8,7 +8,7 @@ Using mods online is against Last Epoch's terms of service. Use at your own risk
 
 1. Install [MelonLoader](https://github.com/LavaGang/MelonLoader) 0.7.x into the game folder and start the game once.
 2. Copy `EpochAssist.dll` into the game's `Mods` folder.
-3. Press F9 in game to open the menu.
+3. Press F2 in game to open the menu.
 
 ## Build
 

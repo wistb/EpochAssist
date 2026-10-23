@@ -32,6 +32,8 @@
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Il2Cpp)\UnityEngine.IMGUIModule.dll" />
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Il2Cpp)\UnityEngine.InputLegacyModule.dll" />
     <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(Il2Cpp)\UnityEngine.TextRenderingModule.dll" />
+    <Reference Include="UnityEngine.UI" HintPath="$(Il2Cpp)\UnityEngine.UI.dll" />
+    <Reference Include="UnityEngine.UIModule" HintPath="$(Il2Cpp)\UnityEngine.UIModule.dll" />
   </ItemGroup>
 
   <!-- Release builds write dist/EpochAssist-v<version>.zip. -->
