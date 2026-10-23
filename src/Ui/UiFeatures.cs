@@ -7,6 +7,7 @@ internal sealed class MenuFeature : Feature
     public override string Id => "menu";
     public override string Name => "Menu";
     public override GuiLayer Layer => GuiLayer.Menu;
+    public override Type[] PatchClasses => NestedPatches(typeof(InputGate.Patches));
 
     public override void Update() => Menu.OnUpdate();
     public override void OnGUI() => Menu.OnGUI();
