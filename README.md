@@ -1,24 +1,67 @@
 # Epoch Assist
 
-A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod for Last Epoch.
+A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoch.
 
 > Using mods online is against Last Epoch's terms of service. Use at your own risk.
 
 ## Install
 
 1. Install MelonLoader 0.7.x into the game folder and start the game once.
-2. Copy `EpochAssist.dll` into the game's `Mods` folder.
+2. Extract the [release](https://github.com/wistb/EpochAssist/releases) zip into your Last Epoch folder (where
+   `Last Epoch.exe` is).
 3. In game, press **F2** to open the menu.
 
-## Autocast
+## Features
 
-- Hold **Left Ctrl** and press a skill's key to turn autocast on or off for that slot.
-- Optional: only cast with enemies nearby, aim at the closest enemy, and a hold-to-pause key.
-- Autocast pauses when you change zones or enter the game. Use any skill yourself to resume.
+- **Autocast**: **Left Ctrl** + a skill's key turns autocast on or off for that slot. Optional: enemy gate, aim at the
+  closest enemy, hold-to-pause key.
+  <details><summary>Screenshot</summary>
+
+  ![The Autocast page](nexus/media/autocast.png)
+
+  </details>
+
+## Settings
+
+Open Settings with the gear in the menu's sidebar.
+
+- **Mini HUD**: shows autocast's state and slots while the menu is closed. Click it for quick toggles.
+  <details><summary>Screenshots</summary>
+
+  ![The mini HUD with its quick toggles](nexus/media/hud.png)
+
+  ![Settings: Mini HUD](nexus/media/settings-hud.png)
+
+  </details>
+- **Appearance**: themes (Slate, Ember, Epoch, Glass), fonts and animations.
+  <details><summary>Screenshot</summary>
+
+  ![Settings: Appearance](nexus/media/appearance.png)
+
+  </details>
+- **Keybinds**: change any key.
+  <details><summary>Screenshot</summary>
+
+  ![Settings: Keybinds](nexus/media/keybinds.png)
+
+  </details>
+- **Diagnostics**: **Copy diagnostics** puts the mod's state on the clipboard for a bug report, without names or folder
+  paths. Nothing is sent anywhere.
+  <details><summary>Screenshot</summary>
+
+  ![Settings: Diagnostics](nexus/media/diagnostics.png)
+
+  </details>
+- **Profiles**: one setup per character. Export and import to share.
+  <details><summary>Screenshot</summary>
+
+  ![Settings: Profiles](nexus/media/profiles.png)
+
+  </details>
+
+The mod saves everything in `UserData/EpochAssist/` in the game folder.
 
 ## Menu controls
-
-You can use the mouse, or the keyboard:
 
 | Key | Does |
 |---|---|
@@ -28,17 +71,10 @@ You can use the mouse, or the keyboard:
 | PageUp / PageDown | switch page |
 | Esc | close the menu |
 
-## Settings
+## Bug reports
 
-Open **Settings** with the gear in the sidebar.
-
-- **Profiles**: save different setups and pick one per character. Export and import them to share.
-- **Appearance**: themes (Slate, Ember, Epoch, Glass), fonts and animations.
-- **Keybinds**: change any key.
-- **Diagnostics**: if something breaks, click **Copy diagnostics** and paste it into your bug report. It leaves out
-  your user name, character names and folder paths. Nothing is ever sent anywhere.
-
-Everything the mod saves is in `UserData/EpochAssist/` in the game folder.
+Settings → Diagnostics → **Copy diagnostics**, then paste it into an [issue](https://github.com/wistb/EpochAssist/issues).
+Crash reports are in `UserData/EpochAssist/reports/`.
 
 ## Building from source
 
@@ -50,6 +86,9 @@ NUGET_SOURCE='https://api.nuget.org/v3/index.json'
 ```
 
 Then run `./build.sh` (debug build), `./build.sh deploy` (build and copy to `Mods/`) or `./build.sh release` (zip in `dist/`).
+
+`./build.sh deploy-release` installs the release build in `Mods/`, `./build.sh status` shows which build is installed,
+and `./build.sh dev` switches back.
 
 ## License
 
