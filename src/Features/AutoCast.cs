@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using EpochAssist.Core;
 using Il2Cpp;
 using UnityEngine;
@@ -35,6 +36,7 @@ internal static class AutoCast
     private const string HostileNeutralAlignmentName = "HostileNeutral";
 
     private static readonly bool[] s_noToggles = new bool[SlotCount];
+    private const string SlotsKey = "autocast.slots";
 
     /// <summary>
     /// Everything one run of the feature changes. Made in Start and dropped in Shutdown once its effects on the game
@@ -51,6 +53,12 @@ internal static class AutoCast
         public bool Active;
         // Set by a zone change; cleared by a skill press of the player's own or by switching a slot on.
         public bool ZonePaused;
+        // Set whenever a character enters the game, whatever the zone-change setting; cleared the same way.
+        public bool EntryPaused;
+        // A menu zone was seen, so the next game zone is an entry.
+        public bool AwaitingEntry;
+        // The profile generation whose slot toggles are loaded.
+        public int ProfileGeneration = -1;
         public bool IconsTinted;
         public int FormKey = HumanFormKey;
         public float NextSlotRefreshAt;
@@ -117,6 +125,7 @@ internal static class AutoCast
     {
         var run = s_run;
         if (run == null) return;
+        if (Profiles.Generation != run.ProfileGeneration) LoadToggles(run);
         if (!S.Enabled.Value)
         {
             if (run.Active) Deactivate(run);
@@ -149,10 +158,10 @@ internal static class AutoCast
             RefreshSlots(run, abilityList);
         }
 
-        // After a zone change, wait for the player to press any skill themselves before resuming.
-        if (run.ZonePaused && Dispatcher.PlainPressThisFrame)
+        // After a zone change or entering the game, wait for the player to press any skill themselves before resuming.
+        if ((run.ZonePaused || run.EntryPaused) && Dispatcher.PlainPressThisFrame)
         {
-            run.ZonePaused = false;
+            run.ZonePaused = run.EntryPaused = false;
             Log.Info("Autocast: resumed");
         }
 
@@ -194,7 +203,7 @@ internal static class AutoCast
         if (status == run.LastLoggedStatus) return;
 
         run.LastLoggedStatus = status;
-        Log.Info($"Autocast status: {status}");
+        Log.Debug($"Autocast status: {status}");
     }
 
     /// <summary>Starts a clean run and registers with the dispatcher, with autocast's own pause rules in rank order.</summary>
@@ -207,6 +216,8 @@ internal static class AutoCast
                 () => S.PauseInNonCombatZones.Value && InNonCombatZone()),
             new PauseRule("zone-pause", "press any skill to resume", RuleKind.Latched,
                 () => S.PauseOnZoneChange.Value && run.ZonePaused),
+            // Restoring a character's slots never starts casting by itself.
+            new PauseRule("entry-pause", "press any skill to resume", RuleKind.Latched, () => run.EntryPaused),
             new PauseRule("hold-key", () => S.HoldToPauseKey.Display + " held", RuleKind.Momentary, () => Hotkeys.Held(S.HoldToPauseKey)),
             new PauseRule("enemy-gate", "not enough enemies in range", RuleKind.Momentary,
                 () => S.RequireEnemies.Value && !run.EnemyGateOpen),
@@ -228,6 +239,8 @@ internal static class AutoCast
         }
         // Holding the modifier and pressing a slot's key runs autocast.slot.N.
         Hotkeys.SetSlotChords(() => S.ModifierKey.Value, "autocast.slot.");
+        // Starting in game (a restart or a dev reload) is an entry too.
+        if (GameState.InGame) PauseForEntry(run);
     }
 
     // Slots toggle only while autocast is on; switching it off forgets them.
@@ -253,12 +266,55 @@ internal static class AutoCast
         ClearRefs(run);
         if (change.Kind == SceneKind.Menu)
         {
-            ClearToggles(run);
+            // A loaded profile keeps the character's toggles; it unloads right after and hands back none.
+            if (!Profiles.HasCharacter) ClearToggles(run);
+            run.AwaitingEntry = true;
+            return;
         }
-        else if (run.Active && S.PauseOnZoneChange.Value)
+        if (run.AwaitingEntry)
         {
-            PauseForZone(run);
+            run.AwaitingEntry = false;
+            PauseForEntry(run);
         }
+        if (run.Active && S.PauseOnZoneChange.Value) PauseForZone(run);
+    }
+
+    private static void PauseForEntry(Run run)
+    {
+        if (!run.EntryPaused) Log.Info($"Autocast: paused on entering the game (scene '{GameState.Scene}')");
+        run.EntryPaused = true;
+        if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
+    }
+
+    // The character's slot toggles from its profile (none without one), replacing the current ones.
+    private static void LoadToggles(Run run)
+    {
+        run.ProfileGeneration = Profiles.Generation;
+        if (run.Client != null) Dispatcher.Release(run.Client);
+        run.TogglesByForm.Clear();
+        if (Profiles.Read(SlotsKey) is not JsonObject forms) return;
+        foreach (var (form, node) in forms)
+        {
+            if (!int.TryParse(form, out int key) || node is not JsonArray slots || slots.Count != SlotCount) continue;
+            var toggles = new bool[SlotCount];
+            for (int i = 0; i < SlotCount; i++) toggles[i] = slots[i] is JsonValue v && v.TryGetValue(out bool on) && on;
+            run.TogglesByForm[key] = toggles;
+        }
+        if (run.EntryPaused && CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
+    }
+
+    // Kept in the character's profile while one is loaded.
+    private static void SaveToggles(Run run)
+    {
+        if (!Profiles.HasCharacter) return;
+        var forms = new JsonObject();
+        foreach (var (form, toggles) in run.TogglesByForm)
+        {
+            var slots = new JsonArray();
+            foreach (bool on in toggles) slots.Add(on);
+            forms[form.ToString()] = slots;
+        }
+        Profiles.Write(SlotsKey, forms);
     }
 
     // The dispatcher lets go of held slots as soon as the zone-pause rule is active. With no slot on there is nothing to
@@ -324,6 +380,7 @@ internal static class AutoCast
         run.Active = false;
         run.LastLoggedStatus = string.Empty;
         ClearToggles(run);
+        SaveToggles(run);
         ClearRefs(run);
         try
         {
@@ -473,12 +530,13 @@ internal static class AutoCast
 
         toggles[slot] = !toggles[slot];
 
-        // Switching a slot on is explicit intent: lift a zone-change pause (the non-combat pause stays).
-        if (toggles[slot] && run.ZonePaused)
+        // Switching a slot on is explicit intent: lift a zone-change or entry pause (the non-combat pause stays).
+        if (toggles[slot] && (run.ZonePaused || run.EntryPaused))
         {
-            run.ZonePaused = false;
+            run.ZonePaused = run.EntryPaused = false;
             Log.Info("Autocast: resumed");
         }
+        SaveToggles(run);
 
         bool paused = run.Client != null && Dispatcher.StatusOf(run.Client, RuleKind.Momentary).State == StatusState.Paused;
         Log.Info($"Autocast: slot {slot + 1} ({run.Slots[slot].Ability?.abilityName ?? "?"}) {(toggles[slot] ? "ON" : "off")}{(paused ? " (paused)" : string.Empty)}");
@@ -487,7 +545,7 @@ internal static class AutoCast
     private static void ClearToggles(Run run)
     {
         run.TogglesByForm.Clear();
-        run.ZonePaused = false;
+        run.ZonePaused = run.EntryPaused = false;
         run.FormKey = HumanFormKey;
     }
 
