@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using UnityEngine;
 
 namespace EpochAssist.Core;
@@ -44,13 +45,16 @@ internal static class FeatureHost
     {
         for (int i = s_features.Count - 1; i >= 0; i--) Stop(s_features[i]);
         Actions.Clear();
+        Commands.Clear();
     }
 
     public static void Start(Feature feature)
     {
         if (feature.State == FeatureState.Running) return;
         feature.LastError = null;
+        feature.LastErrorAt = null;
         feature.RecentErrors.Clear();
+        feature.Frames.Reset();
         try
         {
             if (!feature.SettingsRegistered)
@@ -75,6 +79,7 @@ internal static class FeatureHost
                 Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
                 Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
                 Actions.RemoveOwner(feature.Id);
+                Commands.RemoveOwner(feature.Id);
                 return;
             }
             feature.MissingGroups.Clear();
@@ -104,6 +109,7 @@ internal static class FeatureHost
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
+        Commands.RemoveOwner(feature.Id);
     }
 
     public static void Restart(Feature feature)
@@ -115,6 +121,7 @@ internal static class FeatureHost
 
     public static void UpdateAll()
     {
+        CloseFrame();
         foreach (var feature in s_features)
         {
             if (feature.State == FeatureState.Running) Guard(feature, "update", feature.Update);
@@ -157,7 +164,42 @@ internal static class FeatureHost
         }
     }
 
+    private static int s_closedFrame = -1;
+
+    // The last frame's time per feature goes into its buckets, once, before this frame's first call.
+    private static void CloseFrame()
+    {
+        int frame = Time.frameCount;
+        if (frame == s_closedFrame) return;
+        s_closedFrame = frame;
+        int second = (int)Time.unscaledTime;
+        long total = 0;
+        foreach (var feature in s_features)
+        {
+            total += feature.Frames.Current;
+            feature.Frames.Close(second);
+        }
+        Diagnostics.ModFrames.Current = total;
+        Diagnostics.ModFrames.Close(second);
+        Diagnostics.TimedCallsLastFrame = Diagnostics.TimedCalls;
+        Diagnostics.TimedCalls = 0;
+    }
+
+    // Each call is timed for the Diagnostics page unless the timers are off (dev, to measure their own cost).
     private static void Guard(Feature feature, string phase, Action action)
+    {
+        if (Diagnostics.TimersOff)
+        {
+            Run(feature, phase, action);
+            return;
+        }
+        long start = Stopwatch.GetTimestamp();
+        Run(feature, phase, action);
+        feature.Frames.Current += Stopwatch.GetTimestamp() - start;
+        Diagnostics.TimedCalls++;
+    }
+
+    private static void Run(Feature feature, string phase, Action action)
     {
         try
         {
@@ -172,6 +214,7 @@ internal static class FeatureHost
     private static void RecordError(Feature feature, string phase, Exception e)
     {
         feature.LastError = $"{phase}: {e.Message}";
+        feature.LastErrorAt = DateTime.Now;
         Log.ErrorThrottled($"feature:{feature.Id}:{phase}", $"{feature.Name} {phase} failed: {e}");
 
         float now = Time.unscaledTime;
@@ -186,11 +229,14 @@ internal static class FeatureHost
         if (wasRunning) StopDependents(feature);
         feature.State = FeatureState.Faulted;
         feature.LastError = $"{phase}: {e.Message}";
+        feature.LastErrorAt = DateTime.Now;
         Log.Error($"{feature.Name} stopped after errors in {phase}: {e.Message}");
-        Toasts.Show("host", $"{feature.Name} stopped after an error: {feature.LastError.TrimEnd('.')}.", ToastKind.Warning);
+        bool saved = Reports.Write(feature, phase, e);
+        Toasts.Show("host", $"{feature.Name} stopped after an error: {feature.LastError.TrimEnd('.')}.{(saved ? " A report was saved." : string.Empty)}", ToastKind.Warning);
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
+        Commands.RemoveOwner(feature.Id);
     }
 
     // Stopped, not faulted: it starts again by itself once the need runs.

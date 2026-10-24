@@ -100,6 +100,18 @@ internal static class Config
     {
         Clearable = true, Action = "panic", Help = "Lets go of everything at once and switches all automation off.",
     };
+    public static readonly Hotkey ConsoleKey = new(Keys, "ConsoleKey", "Console key", string.Empty, HotkeyKind.Press, HotkeyScope.Global)
+    {
+        Clearable = true, Action = "console.open", Help = "Opens Settings → Diagnostics → Console, ready to type.",
+    };
+
+    // Also drawn as a card on the Diagnostics page.
+    public static readonly Section Diagnostics = Group.Section("diagnostics", "Diagnostics");
+    public static readonly Choice<int> LogLevel = new(Diagnostics, "LogLevel", "Log level", Log.InfoLevel,
+        (Log.ErrorLevel, "Error"), (Log.WarningLevel, "Warning"), (Log.InfoLevel, "Info"), (Log.DebugLevel, "Debug"))
+    {
+        Help = "How much the mod writes to the log. Debug is for bug reports.",
+    };
 
     private static readonly ScreenSpot[] s_spots =
     {
@@ -120,6 +132,7 @@ internal static class Config
             Log.Info($"General MenuKey: '{MenuKey.Value}'{(valid ? string.Empty : " is not a key, so it goes back to F2")}");
         });
         Group.Register();
+        Log.Level = LogLevel.Value;
     }
 
     private const float SaveDelaySeconds = 1f;

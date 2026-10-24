@@ -47,6 +47,8 @@ internal abstract class Feature
 
     public FeatureState State { get; internal set; }
     public string? LastError { get; internal set; }
+    /// <summary>When LastError was set by an error (local time); null when it isn't one.</summary>
+    public DateTime? LastErrorAt { get; internal set; }
     /// <summary>The need that kept or took this feature out of Running, or null.</summary>
     public string? BlockedBy { get; internal set; }
     public List<string> PatchFailures { get; } = new();
@@ -85,6 +87,7 @@ internal abstract class Feature
             .ToArray();
 
     internal HarmonyLib.Harmony? HarmonyInstance;
+    internal readonly FrameTimes Frames = new();
     internal readonly Queue<float> RecentErrors = new();
     internal bool SettingsRegistered;
 }

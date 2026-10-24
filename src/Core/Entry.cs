@@ -1,3 +1,4 @@
+using EpochAssist.Dev;
 using EpochAssist.Features;
 using EpochAssist.Ui;
 using MelonLoader;
@@ -14,6 +15,8 @@ public static class BuildInfo
     public const string Name = "Epoch Assist";
     public const string Author = "Crash";
     public const string Version = "0.1.0";
+    /// <summary>The game version this build was tested against; the release script sets it, empty until then.</summary>
+    public const string TestedGameVersion = "";
 }
 
 /// <summary>
@@ -37,15 +40,34 @@ public static class Runtime
     /// <summary>A text field has focus; the dev loader reads it by name so Ctrl+F5 doesn't reload while typing.</summary>
     public static bool Typing => GameState.Typing;
 
+    /// <summary>
+    /// Set by the dev reload command; the dev loader reads it by name and reloads on its next update. Reading it clears
+    /// it, so a reload that can't go ahead isn't tried every frame.
+    /// </summary>
+    public static bool ReloadRequested
+    {
+        get
+        {
+            bool requested = s_reloadRequested;
+            s_reloadRequested = false;
+            return requested;
+        }
+        internal set => s_reloadRequested = value;
+    }
+    private static bool s_reloadRequested;
+
     public static void Init(bool hosted)
     {
         Hosted = hosted;
         LoadedAt = DateTime.Now;
         Config.Init();
+        CoreCommands.Register();
+        UiCommands.Register();
         // A feature's needs come before it; the hotkey layer comes before the menu, which reads its results that frame.
-        FeatureHost.Register(new GameStateFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new InputGateFeature(),
+        FeatureHost.Register(new GameStateFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
+            new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());
-        if (hosted) FeatureHost.Register(new DevBridgeFeature());
+        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature());
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");
     }
@@ -55,6 +77,13 @@ public static class Runtime
         FeatureHost.UpdateAll();
         FeatureHost.LateUpdateAll();
         Config.SaveIfDirty();
+        Profiles.SaveIfDirty();
+        int level = Config.LogLevel.Value;
+        if (level != Log.Level)
+        {
+            Log.Level = level;
+            Log.Info($"Log level: {Log.LevelName(level).ToLowerInvariant()}");
+        }
     }
 
     public static void OnGUI() => FeatureHost.GuiAll();
@@ -70,7 +99,11 @@ public static class Runtime
         FeatureHost.SceneChangedAll();
     }
 
-    public static void Save() => Config.Save();
+    public static void Save()
+    {
+        Profiles.Save();
+        Config.Save();
+    }
 
     /// <summary>Undoes everything the mod did: features stopped and unpatched, input given back, textures freed.</summary>
     public static void Shutdown()
