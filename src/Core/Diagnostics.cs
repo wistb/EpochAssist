@@ -185,7 +185,7 @@ internal static class Diagnostics
     public static readonly FrameTimes ModFrames = new();
 
     /// <summary>Dev only: guarded calls go untimed, to measure what the timing itself costs.</summary>
-    public static bool TimersOff;
+    public static bool TimersOff { get; set; }
 
     /// <summary>Guarded calls timed so far this frame, and in the last whole frame.</summary>
     public static int TimedCalls, TimedCallsLastFrame;

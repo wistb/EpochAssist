@@ -10,7 +10,7 @@ internal static class CoreCommands
     private const int DefaultLogCount = 50, MaxLogCount = 500;
 
     /// <summary>Set by the dev bridge: a feature that requires what the game lacks, for compat's self-test line.</summary>
-    public static Func<Feature>? CompatSelfTest;
+    public static Func<Feature>? CompatSelfTest { get; set; }
 
     public static void Register()
     {

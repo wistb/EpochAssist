@@ -17,6 +17,15 @@
     <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Core\Entry.cs')), 'string Version = "([^"]+)"').Groups[1].Value)</Version>
   </PropertyGroup>
 
+  <!-- Dev-only code lives in Dev/ (namespace EpochAssist.Dev). Release builds don't compile it, and release code names it
+       only inside #if DEV; build.sh release fails a package that still contains any of it. -->
+  <PropertyGroup Condition="'$(Configuration)' != 'Release'">
+    <DefineConstants>$(DefineConstants);DEV</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <Compile Remove="Dev/**" />
+  </ItemGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>BuildId</_Parameter1>
@@ -47,17 +56,24 @@
     <Reference Include="UnityEngine.UIModule" HintPath="$(Il2Cpp)\UnityEngine.UIModule.dll" />
   </ItemGroup>
 
-  <!-- Release builds write dist/EpochAssist-v<version>.zip. -->
+  <!-- Release builds write dist/EpochAssist-v<version>.zip: the DLL under Mods/, README, LICENSE and CHANGELOG, nothing else. -->
   <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
+      <RepoDir>$(MSBuildProjectDirectory)\..\</RepoDir>
       <StagingDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)package\</StagingDir>
-      <DistDir>$(MSBuildProjectDirectory)\..\dist\</DistDir>
+      <DistDir>$(RepoDir)dist\</DistDir>
       <ReleaseZip>$(DistDir)$(AssemblyName)-v$(Version).zip</ReleaseZip>
     </PropertyGroup>
+    <ItemGroup>
+      <ReleaseDoc Include="$(RepoDir)README.md;$(RepoDir)LICENSE;$(RepoDir)CHANGELOG.md" />
+    </ItemGroup>
     <Error Condition="'$(Version)' == ''" Text="Could not read BuildInfo.Version from Core/Entry.cs." />
+    <Error Condition="!Exists('%(ReleaseDoc.FullPath)')" Text="Release package: %(ReleaseDoc.Filename)%(ReleaseDoc.Extension) is missing." />
+    <Delete Files="$(ReleaseZip)" />
     <RemoveDir Directories="$(StagingDir)" />
     <MakeDir Directories="$(StagingDir)Mods;$(DistDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(StagingDir)Mods" />
+    <Copy SourceFiles="@(ReleaseDoc)" DestinationFolder="$(StagingDir)" />
     <ZipDirectory SourceDirectory="$(StagingDir)" DestinationFile="$(ReleaseZip)" Overwrite="true" />
     <Message Importance="high" Text="Release package: $(ReleaseZip)" />
   </Target>

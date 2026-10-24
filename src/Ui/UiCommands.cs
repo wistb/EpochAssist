@@ -16,7 +16,7 @@ internal static class UiCommands
         Add(new Command("hotkeys", "hotkeys", "Lists every key binding with its conflicts, and the slot-toggle chords.", CommandMark.Release, "host",
             _ => CommandResult.Ok("hotkeys: " + HotkeysText())));
         Add(new Command("theme", "theme list|reload|problems", "Lists the themes, reads theme files again, or shows their problems.", CommandMark.Release, "host",
-            call => new CommandResult(ThemeCommand(call.Lower(1), call.Rest(2))) { Settle = SettleFrames })
+            call => new CommandResult(ThemeCommand(call.Lower(1))) { Settle = SettleFrames })
         {
             DevVerbs = new[] { "set", "check" },
         });
@@ -37,9 +37,9 @@ internal static class UiCommands
         return theme.Fallback ? $"{Config.Theme.Value} (fallback {theme.Name})" : theme.Name;
     }
 
-    // theme list | set <name> | reload | problems | check; a name keeps its case and may have spaces. Set and check are
-    // dev verbs, which the registry answers as unknown outside the dev loader.
-    private static string ThemeCommand(string verb, string name)
+    // theme list | reload | problems. The dev verbs set and check are in src/Dev; the registry answers them as unknown
+    // outside the dev loader, and release builds don't have them.
+    private static string ThemeCommand(string verb)
     {
         switch (verb)
         {
@@ -47,65 +47,14 @@ internal static class UiCommands
                 string selected = Themes.Resolve(Config.Theme.Value).Name;
                 return "ok themes: " + string.Join(", ", Themes.All.Select(t =>
                     $"{t.Name} ({(t.IsPreset ? "preset" : "file")}{(t.Name == selected ? ", selected" : string.Empty)}{(t.Problems.Count > 0 ? $", problems {t.Problems.Count}" : string.Empty)})"));
-            case "set":
-                if (Themes.Find(name) is not { } theme) return $"error unknown theme {name}";
-                Config.Theme.Value = theme.Name;
-                return $"ok theme {theme.Name}";
             case "reload":
                 Themes.Rescan();
                 return $"ok themes reloaded: {Themes.FileCount} files, {Themes.Problems.Count} problems";
             case "problems":
                 return "ok theme problems: " + (Themes.Problems.Count > 0 ? string.Join("; ", Themes.Problems) : "none");
-            case "check":
-                return "ok theme check: " + string.Join(" | ", ThemeValues.Presets.Select(p => ThemeCheck(p.Name, p.Values)));
             default:
                 return Runtime.Hosted ? "error usage: theme list|set <name>|reload|problems" : "error usage: theme list|reload|problems";
         }
-    }
-
-    // For one theme: each state colour's lightness (CIE L*), Active's smallest distance to the others (>= 15),
-    // each state colour's contrast on the card (>= 3:1, Off >= 1.6:1) and text and dim text on the card (>= 4.5:1).
-    // A see-through card is taken over the window colour.
-    private static string ThemeCheck(string name, ThemeValues v)
-    {
-        Color card = Color.Lerp(v.Window, new Color(v.Card.r, v.Card.g, v.Card.b, 1f), v.Card.a);
-        var states = new (string Name, Color Color)[]
-        {
-            ("active", v.StateActive), ("waiting", v.StateWaiting), ("holding", v.StateHolding), ("paused", v.StatePaused), ("off", v.StateOff),
-        };
-        var failures = new List<string>();
-        float active = Lightness(v.StateActive);
-        float gap = states.Skip(1).Min(s => Mathf.Abs(Lightness(s.Color) - active));
-        if (gap < 15f) failures.Add($"active gap {gap:F0}");
-        foreach (var (state, color) in states)
-        {
-            float needed = state == "off" ? 1.6f : 3f;
-            if (Contrast(color, card) < needed) failures.Add($"{state} contrast {Contrast(color, card):F1}");
-        }
-        if (Contrast(v.Text, card) < 4.5f) failures.Add($"text contrast {Contrast(v.Text, card):F1}");
-        if (Contrast(v.Dim, card) < 4.5f) failures.Add($"dim contrast {Contrast(v.Dim, card):F1}");
-        string lightness = string.Join(" ", states.Select(s => $"{s.Name} {Lightness(s.Color):F0}"));
-        string contrasts = string.Join(" ", states.Select(s => $"{s.Name} {Contrast(s.Color, card):F1}"));
-        return $"{name} {(failures.Count == 0 ? "pass" : "fail (" + string.Join(", ", failures) + ")")}: L* {lightness}; active gap {gap:F0}; "
-            + $"contrast {contrasts}, text {Contrast(v.Text, card):F1}, dim {Contrast(v.Dim, card):F1}";
-    }
-
-    private static float Luminance(Color c)
-    {
-        static float Linear(float x) => x <= 0.04045f ? x / 12.92f : Mathf.Pow((x + 0.055f) / 1.055f, 2.4f);
-        return 0.2126f * Linear(c.r) + 0.7152f * Linear(c.g) + 0.0722f * Linear(c.b);
-    }
-
-    private static float Lightness(Color c)
-    {
-        float y = Luminance(c);
-        return y > 216f / 24389f ? 116f * Mathf.Pow(y, 1f / 3f) - 16f : y * 24389f / 27f;
-    }
-
-    private static float Contrast(Color a, Color b)
-    {
-        float la = Luminance(a) + 0.05f, lb = Luminance(b) + 0.05f;
-        return Mathf.Max(la, lb) / Mathf.Min(la, lb);
     }
 
     // Every binding with its kind, scope and conflicts, the slot-toggle chords, capture and focus-ignored keys.

@@ -1,4 +1,6 @@
+#if DEV
 using EpochAssist.Dev;
+#endif
 using EpochAssist.Features;
 using EpochAssist.Ui;
 using MelonLoader;
@@ -67,7 +69,10 @@ public static class Runtime
         FeatureHost.Register(new GameStateFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());
+#if DEV
+        // Dev code isn't compiled into release builds (src/Dev/).
         if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature());
+#endif
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");
     }

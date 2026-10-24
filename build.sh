@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Usage: ./build.sh [build|deploy|dev|release]. dev: hot-reload setup (dev loader in Mods/, build in UserData/EpochAssist/dev). Machine settings (LE_ML, DOTNET, NUGET_SOURCE) go in build.local.env.
+# Usage: ./build.sh [build|deploy|dev|release|deploy-release|status]. Machine settings (LE_ML, DOTNET, NUGET_SOURCE) go in build.local.env.
+#   build           debug build, nothing installed
+#   deploy          debug build in Mods/ (no dev loader)
+#   dev             hot-reload setup: dev loader in Mods/, builds in UserData/EpochAssist/dev
+#   release         release package in dist/ (no dev code; checked)
+#   deploy-release  release package, and its DLL in Mods/ in place of the dev setup (back with ./build.sh dev)
+#   status          which setup the game has
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,9 +13,9 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mode="${1:-build}"
 case "$mode" in
-    build|deploy|dev) config=Debug ;;
-    release) config=Release ;;
-    *) echo "usage: $0 [build|deploy|dev|release]" >&2; exit 2 ;;
+    build|deploy|dev|status) config=Debug ;;
+    release|deploy-release) config=Release ;;
+    *) echo "usage: $0 [build|deploy|dev|release|deploy-release|status]" >&2; exit 2 ;;
 esac
 
 if [ -z "${LE_ML:-}" ]; then
@@ -44,13 +50,30 @@ wait_for() {
     done
 }
 
-build_project "$project"
-
-out="$root/src/bin/Debug/net6.0/win-x64"
 game_ml="$LE_ML"
 command -v wslpath >/dev/null 2>&1 && game_ml="$(wslpath -u "$LE_ML")"
 game="$(dirname "$game_ml")"
 mods="$game/Mods"
+
+# Dev code is all in namespace EpochAssist.Dev; its name sits once, zero-terminated, in a DLL's metadata.
+has_dev_code() { grep -qaP 'EpochAssist\.Dev\x00' "$1"; }
+
+if [ "$mode" = status ]; then
+    if [ -f "$mods/EpochAssist.DevLoader.dll" ]; then
+        echo "dev: the dev loader is in Mods/ and loads UserData/EpochAssist/dev/EpochAssist.dll (hot reload)"
+    elif [ -f "$mods/EpochAssist.dll" ]; then
+        if has_dev_code "$mods/EpochAssist.dll"; then echo "deploy: a debug build is in Mods/ (dev code compiled in, not running)"
+        else echo "release: a release build is in Mods/ (no dev code)"; fi
+    else
+        echo "none: Epoch Assist isn't installed in $mods"
+    fi
+    [ -f "$mods/EpochAssist.DevLoader.dll" ] && [ -f "$mods/EpochAssist.dll" ] && echo "warning: both the dev loader and EpochAssist.dll are in Mods/; everything would run twice" >&2
+    exit 0
+fi
+
+build_project "$project"
+
+out="$root/src/bin/Debug/net6.0/win-x64"
 
 if [ "$mode" = deploy ]; then
     mkdir -p "$mods"
@@ -80,4 +103,39 @@ if [ "$mode" = dev ]; then
     cp "$out/EpochAssist.pdb" "$dev/EpochAssist.pdb.tmp" && mv -f "$dev/EpochAssist.pdb.tmp" "$dev/EpochAssist.pdb"
     cp "$out/EpochAssist.dll" "$dev/EpochAssist.dll.tmp" && mv -f "$dev/EpochAssist.dll.tmp" "$dev/EpochAssist.dll"
     echo "Dev build in $dev; the game reloads it within a second"
+fi
+
+if [ "$mode" = release ] || [ "$mode" = deploy-release ]; then
+    version="$(sed -n 's/.*string Version = "\([^"]*\)".*/\1/p' "$root/src/Core/Entry.cs")"
+    zip="$root/dist/EpochAssist-v$version.zip"
+    dll="$root/src/bin/Release/net6.0/win-x64/EpochAssist.dll"
+    failed=0
+    # Nothing of src/Dev/ may ship: name the source files that put the namespace back in.
+    if has_dev_code "$dll"; then
+        strays="$(grep -rlE '^namespace EpochAssist\.Dev(\.|;| |$)' "$root/src" --include='*.cs' --exclude-dir=Dev --exclude-dir=bin --exclude-dir=obj || true)"
+        if [ -n "$strays" ]; then
+            while read -r file; do echo "Release DLL contains dev-only code: namespace EpochAssist.Dev in ${file#"$root"/}" >&2; done <<< "$strays"
+        else
+            echo "Release DLL contains dev-only code (namespace EpochAssist.Dev); is src/Dev/ compiled in?" >&2
+        fi
+        failed=1
+    fi
+    expected="$(printf '%s\n' Mods/EpochAssist.dll README.md LICENSE CHANGELOG.md | sort)"
+    actual="$(unzip -Z1 "$zip" | grep -v '/$' | sort)"
+    while read -r entry; do [ -n "$entry" ] && echo "Release zip has unexpected entry $entry" >&2 && failed=1; done < <(comm -13 <(echo "$expected") <(echo "$actual"))
+    while read -r entry; do [ -n "$entry" ] && echo "Release zip lacks $entry" >&2 && failed=1; done < <(comm -23 <(echo "$expected") <(echo "$actual"))
+    if [ "$failed" = 1 ]; then
+        rm -f "$zip"
+        echo "Release package failed its checks; removed ${zip#"$root"/}" >&2
+        exit 1
+    fi
+    echo "Release package checked: ${zip#"$root"/} (4 entries, no dev code)"
+fi
+
+if [ "$mode" = deploy-release ]; then
+    mkdir -p "$mods"
+    # The release replaces whatever setup was there; ./build.sh dev switches back.
+    [ -f "$mods/EpochAssist.DevLoader.dll" ] && wait_for rm -f "$mods/EpochAssist.DevLoader.dll"
+    wait_for unzip -o -q -j "$zip" Mods/EpochAssist.dll -d "$mods"
+    echo "Release v$version in $mods/EpochAssist.dll (dev loader removed); start the game to try it, ./build.sh dev to go back"
 fi

@@ -6,7 +6,7 @@ internal enum CommandMark { Release, Dev }
 /// <summary>
 /// A typed command for the console and the dev bridge: its name (one lowercase word), a usage line, one sentence of
 /// help, its mark, the owner that registered it, and what it does. DevVerbs are sub-verbs (the first argument) that
-/// count as dev commands of their own.
+/// count as dev commands of their own; their handlers are registered from dev code with Commands.AddDevVerb.
 /// </summary>
 internal sealed record Command(string Name, string Usage, string Help, CommandMark Mark, string Owner, Func<CommandCall, CommandResult> Run)
 {
@@ -61,6 +61,7 @@ internal sealed record CommandResult(string Text)
 internal static class Commands
 {
     private static readonly Dictionary<string, Command> s_commands = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<(string Command, string Verb), (string Owner, Func<CommandCall, CommandResult> Run)> s_devVerbs = new();
 
     public static void Register(Command command)
     {
@@ -68,12 +69,21 @@ internal static class Commands
         s_commands[command.Name] = command;
     }
 
+    /// <summary>Handles one of a command's DevVerbs; dev code only, so release builds have none.</summary>
+    public static void AddDevVerb(string command, string verb, string owner, Func<CommandCall, CommandResult> run) =>
+        s_devVerbs[(command.ToLowerInvariant(), verb.ToLowerInvariant())] = (owner, run);
+
     public static void RemoveOwner(string owner)
     {
         foreach (string name in s_commands.Values.Where(c => c.Owner == owner).Select(c => c.Name).ToList()) s_commands.Remove(name);
+        foreach (var key in s_devVerbs.Where(v => v.Value.Owner == owner).Select(v => v.Key).ToList()) s_devVerbs.Remove(key);
     }
 
-    public static void Clear() => s_commands.Clear();
+    public static void Clear()
+    {
+        s_commands.Clear();
+        s_devVerbs.Clear();
+    }
 
     public static Command? Get(string name) => s_commands.TryGetValue(name, out var command) ? command : null;
 
@@ -91,7 +101,7 @@ internal static class Commands
             return CommandResult.Error($"unknown command: {line}");
         try
         {
-            return command.Run(call);
+            return hosted && s_devVerbs.TryGetValue((command.Name.ToLowerInvariant(), call.Lower(1)), out var devVerb) ? devVerb.Run(call) : command.Run(call);
         }
         catch (Exception e)
         {

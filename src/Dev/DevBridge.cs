@@ -137,6 +137,7 @@ internal sealed class DevBridgeFeature : Feature
     public override void Start()
     {
         DevCommands.Register(Id);
+        ThemeVerbs.Register(Id);
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
     }
 
