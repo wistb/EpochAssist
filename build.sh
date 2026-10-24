@@ -120,7 +120,7 @@ if [ "$mode" = release ] || [ "$mode" = deploy-release ]; then
         fi
         failed=1
     fi
-    expected="$(printf '%s\n' Mods/EpochAssist.dll README.md LICENSE CHANGELOG.md | sort)"
+    expected=Mods/EpochAssist.dll
     actual="$(unzip -Z1 "$zip" | grep -v '/$' | sort)"
     while read -r entry; do [ -n "$entry" ] && echo "Release zip has unexpected entry $entry" >&2 && failed=1; done < <(comm -13 <(echo "$expected") <(echo "$actual"))
     while read -r entry; do [ -n "$entry" ] && echo "Release zip lacks $entry" >&2 && failed=1; done < <(comm -23 <(echo "$expected") <(echo "$actual"))
@@ -129,7 +129,7 @@ if [ "$mode" = release ] || [ "$mode" = deploy-release ]; then
         echo "Release package failed its checks; removed ${zip#"$root"/}" >&2
         exit 1
     fi
-    echo "Release package checked: ${zip#"$root"/} (4 entries, no dev code)"
+    echo "Release package checked: ${zip#"$root"/} (Mods/EpochAssist.dll only, no dev code)"
 fi
 
 if [ "$mode" = deploy-release ]; then

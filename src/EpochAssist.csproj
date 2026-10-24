@@ -61,7 +61,8 @@
     <Reference Include="Iced" HintPath="$(ML)\net6\Iced.dll" />
   </ItemGroup>
 
-  <!-- Release builds write dist/EpochAssist-v<version>.zip: the DLL under Mods/, README, LICENSE and CHANGELOG, nothing else. -->
+  <!-- Release builds write dist/EpochAssist-v<version>.zip holding only Mods/EpochAssist.dll, so extracting it into the game
+       folder installs it; the README, changelog and license live on GitHub and Nexus. -->
   <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
       <RepoDir>$(MSBuildProjectDirectory)\..\</RepoDir>
@@ -69,16 +70,11 @@
       <DistDir>$(RepoDir)dist\</DistDir>
       <ReleaseZip>$(DistDir)$(AssemblyName)-v$(Version).zip</ReleaseZip>
     </PropertyGroup>
-    <ItemGroup>
-      <ReleaseDoc Include="$(RepoDir)README.md;$(RepoDir)LICENSE;$(RepoDir)CHANGELOG.md" />
-    </ItemGroup>
     <Error Condition="'$(Version)' == ''" Text="Could not read BuildInfo.Version from Core/Entry.cs." />
-    <Error Condition="!Exists('%(ReleaseDoc.FullPath)')" Text="Release package: %(ReleaseDoc.Filename)%(ReleaseDoc.Extension) is missing." />
     <Delete Files="$(ReleaseZip)" />
     <RemoveDir Directories="$(StagingDir)" />
     <MakeDir Directories="$(StagingDir)Mods;$(DistDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(StagingDir)Mods" />
-    <Copy SourceFiles="@(ReleaseDoc)" DestinationFolder="$(StagingDir)" />
     <ZipDirectory SourceDirectory="$(StagingDir)" DestinationFile="$(ReleaseZip)" Overwrite="true" />
     <Message Importance="high" Text="Release package: $(ReleaseZip)" />
   </Target>
