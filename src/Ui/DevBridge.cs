@@ -529,6 +529,7 @@ internal static class DevBridge
             case Hotkey h when Chord.TryParse(value, h.Kind, out var chord) && (h.Clearable || !chord.IsEmpty): h.Value = chord.Text; return true;
             case Choice<KeyCode> c when Enum.TryParse(value, true, out KeyCode key) && c.Options.Any(o => o.Value == key): c.Value = key; return true;
             case Pick pick when value.Length > 0: pick.Value = value; return true;
+            case ColorSetting color when value.Length == 0 || ColorSetting.TryParse(value.ToUpperInvariant(), out _): color.Value = value.ToUpperInvariant(); return true;
             default: return false;
         }
     }
