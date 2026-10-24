@@ -194,7 +194,10 @@ jobs:
         run: |
           code="$(curl -sS -o "$RUNNER_TEMP/mod.json" -w '%{http_code}' -H @"$RUNNER_TEMP/nexus-headers" "$API/mods/$MOD_ID")"
           [ "$code" = 200 ] || { echo "::error::GET /mods/$MOD_ID answered $code"; exit 1; }
-          jq -r '[.. | objects | select(has("description")) | .description | strings][0] // ""' "$RUNNER_TEMP/mod.json" > "$RUNNER_TEMP/live-description.bbcode"
+          # Nexus returns each line break as "<br />"; drop those so the diff shows real changes only.
+          jq -r '[.. | objects | select(has("description")) | .description | strings][0] // ""' "$RUNNER_TEMP/mod.json" \
+            | sed -e 's/^<br \/>//' -e 's/<br \/>$//' > "$RUNNER_TEMP/live-description.bbcode"
+          cp "$RUNNER_TEMP/versions.json" preview/versions.json
           diff -u --label live --label filled "$RUNNER_TEMP/live-description.bbcode" preview/description.bbcode > preview/description.diff || true
           {
             echo "API key: accepted (GET /mods/$MOD_ID 200, GET /mod-files/$FILE_ID/versions 200)"
@@ -215,6 +218,7 @@ jobs:
             preview/summary.txt
             preview/description.diff
             preview/report.txt
+            preview/versions.json
 
       - name: Job summary
         if: always()
