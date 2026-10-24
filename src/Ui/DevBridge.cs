@@ -7,9 +7,10 @@ namespace EpochAssist.Ui;
 /// <summary>
 /// Dev builds only: runs commands written to UserData/EpochAssist/dev/commands.txt (one per line, one per frame)
 /// and reports to result.txt, ending with "done". tools/shot.sh drives it.
-///   menu open autocast|potion|settings [tab]   menu close   menu search [text]
+///   menu open [feature id with a page]|settings [tab]   menu close   menu search [text]
 ///   hud panel open|close   set [setting id] [value]   state   facts   compat   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]
 ///   actions   run [action]   status   hotkeys
+///   theme list|set [name]|reload|problems|check   resources   toast [text]   toasts   travel [scene]   focus   draw test on|off
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
@@ -24,6 +25,7 @@ internal static class DevBridge
     private static int s_waitFrames;
     private static Capture? s_capture;
     private static bool s_batchActive;
+    private static bool s_drawTest;
 
     private sealed class Capture
     {
@@ -80,6 +82,18 @@ internal static class DevBridge
         s_capture = null;
         s_waitFrames = 0;
         s_batchActive = false;
+        s_drawTest = false;
+    }
+
+    /// <summary>The draw test pattern around the player: a circle, a line, a label and a marker.</summary>
+    public static void OnGUI()
+    {
+        if (!s_drawTest || Event.current.type != EventType.Repaint || Player.Transform is not Transform t) return;
+        Vector3 p = t.position;
+        Draw.WorldCircle(p, 3f, Theme.Accent, 2f);
+        Draw.WorldLine(p, p + new Vector3(3f, 0f, 0f), Theme.Pause, 2f);
+        Draw.WorldMarker(p + new Vector3(0f, 2.5f, 0f), Theme.Good, 14f);
+        Draw.WorldLabel(p + new Vector3(0f, 3.5f, 0f), "Draw test", Theme.Text);
     }
 
     private static void Poll()
@@ -113,8 +127,13 @@ internal static class DevBridge
         switch (verb)
         {
             case "menu" when Arg(1) == "open":
-                string opened = Actions.Run($"menu.page.{(Arg(2) is "potion" or "settings" ? Arg(2) : "autocast")}", "dev bridge");
-                if (int.TryParse(Arg(3), out int tab)) Menu.SetTab(tab);
+                if (!Menu.PageNames.Contains(Arg(2)))
+                {
+                    Report($"error unknown page {Arg(2)}");
+                    break;
+                }
+                string opened = Actions.Run($"menu.page.{Arg(2)}", "dev bridge");
+                if (Arg(2) == Menu.SettingsPage && int.TryParse(Arg(3), out int tab)) Menu.SetSettingsTab(tab);
                 s_waitFrames = SettleFrames;
                 Report(opened.StartsWith("ok") ? $"ok {command}" : opened);
                 break;
@@ -134,7 +153,7 @@ internal static class DevBridge
                 Report(panel.StartsWith("ok") ? $"ok {command}" : panel);
                 break;
             case "set":
-                Report(Set(Arg(1), p.Length > 2 ? p[2] : string.Empty) ? $"ok {command}" : $"error {command}: no such setting or bad value");
+                Report(Set(Arg(1), string.Join(' ', p.Skip(2))) ? $"ok {command}" : $"error {command}: no such setting or bad value");
                 s_waitFrames = SettleFrames;
                 break;
             case "actions":
@@ -156,11 +175,39 @@ internal static class DevBridge
                 Report($"ok state: build {Runtime.BuildId}, scene '{GameState.Scene}' {GameState.Kind}, in game {GameState.InGame}, online {GameState.Online?.ToString() ?? "?"}, "
                     + $"alive {GameState.PlayerAlive} (health {(GameState.Health is { } h ? $"{h.Current:F0}/{h.Max:F0}" : "none")}), typing {GameState.Typing}, "
                     + $"loading {(GameState.CanReadLoading ? GameState.Loading.ToString() : "?")}, gameMenu {(GameState.CanReadPauseMenu ? GameState.GamePaused.ToString() : "?")}; "
-                    + MovementState() + "; features "
+                    + MovementState() + $"; theme {ThemeText()}; features "
                     + string.Join(", ", FeatureHost.All.Select(f => $"{f.Id}={f.State}/{f.Status.State.ToString().ToLowerInvariant()}" + (f.LastError != null ? $" ({f.LastError})" : string.Empty))));
                 break;
             case "hotkeys":
                 Report("ok hotkeys: " + HotkeysText());
+                break;
+            case "theme":
+                Report(ThemeCommand(Arg(1), string.Join(' ', p.Skip(2))));
+                s_waitFrames = SettleFrames;
+                break;
+            case "draw" when Arg(1) == "test":
+                s_drawTest = Arg(2) == "on";
+                s_waitFrames = SettleFrames;
+                Report($"ok draw test {(s_drawTest ? "on" : "off")}");
+                break;
+            case "focus":
+                string? focused = Focus.Current;
+                Report("ok focus: " + (focused == null ? "none" : focused.Contains('/') ? focused : $"{Menu.Current}/{focused}"));
+                break;
+            case "toast":
+                // The text keeps its case.
+                Toasts.Show("dev", string.Join(' ', p.Skip(1)), ToastKind.Info);
+                Report("ok toast");
+                break;
+            case "toasts":
+                var shown = Toasts.Visible;
+                Report($"ok toasts: {shown.Count} shown" + (shown.Count > 0 ? ": " : string.Empty)
+                    + string.Join(", ", shown.Select(t => $"\"{t.Text}\" ({Time.unscaledTime - t.ShownAt:F1} s)")));
+                break;
+            case "resources":
+                // All textures in the game too, so textures leaked by an earlier load show up across reloads.
+                Report($"ok resources: theme textures {Theme.TextureCount}, draw textures {Draw.ResourceCount}, "
+                    + $"unity textures {Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Texture2D>()).Length}");
                 break;
             case "status":
                 Report("ok status: " + string.Join(" | ", FeatureHost.All.Select(FeatureStatusText)));
@@ -191,6 +238,9 @@ internal static class DevBridge
                 if (Game.Alive(mps)) mps!.StopActiveMovement();
                 Report(Game.Alive(mps) ? $"ok {command}" : $"error {command}: no movement processor");
                 break;
+            case "travel":
+                Report(Travel(p.Length > 1 ? p[1] : string.Empty));
+                break;
             case "fonts":
                 var fonts = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Font>());
                 Report($"ok fonts: {string.Join(", ", fonts.Select(f => f.name).Distinct())}");
@@ -206,6 +256,82 @@ internal static class DevBridge
                 Report($"error unknown command: {command}");
                 break;
         }
+    }
+
+    private static string ThemeText()
+    {
+        var theme = Themes.Resolve(Config.Theme.Value);
+        return theme.Fallback ? $"{Config.Theme.Value} (fallback {theme.Name})" : theme.Name;
+    }
+
+    // theme list | set <name> | reload | problems; a name keeps its case and may have spaces.
+    private static string ThemeCommand(string verb, string name)
+    {
+        switch (verb)
+        {
+            case "list":
+                string selected = Themes.Resolve(Config.Theme.Value).Name;
+                return "ok themes: " + string.Join(", ", Themes.All.Select(t =>
+                    $"{t.Name} ({(t.IsPreset ? "preset" : "file")}{(t.Name == selected ? ", selected" : string.Empty)}{(t.Problems.Count > 0 ? $", problems {t.Problems.Count}" : string.Empty)})"));
+            case "set":
+                if (Themes.Find(name) is not { } theme) return $"error unknown theme {name}";
+                Config.Theme.Value = theme.Name;
+                return $"ok theme {theme.Name}";
+            case "reload":
+                Themes.Rescan();
+                return $"ok themes reloaded: {Themes.FileCount} files, {Themes.Problems.Count} problems";
+            case "problems":
+                return "ok theme problems: " + (Themes.Problems.Count > 0 ? string.Join("; ", Themes.Problems) : "none");
+            case "check":
+                return "ok theme check: " + string.Join(" | ", ThemeValues.Presets.Select(p => ThemeCheck(p.Name, p.Values)));
+            default:
+                return "error usage: theme list|set <name>|reload|problems";
+        }
+    }
+
+    // For one theme: each state colour's lightness (CIE L*), Active's smallest distance to the others (>= 15),
+    // each state colour's contrast on the card (>= 3:1, Off >= 1.6:1) and text and dim text on the card (>= 4.5:1).
+    // A see-through card is taken over the window colour.
+    private static string ThemeCheck(string name, ThemeValues v)
+    {
+        Color card = Color.Lerp(v.Window, new Color(v.Card.r, v.Card.g, v.Card.b, 1f), v.Card.a);
+        var states = new (string Name, Color Color)[]
+        {
+            ("active", v.StateActive), ("waiting", v.StateWaiting), ("holding", v.StateHolding), ("paused", v.StatePaused), ("off", v.StateOff),
+        };
+        var failures = new List<string>();
+        float active = Lightness(v.StateActive);
+        float gap = states.Skip(1).Min(s => Mathf.Abs(Lightness(s.Color) - active));
+        if (gap < 15f) failures.Add($"active gap {gap:F0}");
+        foreach (var (state, color) in states)
+        {
+            float needed = state == "off" ? 1.6f : 3f;
+            if (Contrast(color, card) < needed) failures.Add($"{state} contrast {Contrast(color, card):F1}");
+        }
+        if (Contrast(v.Text, card) < 4.5f) failures.Add($"text contrast {Contrast(v.Text, card):F1}");
+        if (Contrast(v.Dim, card) < 4.5f) failures.Add($"dim contrast {Contrast(v.Dim, card):F1}");
+        string lightness = string.Join(" ", states.Select(s => $"{s.Name} {Lightness(s.Color):F0}"));
+        string contrasts = string.Join(" ", states.Select(s => $"{s.Name} {Contrast(s.Color, card):F1}"));
+        return $"{name} {(failures.Count == 0 ? "pass" : "fail (" + string.Join(", ", failures) + ")")}: L* {lightness}; active gap {gap:F0}; "
+            + $"contrast {contrasts}, text {Contrast(v.Text, card):F1}, dim {Contrast(v.Dim, card):F1}";
+    }
+
+    private static float Luminance(Color c)
+    {
+        static float Linear(float x) => x <= 0.04045f ? x / 12.92f : Mathf.Pow((x + 0.055f) / 1.055f, 2.4f);
+        return 0.2126f * Linear(c.r) + 0.7152f * Linear(c.g) + 0.0722f * Linear(c.b);
+    }
+
+    private static float Lightness(Color c)
+    {
+        float y = Luminance(c);
+        return y > 216f / 24389f ? 116f * Mathf.Pow(y, 1f / 3f) - 16f : y * 24389f / 27f;
+    }
+
+    private static float Contrast(Color a, Color b)
+    {
+        float la = Luminance(a) + 0.05f, lb = Luminance(b) + 0.05f;
+        return Mathf.Max(la, lb) / Mathf.Min(la, lb);
     }
 
     // Every binding with its kind, scope and conflicts, the slot-toggle chords, capture and focus-ignored keys.
@@ -328,6 +454,20 @@ internal static class DevBridge
         });
     }
 
+    // travel [scene]: the game's own waypoint travel, to reach a zone change offline; no scene lists the unlocked
+    // waypoints. The waypoints live in the world map, so it must have been opened once.
+    private static string Travel(string scene)
+    {
+        var waypoints = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Il2Cpp.UIWaypoint>())
+            .Select(o => o.TryCast<Il2Cpp.UIWaypoint>()).Where(w => w != null && w.isActive && !string.IsNullOrEmpty(w.sceneName)).ToList();
+        if (waypoints.Count == 0) return "error travel: no unlocked waypoints loaded (open the map once)";
+        if (scene.Length == 0) return "ok waypoints: " + string.Join(", ", waypoints.Select(w => w!.sceneName).Distinct().OrderBy(n => n));
+        var target = waypoints.FirstOrDefault(w => w!.sceneName.Equals(scene, StringComparison.OrdinalIgnoreCase));
+        if (target == null) return $"error travel: no unlocked waypoint {scene}";
+        target.LoadWaypointScene();
+        return $"ok travel {target.sceneName}";
+    }
+
     // probe <type> [filter]: the type's declared methods, fields and properties, from the game's interop assemblies.
     private static string Probe(string typeName, string? filter)
     {
@@ -388,6 +528,7 @@ internal static class DevBridge
             case Key k when Enum.TryParse(value, true, out KeyCode key): k.Value = key; return true;
             case Hotkey h when Chord.TryParse(value, h.Kind, out var chord) && (h.Clearable || !chord.IsEmpty): h.Value = chord.Text; return true;
             case Choice<KeyCode> c when Enum.TryParse(value, true, out KeyCode key) && c.Options.Any(o => o.Value == key): c.Value = key; return true;
+            case Pick pick when value.Length > 0: pick.Value = value; return true;
             default: return false;
         }
     }
@@ -513,8 +654,11 @@ internal sealed class DevBridgeFeature : Feature
 {
     public override string Id => "dev";
     public override string Name => "Dev bridge";
+    // The draw test pattern draws in the world layer.
+    public override GuiLayer Layer => GuiLayer.World;
 
     public override void Update() => DevBridge.Update();
+    public override void OnGUI() => DevBridge.OnGUI();
     public override void Shutdown() => DevBridge.Reset();
 }
 

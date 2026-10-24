@@ -2,10 +2,11 @@
 # Drives a dev build in the running game through UserData/EpochAssist/dev/commands.txt and prints the results.
 # Usage: tools/shot.sh [command...]   (no commands: "shot menu")
 #   tools/shot.sh "menu open settings" "shot menu settings"
-#   tools/shot.sh "menu open autocast 3" "shot menu gate" "menu close" "hud panel open" "shot hud"
-# Commands: menu open autocast|potion|settings [tab], menu close, menu search [text], hud panel open|close,
+#   tools/shot.sh "menu open autocast" "shot menu autocast" "menu close" "hud panel open" "shot hud"
+# Commands: menu open [feature id]|settings [tab], menu close, menu search [text], hud panel open|close,
 #           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
-#           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name]. Shots land in UserData/EpochAssist/dev/shots/.
+#           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name],
+#           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off. Shots land in UserData/EpochAssist/dev/shots/.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
