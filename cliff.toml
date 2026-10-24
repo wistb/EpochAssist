@@ -1,6 +1,13 @@
 # git-cliff config: tools/release.sh generates each CHANGELOG.md entry from the conventional commits since the last
-# release tag and inserts it under the file's header itself, so there is no header here.
+# release tag and inserts it under the file's header itself, so there is no header here. The first release's entry is
+# written by hand; generation starts from the first tag.
 # Run: npx --yes git-cliff@2.14.2 --unreleased --tag v<version> --strip all
+#
+# What players see is decided per commit:
+#   - feat goes under Added, fix under Fixed, perf and refactor under Changed;
+#   - scopes dev, tools, build, ci and deps, and docs, chores, style and tests, are left out;
+#   - a "Changelog: skip" footer leaves a commit out;
+#   - a "Changelog: <sentence>" footer replaces the subject with that sentence.
 
 [changelog]
 body = """
@@ -8,7 +15,8 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
-- {% if commit.scope %}**{{ commit.scope | lower }}**: {% endif %}{{ commit.message | split(pat="\n") | first | trim | upper_first }}\
+{%- set own = commit.footers | filter(attribute="token", value="Changelog") %}
+- {% if own | length > 0 %}{{ own | first | get(key="value") | trim | upper_first }}{% else %}{% if commit.scope %}**{{ commit.scope | lower }}**: {% endif %}{{ commit.message | split(pat="\n") | first | trim | upper_first }}{% endif %}\
 {% endfor %}
 {% endfor %}
 """
@@ -17,11 +25,10 @@ trim = true
 [git]
 conventional_commits = true
 filter_unconventional = true
-# Players see features and fixes; dev tooling, docs, chores and release commits stay out.
 commit_parsers = [
   { message = "^chore\\(release\\)", skip = true },
-  { message = "^feat\\(dev\\)", skip = true },
-  { message = "^feat\\(tools\\)", skip = true },
+  { footer = "^[Cc]hangelog: ?skip$", skip = true },
+  { message = "^[a-z]+\\((dev|tools|build|ci|deps)\\)", skip = true },
   { message = "^feat", group = "<!-- 0 -->Added" },
   { message = "^fix", group = "<!-- 1 -->Fixed" },
   { message = "^perf", group = "<!-- 2 -->Changed" },
