@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using MelonLoader;
 using UnityEngine;
 
@@ -31,6 +32,19 @@ internal abstract class Setting
     public abstract bool IsDefault { get; }
     public abstract void Reset();
 
+    /// <summary>The profile in use holds a value for this setting (only while a profile other than Default is in use).</summary>
+    public abstract bool HasOverride { get; }
+    /// <summary>Forgets the profile's value (when the profile is put away); the Default profile's value shows again.</summary>
+    public abstract void ClearOverride();
+    /// <summary>Takes a profile's stored value when it fits the setting; false (nothing changed) when it doesn't.</summary>
+    internal abstract bool TryApplyOverride(JsonNode? node);
+    /// <summary>The value as a profile stores it: the profile's own, or with global the Default profile's.</summary>
+    internal abstract JsonNode? ToJson(bool global);
+    /// <summary>Sets the value (in the profile in use) from a stored one when it fits; false (nothing changed) when not.</summary>
+    internal abstract bool TrySet(JsonNode? node);
+    /// <summary>A stored value as the menu shows it ("Top", "85%", "Left Ctrl + F2"); null when it doesn't fit.</summary>
+    public abstract string? Describe(JsonNode? node);
+
     /// <summary>Binds the stored entry; false when one of another type already holds the id in this game session.</summary>
     internal abstract bool Register(MelonPreferences_Category category);
     /// <summary>Puts a hand-edited or outdated stored value back in range.</summary>
@@ -45,7 +59,11 @@ internal abstract class Setting<T> : Setting
 
     public T Default { get; }
 
-    public T Value
+    private bool _hasOverride;
+    private T _override = default!;
+
+    /// <summary>The stored global value: the Default profile's, whatever profile is in use.</summary>
+    public T GlobalValue
     {
         get => _entry != null ? _entry.Value : Default;
         set
@@ -56,8 +74,61 @@ internal abstract class Setting<T> : Setting
         }
     }
 
+    /// <summary>
+    /// The value in effect: the profile's while a profile other than Default is in use (a value it lacks falls back to
+    /// Default's), else the global value. Setting it writes to the profile in use.
+    /// </summary>
+    public T Value
+    {
+        get => _hasOverride ? _override : GlobalValue;
+        set
+        {
+            if (!Profiles.InProfile)
+            {
+                GlobalValue = value;
+                return;
+            }
+            if (_hasOverride && EqualityComparer<T>.Default.Equals(value, _override)) return;
+            _override = value;
+            _hasOverride = true;
+            Profiles.MarkDirty();
+        }
+    }
+
     public override bool IsDefault => EqualityComparer<T>.Default.Equals(Value, Default);
     public override void Reset() => Value = Default;
+
+    public override bool HasOverride => _hasOverride;
+
+    public override void ClearOverride() => _hasOverride = false;
+
+    internal override bool TryApplyOverride(JsonNode? node)
+    {
+        if (node is not JsonValue json || !TryRead(json, out T value)) return false;
+        _override = value;
+        _hasOverride = true;
+        return true;
+    }
+
+    internal override JsonNode? ToJson(bool global) => Write(global || !_hasOverride ? GlobalValue : _override);
+
+    public override string? Describe(JsonNode? node) => node is JsonValue json && TryRead(json, out T value) ? Show(value) : null;
+
+    /// <summary>A value as the menu shows it.</summary>
+    protected virtual string Show(T value) => value?.ToString() ?? string.Empty;
+
+    internal override bool TrySet(JsonNode? node)
+    {
+        if (node is not JsonValue json || !TryRead(json, out T value)) return false;
+        Value = value;
+        return true;
+    }
+
+    /// <summary>A value as a profile stores it.</summary>
+    protected virtual JsonNode? Write(T value) => JsonValue.Create(value);
+
+    /// <summary>A profile's stored value as this kind of setting, when it fits.</summary>
+    protected abstract bool TryRead(JsonValue json, out T value);
 
     // MelonPreferences keeps an entry's type for the whole game session, so after a retype only a restart can rebind it.
     internal override bool Register(MelonPreferences_Category category)
@@ -80,6 +151,8 @@ internal sealed class Toggle : Setting<bool>
 {
     public Toggle(Section section, string id, string label, bool defaultValue) : base(section, id, label, defaultValue) { }
     internal override void Clamp() { }
+    protected override bool TryRead(JsonValue json, out bool value) => json.TryGetValue(out value);
+    protected override string Show(bool value) => value ? "on" : "off";
 }
 
 internal sealed class Number : Setting<float>
@@ -114,6 +187,19 @@ internal sealed class Number : Setting<float>
         if (float.IsNaN(value) || float.IsInfinity(value)) Reset();
         else Value = Snap(value);
     }
+
+    protected override string Show(float value) => Format(value);
+
+    // In range and on a step, or it is skipped (and kept in the file).
+    protected override bool TryRead(JsonValue json, out float value)
+    {
+        value = 0f;
+        // Parsed text holds any number; a value made in memory holds the float it was made from.
+        double number = json.TryGetValue(out double d) ? d : json.TryGetValue(out float f) ? f : double.NaN;
+        if (double.IsNaN(number) || number < Min || number > Max) return false;
+        value = (float)number;
+        return Mathf.Approximately(Snap(value), value);
+    }
 }
 
 internal sealed class Key : Setting<KeyCode>
@@ -126,6 +212,14 @@ internal sealed class Key : Setting<KeyCode>
     internal override void Clamp()
     {
         if (!Enum.IsDefined(typeof(KeyCode), Value) || (!Clearable && Value == KeyCode.None)) Reset();
+    }
+
+    protected override JsonNode? Write(KeyCode value) => JsonValue.Create(value.ToString());
+    protected override string Show(KeyCode value) => value == KeyCode.None ? "Not set" : value.ToString();
+    protected override bool TryRead(JsonValue json, out KeyCode value)
+    {
+        value = KeyCode.None;
+        return json.TryGetValue(out string? name) && Enum.TryParse(name, out value) && Enum.IsDefined(typeof(KeyCode), value) && (Clearable || value != KeyCode.None);
     }
 }
 
@@ -184,6 +278,16 @@ internal sealed class Hotkey : Setting<string>
         }
         Log.Warn($"{Section.Group.Name} setting {Id}: '{value}' isn't a usable key, so it is back to '{Default}'");
         Reset();
+    }
+
+    protected override string Show(string value) => Chord.TryParse(value, Kind, out var chord) && !chord.IsEmpty ? chord.Display : "Not set";
+
+    protected override bool TryRead(JsonValue json, out string value)
+    {
+        value = string.Empty;
+        if (!json.TryGetValue(out string? text) || !Chord.TryParse(text, Kind, out var chord) || (!Clearable && chord.IsEmpty)) return false;
+        value = chord.Text;
+        return true;
     }
 }
 
@@ -297,6 +401,25 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
     {
         if (Index < 0) Reset();
     }
+
+    protected override string Show(T value)
+    {
+        int index = Array.FindIndex(Options, o => EqualityComparer<T>.Default.Equals(o.Value, value));
+        return index >= 0 ? Options[index].Label : value.ToString() ?? string.Empty;
+    }
+
+    // An int as a number, a game enum by name; only one of the options.
+    protected override JsonNode? Write(T value) => value is Enum ? JsonValue.Create(value.ToString()) : JsonValue.Create(value);
+
+    protected override bool TryRead(JsonValue json, out T value)
+    {
+        value = default!;
+        object? read = typeof(T) == typeof(int) ? (json.TryGetValue(out int number) ? number : null)
+            : typeof(T).IsEnum && json.TryGetValue(out string? name) && Enum.TryParse(typeof(T), name, out object? parsed) ? parsed : null;
+        if (read is not T candidate || !Options.Any(o => EqualityComparer<T>.Default.Equals(o.Value, candidate))) return false;
+        value = candidate;
+        return true;
+    }
 }
 
 /// <summary>
@@ -333,6 +456,9 @@ internal sealed class ColorSetting : Setting<string>
         if (Value.Length > 0 && !TryParse(Value.ToUpperInvariant(), out _)) Reset();
         else Value = Value.ToUpperInvariant();
     }
+
+    protected override bool TryRead(JsonValue json, out string value) => json.TryGetValue(out value!) && (value.Length == 0 || TryParse(value, out _));
+    protected override string Show(string value) => value.Length == 0 ? EmptyLabel : value;
 }
 
 /// <summary>
@@ -352,6 +478,8 @@ internal sealed class Pick : Setting<string>
     {
         if (string.IsNullOrWhiteSpace(Value)) Reset();
     }
+
+    protected override bool TryRead(JsonValue json, out string value) => json.TryGetValue(out value!) && value.Trim().Length > 0;
 }
 
 internal sealed class Section
