@@ -15,6 +15,7 @@ internal sealed class MenuFeature : Feature
     {
         Menu.Close();
         InputGate.Menu = false;
+        GameState.UiTyping = false;
     }
 }
 

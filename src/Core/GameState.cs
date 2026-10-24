@@ -19,6 +19,13 @@ internal static class GameState
 
     private static bool s_hadPlayer;
     private static bool s_wasAlive;
+    private static int s_sceneHandle;
+
+    /// <summary>Off when the game lacks the chat focus flag (set by GameStateFeature).</summary>
+    public static bool CanReadChat = true;
+
+    /// <summary>One of the mod's own text fields has focus (set by the menu).</summary>
+    public static bool UiTyping;
 
     public static string Scene { get; private set; } = string.Empty;
     public static SceneKind Kind { get; private set; }
@@ -45,8 +52,13 @@ internal static class GameState
         }
     }
 
-    /// <summary>A chat or search box has focus, so keys belong to it.</summary>
-    public static bool Typing
+    /// <summary>
+    /// A text box has focus, so keys belong to it. Tested in game: the game's input-field flag covers fields like the
+    /// stash search but not the chat box, which has its own flag, and neither sees the mod's own fields.
+    /// </summary>
+    public static bool Typing => UiTyping || GameFieldActive || ChatFocused;
+
+    private static bool GameFieldActive
     {
         get
         {
@@ -61,12 +73,32 @@ internal static class GameState
         }
     }
 
+    private static bool ChatFocused
+    {
+        get
+        {
+            if (!CanReadChat) return false;
+            try
+            {
+                return Game.UI?.IsChatInputFocused ?? false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
+
     public static event Action<ZoneChange>? ZoneChanged;
     public static event Action? PlayerSpawned;
     public static event Action? PlayerDied;
 
     public static void Update()
     {
+        // The active scene can change with no scene load or unload event (entering an echo from the monolith hub,
+        // walking from a rest zone into the hub), so it is checked every frame, by handle to keep it cheap.
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle != s_sceneHandle) OnSceneChanged();
+
         bool hasPlayer = Player.Exists;
         if (hasPlayer && !s_hadPlayer) Raise(PlayerSpawned, nameof(PlayerSpawned));
         s_hadPlayer = hasPlayer;
@@ -78,7 +110,9 @@ internal static class GameState
 
     public static void OnSceneChanged()
     {
-        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
+        var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        s_sceneHandle = active.handle;
+        string scene = active.name ?? string.Empty;
         if (string.Equals(scene, Scene, StringComparison.Ordinal)) return;
 
         Player.Reset();
@@ -163,6 +197,9 @@ internal sealed class GameStateFeature : Feature
 {
     public override string Id => "game";
     public override string Name => "Game state";
+    // Chat focus is optional: without it, typing in chat is missed but everything else keeps working.
+    private const string ChatTyping = "chat typing";
+
     public override Type[] PatchClasses => NestedPatches(typeof(GameState));
     public override Requirement[] Requirements => new[]
     {
@@ -171,9 +208,16 @@ internal sealed class GameStateFeature : Feature
         Need(typeof(PlayerFinder), nameof(PlayerFinder.getLocalTreeData)),
         Need<PlayerHealth>(nameof(PlayerHealth.currentHealth)),
         Need<EpochInputManager>(nameof(EpochInputManager.IsInputFieldActive)),
+        Need<UIBase>(nameof(UIBase.instance), ChatTyping),
+        Need<UIBase>(nameof(UIBase.IsChatInputFocused), ChatTyping),
     };
 
-    public override void Start() => GameState.OnSceneChanged();
+    public override void Start()
+    {
+        GameState.CanReadChat = Has(ChatTyping);
+        GameState.OnSceneChanged();
+    }
+
     public override void Update() => GameState.Update();
     public override void OnSceneChanged() => GameState.OnSceneChanged();
     public override void Shutdown() => GameState.Reset();

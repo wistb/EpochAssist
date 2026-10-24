@@ -11,6 +11,7 @@ internal static class Game
 {
     public static EpochInputManager? Input => Get(() => EpochInputManager.instance);
     public static ActorManager? Actors => Get(() => ActorManager.instance);
+    public static UIBase? UI => Get(() => UIBase.instance);
     public static UseAbilityProcessor? AbilityProcessor => Get(() => Input?.useAbilityProcessor);
     public static LocalTreeData? LocalTree => Get(() => PlayerFinder.getLocalTreeData());
     public static DList<AbilityBarIcon>? BarIcons => Get(() => AbilityBarIcon.all);

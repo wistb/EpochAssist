@@ -60,6 +60,8 @@ internal static class Menu
 
     public static void OnUpdate()
     {
+        // Only IMGUI text fields take keyboard control; buttons and sliders don't.
+        GameState.UiTyping = Visible && GUIUtility.keyboardControl != 0;
         if (UpdateKeyCapture(Visible)) return;
 
         if (Input.GetKeyDown(Config.MenuKey.Value) || (Visible && Input.GetKeyDown(KeyCode.Escape)))
