@@ -43,7 +43,7 @@ public static class Runtime
         LoadedAt = DateTime.Now;
         Config.Init();
         // A feature's needs come before it; the hotkey layer comes before the menu, which reads its results that frame.
-        FeatureHost.Register(new GameStateFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new InputGateFeature(),
+        FeatureHost.Register(new GameStateFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());
         if (hosted) FeatureHost.Register(new DevBridgeFeature());
         FeatureHost.StartAll();

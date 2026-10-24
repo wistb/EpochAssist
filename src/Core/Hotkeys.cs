@@ -5,6 +5,15 @@ using Feature = EpochAssist.Core.Feature;
 namespace EpochAssist.Core;
 
 /// <summary>
+/// The menu's navigation keys pressed this frame (fixed keys, not actions): Move from Tab/Shift+Tab and Down/Up,
+/// Activate from Enter and Space, Adjust from Left/Right, Page from PageUp/PageDown. Each is -1, 0 or +1.
+/// </summary>
+internal readonly record struct MenuNav(int Move, bool Activate, int Adjust, int Page)
+{
+    public bool Any => Move != 0 || Activate || Adjust != 0 || Page != 0;
+}
+
+/// <summary>
 /// The one reader of the mod's keys. Once per frame it polls Unity's input and runs the action of every press binding
 /// whose chord went down, answers whether hold bindings are held, fires the slot-toggle chords (a modifier plus the
 /// key the game binds to a slot), drives key capture for the settings page, and handles Esc for the menu.
@@ -53,6 +62,11 @@ internal static class Hotkeys
     /// <summary>Off when the game lacks the binding lookup (set by HotkeysFeature): no slot-toggle chords or game conflicts.</summary>
     public static bool CanReadGameBindings = true;
 
+    /// <summary>Navigation keys for the menu this frame; none unless the menu is open and no capture is.</summary>
+    public static MenuNav MenuNav { get; private set; }
+    /// <summary>Counts frames with navigation keys, so the menu applies each exactly once.</summary>
+    public static int MenuNavCount { get; private set; }
+
     /// <summary>The setting being rebound, or null.</summary>
     public static Setting? Capturing { get; private set; }
     public static bool CaptureActive => Capturing != null;
@@ -94,6 +108,7 @@ internal static class Hotkeys
 
     internal static void Update()
     {
+        MenuNav = default;
         bool focused = Application.isFocused;
         if (focused && !s_wasFocused) IgnoreKeysDown();
         s_wasFocused = focused;
@@ -118,6 +133,9 @@ internal static class Hotkeys
             UpdateCapture();
             return;
         }
+        // The menu's input lock keeps these from the game. In the menu's own field only Tab is ours (it leaves the field).
+        if (MenuOpen && !GameState.GameTyping) MenuNav = ReadMenuNav(fieldFocused: GameState.UiTyping);
+        if (MenuNav.Any) MenuNavCount++;
         if (GameState.Typing) return;
 
         bool inGame = GameState.InGame;
@@ -147,6 +165,19 @@ internal static class Hotkeys
         s_running && Capturing == null && !GameState.Typing && Application.isFocused && (scope == HotkeyScope.Global || GameState.InGame);
 
     private static bool Down(KeyCode key) => Input.GetKey(key) && !s_ignored.Contains(key);
+
+    private static MenuNav ReadMenuNav(bool fieldFocused)
+    {
+        bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        int move = Input.GetKeyDown(KeyCode.Tab) ? (shift ? -1 : 1) : 0;
+        if (fieldFocused) return new MenuNav(move, false, 0, 0);
+        if (Input.GetKeyDown(KeyCode.DownArrow)) move = 1;
+        else if (Input.GetKeyDown(KeyCode.UpArrow)) move = -1;
+        bool activate = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space);
+        int adjust = Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
+        int page = Input.GetKeyDown(KeyCode.PageDown) ? 1 : Input.GetKeyDown(KeyCode.PageUp) ? -1 : 0;
+        return new MenuNav(move, activate, adjust, page);
+    }
 
     private static bool MenuOpen => Actions.Get("menu.toggle") is { } toggle && Actions.StateOf(toggle) == true;
 

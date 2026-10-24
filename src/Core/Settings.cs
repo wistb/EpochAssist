@@ -282,6 +282,9 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
 
     public (T Value, string Label)[] Options { get; }
 
+    /// <summary>Lays the options out three to a row, each cell an index into Options or -1 for an empty cell; null for the usual rows.</summary>
+    public int[]? Cells { get; init; }
+
     public int Index
     {
         get => Array.FindIndex(Options, o => EqualityComparer<T>.Default.Equals(o.Value, Value));
@@ -293,6 +296,25 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
     internal override void Clamp()
     {
         if (Index < 0) Reset();
+    }
+}
+
+/// <summary>
+/// A name chosen from a list that can change while the game runs (themes from files), shown as a row of buttons. The
+/// list and any notes come from hooks the UI sets; a stored name missing from the list is kept, so it comes back with it.
+/// </summary>
+internal sealed class Pick : Setting<string>
+{
+    public Pick(Section section, string id, string label, string defaultValue) : base(section, id, label, defaultValue) { }
+
+    /// <summary>The names to offer; null until the UI sets it.</summary>
+    public Func<IReadOnlyList<string>>? Options { get; set; }
+    /// <summary>Lines shown under the row (problems with the options); null for none.</summary>
+    public Func<IEnumerable<string>>? Notes { get; set; }
+
+    internal override void Clamp()
+    {
+        if (string.IsNullOrWhiteSpace(Value)) Reset();
     }
 }
 
@@ -424,7 +446,11 @@ internal static class SettingsRegistry
         s_groups.Add(group);
         foreach (var section in group.Sections)
         {
-            Actions.Register("settings", ResetAction(section), $"Reset {section.Title}", section.Reset);
+            Actions.Register("settings", ResetAction(section), $"Reset {section.Title}", () =>
+            {
+                section.Reset();
+                Toasts.Show("settings", $"{section.Title} reset to defaults.", ToastKind.Info);
+            });
         }
         foreach (var toggle in group.All.OfType<Toggle>().Where(t => t.QuickLabel != null))
         {

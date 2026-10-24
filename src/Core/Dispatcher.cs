@@ -148,6 +148,7 @@ internal static class Dispatcher
             client.MasterToggle.Value = false;
         }
         Log.Warn($"Panic: all automation released and switched off ({string.Join(", ", s_clients.Select(c => c.Feature.Name))})");
+        Toasts.Show("dispatch", "Panic: automation is off. Switch it back on when ready.", ToastKind.Warning);
     }
 
     /// <summary>Lets go of every slot held for the client now: the key-up, then the channel stop for channelled ones.</summary>

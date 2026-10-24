@@ -73,6 +73,7 @@ internal static class FeatureHost
                 feature.State = FeatureState.Unavailable;
                 feature.LastError = "the game no longer has " + string.Join(", ", required.Take(3)) + (required.Count > 3 ? $" and {required.Count - 3} more" : string.Empty);
                 Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
+                Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
                 Actions.RemoveOwner(feature.Id);
                 return;
             }
@@ -132,9 +133,18 @@ internal static class FeatureHost
     {
         for (var layer = GuiLayer.World; layer <= GuiLayer.Menu; layer++)
         {
-            foreach (var feature in s_features)
+            // World drawing uses one camera for the frame, taken here and dropped after, whatever a feature does.
+            if (layer == GuiLayer.World) Draw.Begin();
+            try
             {
-                if (feature.Layer == layer && feature.State == FeatureState.Running) Guard(feature, "draw", feature.OnGUI);
+                foreach (var feature in s_features)
+                {
+                    if (feature.Layer == layer && feature.State == FeatureState.Running) Guard(feature, "draw", feature.OnGUI);
+                }
+            }
+            finally
+            {
+                if (layer == GuiLayer.World) Draw.End();
             }
         }
     }
@@ -177,6 +187,7 @@ internal static class FeatureHost
         feature.State = FeatureState.Faulted;
         feature.LastError = $"{phase}: {e.Message}";
         Log.Error($"{feature.Name} stopped after errors in {phase}: {e.Message}");
+        Toasts.Show("host", $"{feature.Name} stopped after an error: {feature.LastError.TrimEnd('.')}.", ToastKind.Warning);
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
