@@ -24,6 +24,46 @@ While the menu is open and the game window has focus:
 
 In the search field, typed keys go to the field; Tab leaves it and Esc closes the menu.
 
+## Profiles
+
+Every setting, from autocast to the HUD, theme and keys, belongs to a profile. **Default** is used out of game and by
+every character until it picks another one. Under **Settings → Profiles** (the last item in the Settings sidebar) you can pick which one the character you're
+playing uses, make a new profile (a copy of Default), duplicate the one in use, and rename or delete profiles. The sidebar
+shows the profile in use; changing any setting changes that profile. Which autocast slots are toggled always stays with
+each character.
+
+Pick the profile from the dropdown at the top of Profiles. **Export** writes the parts you choose (Mini HUD,
+Appearance, Keys, Log level, and Autocast's on/off, Controls, Pausing, Targeting and Enemy gate) to
+`UserData/EpochAssist/exports/` and the clipboard; **Import** reads an export from there or the clipboard and takes
+the parts you choose, into the profile in use or as a new one.
+
+Profiles are kept in `UserData/EpochAssist/profiles/` and each character's choice and slots in
+`UserData/EpochAssist/characters/`. When you enter the game with a character, autocast starts paused until you use a
+skill yourself.
+
+## Diagnostics and crash reports
+
+Settings → Diagnostics (in the sidebar while Settings is open: Overview, Features, Reports) shows what the mod is doing: its build, every feature's state and errors, game members missing
+after a game update, and how much frame time each feature takes. **Copy diagnostics** puts it all on the clipboard as
+plain text for a bug report, without your user name, character names or folder paths. The Log level setting on the
+Overview sets how much goes to the MelonLoader log; Debug is for bug reports.
+
+When a feature stops after an error, a crash report is saved in `UserData/EpochAssist/reports/`. The newest ten are
+kept, each is at most 64 KB, and the same error again in one game session counts up in its report instead of adding
+another. They are listed under Diagnostics → Reports with a **Copy** button. Nothing is ever sent anywhere.
+
+## Console
+
+Settings → Diagnostics → Console runs commands: type `help` for the list. `set <setting> <value>` changes a setting, `run <action>`
+runs anything a key or button can, `log` shows recent log lines, and `state`, `status`, `hotkeys`, `compat` and `theme`
+show what the mod sees; `profiles` lists and manages profiles. Bind a key to it under Settings → Keybinds → Console key (not set by default). Enter runs a line;
+Up and Down bring back earlier ones.
+
+## Animations
+
+Settings → Appearance has **Animations** (on by default) and **Animation speed** (0.5x to 3x) for the menu's motion,
+such as Settings growing out of the gear in the sidebar (click the gear again to close it).
+
 ## Themes
 
 Pick a theme under Settings: Slate (default), Ember, Epoch or Glass. To make your own, put a JSON file in
