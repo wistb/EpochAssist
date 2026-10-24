@@ -300,6 +300,42 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
 }
 
 /// <summary>
+/// A colour stored as #RRGGBB, or empty for none (the caller's own colour). Shown as swatches (the empty one first, then
+/// the named ones) and a picker for any other colour.
+/// </summary>
+internal sealed class ColorSetting : Setting<string>
+{
+    public ColorSetting(Section section, string id, string label) : base(section, id, label, string.Empty) { }
+
+    /// <summary>Named colours offered as swatches, in order, as #RRGGBB.</summary>
+    public (string Name, string Hex)[] Swatches { get; init; } = Array.Empty<(string, string)>();
+    /// <summary>What the empty value means, for its swatch ("Theme").</summary>
+    public string EmptyLabel { get; init; } = "Default";
+
+    /// <summary>The stored colour; false when empty or unreadable.</summary>
+    public bool TryGetColor(out Color color) => TryParse(Value, out color);
+
+    public static bool TryParse(string? text, out Color color)
+    {
+        color = default;
+        if (text == null || text.Length != 7 || text[0] != '#'
+            || !int.TryParse(text.AsSpan(1), System.Globalization.NumberStyles.HexNumber, null, out int rgb)) return false;
+        color = new Color(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1f);
+        return true;
+    }
+
+    public static string Format(Color color) => $"#{ColorByte(color.r):X2}{ColorByte(color.g):X2}{ColorByte(color.b):X2}";
+
+    private static int ColorByte(float channel) => Mathf.Clamp(Mathf.RoundToInt(channel * 255f), 0, 255);
+
+    internal override void Clamp()
+    {
+        if (Value.Length > 0 && !TryParse(Value.ToUpperInvariant(), out _)) Reset();
+        else Value = Value.ToUpperInvariant();
+    }
+}
+
+/// <summary>
 /// A name chosen from a list that can change while the game runs (themes from files), shown as a row of buttons. The
 /// list and any notes come from hooks the UI sets; a stored name missing from the list is kept, so it comes back with it.
 /// </summary>

@@ -19,44 +19,7 @@ internal static class Config
     // Version 2: MenuKey is a Hotkey (chord text) instead of a KeyCode; PanicKey is new.
     public static readonly SettingsGroup Group = new("EpochAssist", "General", version: 2) { ActionKey = "general" };
 
-    // Each section is a tab on the Settings page. Setting ids, not sections, are what is stored.
-    private static readonly Section Keys = Group.Section("keys", "Keys");
-    public static readonly Hotkey MenuKey = new(Keys, "MenuKey", "Menu key", "F2", HotkeyKind.Press, HotkeyScope.Global)
-    {
-        Action = "menu.toggle",
-    };
-    public static readonly Hotkey PanicKey = new(Keys, "PanicKey", "Panic key", string.Empty, HotkeyKind.Press, HotkeyScope.Gameplay)
-    {
-        Clearable = true, Action = "panic", Help = "Lets go of everything at once and switches all automation off.",
-    };
-
-    private static readonly Section Look = Group.Section("appearance", "Appearance");
-    public static readonly Pick Theme = new(Look, "Theme", "Theme", "Slate")
-    {
-        Help = "Built-in looks, plus your own from UserData/EpochAssist/themes.",
-    };
-    public static readonly Choice<int> Font = new(Look, "GameFont", "Font", 1, (0, "Unity"), (1, "Pretendard"), (2, "Noto Sans"))
-    {
-        Help = "Fonts the game ships with.",
-    };
-    public static readonly Choice<int> FontWeight = new(Look, "FontWeight", "Text", 1, (0, "Regular"), (1, "Bold"))
-    {
-        Help = "Weight of labels, buttons and values. Hints stay regular.",
-    };
-    public static readonly Number Corners = new(Look, "Corners", "Corners", 1f, 0f, 2f)
-    {
-        Step = 0.05f, Percent = true, ApplyOnRelease = true,
-        Help = "How round corners are: 100% is the theme's own, 0% square.",
-    };
-    public static readonly Number UiScale = new(Look, "UiScale", "UI scale", 1f, 0.75f, 2f)
-    {
-        Step = 0.05f, Unit = "x", ApplyOnRelease = true, Help = "Size of the menu and the mini HUD.",
-    };
-    public static readonly Number MenuOpacity = new(Look, "MenuOpacity", "Background", 1f, 0.2f, 1f)
-    {
-        Step = 0.01f, Percent = true, Help = "Menu background opacity; text and switches stay solid.",
-    };
-
+    // Each section is a tab on the Settings page, in this order. Setting ids, not sections, are what is stored.
     public static readonly Section Hud = Group.Section("hud", "Mini HUD");
     public static readonly Toggle HudEnabled = new(Hud, "HudEnabled", "Show the mini HUD", true)
     {
@@ -87,6 +50,55 @@ internal static class Config
     {
         Cells = new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 },
         Help = "Where notifications show. They follow the mini HUD's switch and opacity.",
+    };
+
+    private static readonly Section Look = Group.Section("appearance", "Appearance");
+    public static readonly Pick Theme = new(Look, "Theme", "Theme", "Slate")
+    {
+        Help = "Built-in looks, plus your own from UserData/EpochAssist/themes.",
+    };
+    // Catppuccin Mocha's accents (catppuccin.com/palette), which suit the dark themes.
+    public static readonly ColorSetting Accent = new(Look, "Accent", "Accent")
+    {
+        EmptyLabel = "Theme",
+        Swatches = new[]
+        {
+            ("Rosewater", "#F5E0DC"), ("Flamingo", "#F2CDCD"), ("Pink", "#F5C2E7"), ("Mauve", "#CBA6F7"), ("Red", "#F38BA8"),
+            ("Maroon", "#EBA0AC"), ("Peach", "#FAB387"), ("Yellow", "#F9E2AF"), ("Green", "#A6E3A1"), ("Teal", "#94E2D5"),
+            ("Sky", "#89DCEB"), ("Sapphire", "#74C7EC"), ("Blue", "#89B4FA"), ("Lavender", "#B4BEFE"),
+        },
+        Help = "Colour of switches, selections and highlights in any theme: the theme's own, a Catppuccin accent, or your own.",
+    };
+    public static readonly Choice<int> Font = new(Look, "GameFont", "Font", 1, (0, "Unity"), (1, "Pretendard"), (2, "Noto Sans"))
+    {
+        Help = "Fonts the game ships with.",
+    };
+    public static readonly Choice<int> FontWeight = new(Look, "FontWeight", "Text", 1, (0, "Regular"), (1, "Bold"))
+    {
+        Help = "Weight of labels, buttons and values. Hints stay regular.",
+    };
+    public static readonly Number Corners = new(Look, "Corners", "Corners", 1f, 0f, 2f)
+    {
+        Step = 0.05f, Percent = true, ApplyOnRelease = true,
+        Help = "How round corners are: 100% is the theme's own, 0% square.",
+    };
+    public static readonly Number UiScale = new(Look, "UiScale", "UI scale", 1f, 0.75f, 2f)
+    {
+        Step = 0.05f, Unit = "x", ApplyOnRelease = true, Help = "Size of the menu and the mini HUD.",
+    };
+    public static readonly Number MenuOpacity = new(Look, "MenuOpacity", "Background", 1f, 0.2f, 1f)
+    {
+        Step = 0.01f, Percent = true, Help = "Menu background opacity; text and switches stay solid.",
+    };
+
+    private static readonly Section Keys = Group.Section("keys", "Keys");
+    public static readonly Hotkey MenuKey = new(Keys, "MenuKey", "Menu key", "F2", HotkeyKind.Press, HotkeyScope.Global)
+    {
+        Action = "menu.toggle",
+    };
+    public static readonly Hotkey PanicKey = new(Keys, "PanicKey", "Panic key", string.Empty, HotkeyKind.Press, HotkeyScope.Gameplay)
+    {
+        Clearable = true, Action = "panic", Help = "Lets go of everything at once and switches all automation off.",
     };
 
     private static readonly ScreenSpot[] s_spots =
