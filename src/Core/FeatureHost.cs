@@ -14,17 +14,36 @@ internal static class FeatureHost
 
     public static T? Get<T>() where T : Feature => s_features.OfType<T>().FirstOrDefault();
 
-    /// <summary>Update order is registration order.</summary>
-    public static void Register(params Feature[] features) => s_features.AddRange(features);
+    public static Feature? Find(string id) => s_features.FirstOrDefault(f => f.Id == id);
+
+    /// <summary>Update order is registration order, so a feature's needs must be registered before it.</summary>
+    public static void Register(params Feature[] features)
+    {
+        foreach (var feature in features)
+        {
+            foreach (string need in feature.Needs)
+            {
+                // An unknown need keeps the feature stopped; a late one starts it late and updates it before its need.
+                if (Find(need) == null) Log.Error($"{feature.Name} needs '{need}', which is unknown or registered after it; register needs first");
+            }
+            s_features.Add(feature);
+        }
+    }
 
     public static void StartAll()
     {
+        foreach (var feature in s_features)
+        {
+            var target = feature;
+            Actions.Register("host", $"feature.restart.{feature.Id}", $"Restart {feature.Name}", () => Restart(target));
+        }
         foreach (var feature in s_features) Start(feature);
     }
 
     public static void StopAll()
     {
         for (int i = s_features.Count - 1; i >= 0; i--) Stop(s_features[i]);
+        Actions.Clear();
     }
 
     public static void Start(Feature feature)
@@ -39,6 +58,14 @@ internal static class FeatureHost
                 feature.RegisterSettings();
                 feature.SettingsRegistered = true;
             }
+            // Settings first, so a blocked feature's page still has them.
+            string? blocker = feature.Needs.FirstOrDefault(id => Find(id)?.State != FeatureState.Running);
+            if (blocker != null)
+            {
+                Block(feature, blocker);
+                return;
+            }
+            feature.BlockedBy = null;
             var missing = Compat.Missing(feature);
             var required = missing.Where(m => m.Group == null).Select(m => m.Text).ToList();
             if (required.Count > 0)
@@ -46,6 +73,7 @@ internal static class FeatureHost
                 feature.State = FeatureState.Unavailable;
                 feature.LastError = "the game no longer has " + string.Join(", ", required.Take(3)) + (required.Count > 3 ? $" and {required.Count - 3} more" : string.Empty);
                 Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
+                Actions.RemoveOwner(feature.Id);
                 return;
             }
             feature.MissingGroups.Clear();
@@ -61,16 +89,20 @@ internal static class FeatureHost
         catch (Exception e)
         {
             Fault(feature, "start", e);
+            return;
         }
+        StartBlockedBy(feature);
     }
 
     public static void Stop(Feature feature)
     {
         if (feature.State is FeatureState.Stopped or FeatureState.Unavailable) return;
         bool wasRunning = feature.State == FeatureState.Running;
+        if (wasRunning) StopDependents(feature);
         feature.State = FeatureState.Stopped;
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
+        Actions.RemoveOwner(feature.Id);
     }
 
     public static void Restart(Feature feature)
@@ -85,6 +117,14 @@ internal static class FeatureHost
         foreach (var feature in s_features)
         {
             if (feature.State == FeatureState.Running) Guard(feature, "update", feature.Update);
+        }
+    }
+
+    public static void LateUpdateAll()
+    {
+        foreach (var feature in s_features)
+        {
+            if (feature.State == FeatureState.Running) Guard(feature, "late update", feature.LateUpdate);
         }
     }
 
@@ -133,11 +173,42 @@ internal static class FeatureHost
     private static void Fault(Feature feature, string phase, Exception e)
     {
         bool wasRunning = feature.State == FeatureState.Running;
+        if (wasRunning) StopDependents(feature);
         feature.State = FeatureState.Faulted;
         feature.LastError = $"{phase}: {e.Message}";
         Log.Error($"{feature.Name} stopped after errors in {phase}: {e.Message}");
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
+        Actions.RemoveOwner(feature.Id);
+    }
+
+    // Stopped, not faulted: it starts again by itself once the need runs.
+    private static void Block(Feature feature, string need)
+    {
+        feature.State = FeatureState.Stopped;
+        feature.BlockedBy = need;
+        feature.LastError = $"needs {Find(need)?.Name ?? need}";
+    }
+
+    // Dependents go first, latest registered first, each through its own Shutdown (and so its own dependents).
+    private static void StopDependents(Feature feature)
+    {
+        for (int i = s_features.Count - 1; i >= 0; i--)
+        {
+            var dependent = s_features[i];
+            if (dependent.State != FeatureState.Running || Array.IndexOf(dependent.Needs, feature.Id) < 0) continue;
+            Stop(dependent);
+            Block(dependent, feature.Id);
+            Log.Info($"{dependent.Name} stopped: needs {feature.Name}");
+        }
+    }
+
+    private static void StartBlockedBy(Feature feature)
+    {
+        foreach (var dependent in s_features)
+        {
+            if (dependent.State == FeatureState.Stopped && dependent.BlockedBy == feature.Id) Start(dependent);
+        }
     }
 
     private static void ShutdownQuietly(Feature feature)

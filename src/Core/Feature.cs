@@ -24,8 +24,18 @@ internal abstract class Feature
     /// <summary>Game members the feature relies on beyond its patch targets, checked before it starts.</summary>
     public virtual Requirement[] Requirements => Array.Empty<Requirement>();
 
+    /// <summary>Ids of features this one can't act safely without; they must be registered first. The host starts it
+    /// only while all of them run, and stops it before any of them stops.</summary>
+    public virtual string[] Needs => Array.Empty<string>();
+
+    /// <summary>What the feature is doing, for the HUD, menu and bridge.</summary>
+    public virtual FeatureStatus Status =>
+        State == FeatureState.Running ? new FeatureStatus(StatusState.Active, string.Empty, null) : FeatureStatus.Off(LastError ?? string.Empty);
+
     public FeatureState State { get; internal set; }
     public string? LastError { get; internal set; }
+    /// <summary>The need that kept or took this feature out of Running, or null.</summary>
+    public string? BlockedBy { get; internal set; }
     public List<string> PatchFailures { get; } = new();
 
     /// <summary>Registers settings. Called once per load, before the first start.</summary>
@@ -33,6 +43,8 @@ internal abstract class Feature
 
     public virtual void Start() { }
     public virtual void Update() { }
+    /// <summary>A second pass each frame, after every feature's Update.</summary>
+    public virtual void LateUpdate() { }
     public virtual void OnGUI() { }
     public virtual void OnSceneChanged() { }
     public virtual void Shutdown() { }
