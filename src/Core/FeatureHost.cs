@@ -10,6 +10,9 @@ internal static class FeatureHost
     private const float ErrorWindowSeconds = 10f;
 
     private static readonly List<Feature> s_features = new();
+    // Features found unavailable while StartAll runs; they share one toast at its end.
+    private static readonly List<string> s_unavailable = new();
+    private static bool s_startingAll;
 
     public static IReadOnlyList<Feature> All => s_features;
 
@@ -38,7 +41,21 @@ internal static class FeatureHost
             var target = feature;
             Actions.Register("host", $"feature.restart.{feature.Id}", $"Restart {feature.Name}", () => Restart(target));
         }
-        foreach (var feature in s_features) Start(feature);
+        s_startingAll = true;
+        try
+        {
+            foreach (var feature in s_features) Start(feature);
+        }
+        finally
+        {
+            s_startingAll = false;
+        }
+        if (s_unavailable.Count > 0)
+        {
+            string verb = s_unavailable.Count == 1 ? "is" : "are";
+            Toasts.Show("host", $"{JoinNames(s_unavailable)} {verb} unavailable after a game update.", ToastKind.Warning);
+            s_unavailable.Clear();
+        }
     }
 
     public static void StopAll()
@@ -77,7 +94,8 @@ internal static class FeatureHost
                 feature.State = FeatureState.Unavailable;
                 feature.LastError = "the game no longer has " + string.Join(", ", required.Take(3)) + (required.Count > 3 ? $" and {required.Count - 3} more" : string.Empty);
                 Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
-                Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
+                if (s_startingAll) s_unavailable.Add(feature.Name);
+                else Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
                 Actions.RemoveOwner(feature.Id);
                 Commands.RemoveOwner(feature.Id);
                 return;
@@ -241,6 +259,10 @@ internal static class FeatureHost
         Actions.RemoveOwner(feature.Id);
         Commands.RemoveOwner(feature.Id);
     }
+
+    // "A", "A and B", "A, B and C".
+    private static string JoinNames(List<string> names) =>
+        names.Count == 1 ? names[0] : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
 
     // Stopped, not faulted: it starts again by itself once the need runs.
     private static void Block(Feature feature, string need)
