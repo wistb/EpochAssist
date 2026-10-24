@@ -41,22 +41,46 @@ internal static class Compat
             if (req.Type.GetMember(req.Member, All).Length == 0) missing.Add(new MissingMember($"{req.Type.Name}.{req.Member}", req.Group));
         }
 
+        foreach (var target in PatchTargets(feature))
+        {
+            if (target.Error != null) missing.Add(new MissingMember($"patch {target.Patch.Name} ({target.Error})", target.Group));
+            else if (target.Matches.Count == 0) missing.Add(new MissingMember($"{target.Name} (patch {target.Patch.Name})", target.Group));
+            // An overloaded name would bind to whichever overload Harmony picks, so it counts as missing too.
+            else if (target.Matches.Count > 1) missing.Add(new MissingMember($"{target.Name} (patch {target.Patch.Name}, ambiguous: {target.Matches.Count} methods)", target.Group));
+        }
+        return missing;
+    }
+
+    /// <summary>
+    /// Every method a feature's patch classes name, with the methods that fit: without argument types every method of
+    /// that name, declared or inherited; with them the exact match. Classes that pick their target in code
+    /// (TargetMethod) are checked when patched, so they aren't listed.
+    /// </summary>
+    public static List<PatchTarget> PatchTargets(Feature feature)
+    {
+        var targets = new List<PatchTarget>();
         foreach (var patchClass in feature.PatchClasses)
         {
             feature.PatchGroups.TryGetValue(patchClass, out string? group);
             try
             {
                 var target = HarmonyMethod.Merge(HarmonyMethodExtensions.GetFromType(patchClass));
-                // Classes that pick their target in code (TargetMethod) are checked when patched.
                 if (target.declaringType == null || target.methodName == null) continue;
-                if (AccessTools.Method(target.declaringType, target.methodName, target.argumentTypes) == null)
-                    missing.Add(new MissingMember($"{target.declaringType.Name}.{target.methodName} (patch {patchClass.Name})", group));
+                var type = target.declaringType;
+                string name = target.methodName;
+                var matches = target.argumentTypes == null
+                    ? type.GetMethods(All).Where(m => m.Name == name).ToList()
+                    : type.GetMethod(name, All, null, target.argumentTypes, null) is { } exact ? new List<MethodInfo> { exact } : new List<MethodInfo>();
+                targets.Add(new PatchTarget(group, patchClass, $"{type.Name}.{name}", matches, null));
             }
             catch (Exception e)
             {
-                missing.Add(new MissingMember($"patch {patchClass.Name} ({e.GetType().Name})", group));
+                targets.Add(new PatchTarget(group, patchClass, patchClass.Name, Array.Empty<MethodInfo>(), e.GetType().Name));
             }
         }
-        return missing;
+        return targets;
     }
 }
+
+/// <summary>A patch class's target: Name is "Type.Method"; Error is why the attribute couldn't be read, or null.</summary>
+internal sealed record PatchTarget(string? Group, Type Patch, string Name, IReadOnlyList<MethodInfo> Matches, string? Error);
