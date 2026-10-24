@@ -77,7 +77,8 @@ internal static class Config
     {
         Help = "Weight of labels, buttons and values. Hints stay regular.",
     };
-    public static readonly Number Corners = new(Look, "Corners", "Corners", 1f, 0f, 2f)
+    // 50% by default (maintainer): the themes' own radii read too round at the game's scale.
+    public static readonly Number Corners = new(Look, "Corners", "Corners", 0.5f, 0f, 2f)
     {
         Step = 0.05f, Percent = true, ApplyOnRelease = true,
         Help = "How round corners are: 100% is the theme's own, 0% square.",
@@ -90,8 +91,16 @@ internal static class Config
     {
         Step = 0.01f, Percent = true, Help = "Menu background opacity; text and switches stay solid.",
     };
+    public static readonly Toggle Animations = new(Look, "Animations", "Animations", true)
+    {
+        Help = "Motion in the menu, such as Settings growing out of the gear. Off, everything changes at once.",
+    };
+    public static readonly Number AnimationSpeed = new(Look, "AnimationSpeed", "Animation speed", 1f, 0.5f, 3f)
+    {
+        Step = 0.1f, Unit = "x", VisibleWhen = () => Animations.Value, Help = "Higher is faster.",
+    };
 
-    private static readonly Section Keys = Group.Section("keys", "Keys");
+    private static readonly Section Keys = Group.Section("keys", "Keybinds");
     public static readonly Hotkey MenuKey = new(Keys, "MenuKey", "Menu key", "F2", HotkeyKind.Press, HotkeyScope.Global)
     {
         Action = "menu.toggle",

@@ -23,6 +23,8 @@ internal static class Focus
     private static int s_adjust;
     private static bool s_scrollTo;
     private static Rect? s_scrollTarget;
+    // The ring shows only while the keyboard is in use: from a navigation key until the next mouse click.
+    private static bool s_showRing;
 
     /// <summary>Set by the menu while it draws inside its scroll view, where control rects are in content space.</summary>
     public static bool InScroll;
@@ -48,9 +50,13 @@ internal static class Focus
         s_activate = s_adjustKey = null;
         s_scrollTo = false;
         s_scrollTarget = null;
+        s_showRing = false;
         InScroll = false;
         FieldToFocus = null;
     }
+
+    /// <summary>A mouse click in the menu: the ring hides until a navigation key is used again.</summary>
+    public static void PointerDown() => s_showRing = false;
 
     /// <summary>
     /// Called by the menu at the start of every GUI event it draws. Keys are applied at the first layout pass after they
@@ -123,7 +129,7 @@ internal static class Focus
             case EventType.Repaint:
                 Rect r = rect ?? GUILayoutUtility.GetLastRect();
                 s_building.Add(full);
-                if (full == s_focused)
+                if (full == s_focused && s_showRing)
                 {
                     Theme.DrawSliced(new Rect(r.x - 2f, r.y - 2f, r.width + 4f, r.height + 4f), Theme.FocusRing, Theme.FocusRadius);
                     if (s_scrollTo)
@@ -160,6 +166,7 @@ internal static class Focus
     private static void Apply(MenuNav nav)
     {
         FieldToFocus = null;
+        if (nav.Move != 0 || nav.Activate || nav.Adjust != 0) s_showRing = true;
         // Moving on leaves a text field. Set here, in a GUI pass: set from Update it doesn't stick.
         if (nav.Move != 0) GUIUtility.keyboardControl = 0;
         if (nav.Move != 0 && s_order.Count > 0)

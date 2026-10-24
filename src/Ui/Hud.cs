@@ -13,7 +13,9 @@ internal static class Hud
     private const float PillRow = 26f;
     private const float PillPad = 3f;
     private const float SectionGap = 14f;
-    private const float PipSize = 18f;
+    public const float PipSize = 18f;
+    /// <summary>How far a slot's edge sits inside the pill's: the pill's padding, then the slot centred in its row.</summary>
+    public const float PipInset = PillPad + (PillRow - PipSize) / 2f;
     private const float PanelWidth = 260f;
     private const float PanelChrome = 84f;
     private const float RowHeight = 28f;

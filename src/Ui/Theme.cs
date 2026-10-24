@@ -27,7 +27,13 @@ internal static class Theme
     public static int WindowRadius => s_values.RadiusWindow;
     public static int ChipRadius => s_values.RadiusChip;
     public static int PillRadius => Math.Min(16, s_values.RadiusWindow + 2);
-    public static int PipRadius => Math.Max(0, s_values.RadiusChip - 4);
+    // Concentric with the pill's corner: the pill's radius less the gap between the two edges, so both curves share a
+    // centre at any Corners setting; at most half the slot (a circle). Where the pill's corner is smaller than the gap
+    // the slots keep a slight rounding (maintainer), unless Corners is 0% (square).
+    private const int MinPipRadius = 2;
+    public static int PipRadius => Config.Corners.Value <= 0f
+        ? 0
+        : Math.Clamp(PillRadius - Mathf.RoundToInt(Hud.PipInset), MinPipRadius, Mathf.FloorToInt(Hud.PipSize / 2f));
     public static int PanelRadius => Math.Min(12, s_values.RadiusCard + 2);
     /// <summary>Horizontal padding inside a card, both sides together.</summary>
     public static float CardInset => s_values.CardPad * 2f;
@@ -57,6 +63,10 @@ internal static class Theme
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
     // Drawn by the menu itself so its opacity setting applies; the styles carry no background.
     public static Texture2D WindowBg = null!, SidebarBg = null!;
+    public static Texture2D Chevron = null!, ChevronRight = null!;
+    public const int GearFrameCount = 12;
+    /// <summary>The gear turned through 45° in equal steps (frame 0 is the gear as drawn).</summary>
+    public static Texture2D[] GearFrames = Array.Empty<Texture2D>();
     public static Texture2D Swatch = null!, SwatchRing = null!, Gear = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, Divider = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
     public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
@@ -249,16 +259,40 @@ internal static class Theme
         SwitchOn = Switch(on: true, v.Accent, v.OnAccent);
         SwitchOnHover = Switch(on: true, v.AccentHover, v.OnAccent);
         // State shapes, white and tinted when drawn, so colour is never the only cue.
-        Gear = Paint(32, 32, (x, y) =>
+        // The gear, and turned copies for its animation: eight teeth repeat every 45°, so frames over 45° cover any turn.
+        GearFrames = new Texture2D[GearFrameCount];
+        for (int frame = 0; frame < GearFrameCount; frame++)
         {
-            float px = x + 0.5f - 16f, py = y + 0.5f - 16f;
-            float angle = Mathf.Atan2(py, px), distance = Mathf.Sqrt(px * px + py * py);
-            // Eight teeth around a body, with a hole in the middle; edges smoothed over about a pixel.
-            float edge = Mathf.Cos(angle * 8f) > 0.25f ? 14.5f : 11f;
-            float body = Mathf.Clamp01(edge - distance + 0.5f);
-            float hole = Mathf.Clamp01(5f - distance + 0.5f);
-            return Shade(Color.white, Mathf.Clamp01(body - hole));
+            float turn = frame * (Mathf.PI / 4f) / GearFrameCount;
+            GearFrames[frame] = Paint(32, 32, (x, y) =>
+            {
+                float px = x + 0.5f - 16f, py = y + 0.5f - 16f;
+                float angle = Mathf.Atan2(py, px) + turn, distance = Mathf.Sqrt(px * px + py * py);
+                // Eight teeth around a body, with a hole in the middle; edges smoothed over about a pixel.
+                float edge = Mathf.Cos(angle * 8f) > 0.25f ? 14.5f : 11f;
+                float body = Mathf.Clamp01(edge - distance + 0.5f);
+                float hole = Mathf.Clamp01(5f - distance + 0.5f);
+                return Shade(Color.white, Mathf.Clamp01(body - hole));
+            });
+        }
+        Gear = GearFrames[0];
+        // A down chevron for dropdowns: two strokes meeting at the bottom (the game's fonts have no arrow glyphs).
+        Chevron = Paint(12, 12, (x, y) =>
+        {
+            static float Segment(float px, float py, float ax, float ay, float bx, float by)
+            {
+                float dx = bx - ax, dy = by - ay;
+                float t = Mathf.Clamp01(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
+                float ex = px - (ax + t * dx), ey = py - (ay + t * dy);
+                return Mathf.Sqrt(ex * ex + ey * ey);
+            }
+            float px = x + 0.5f, py = y + 0.5f;
+            // Texture rows count from the bottom, so the point is at the low y.
+            float d = Mathf.Min(Segment(px, py, 2f, 8f, 6f, 4f), Segment(px, py, 6f, 4f, 10f, 8f));
+            return Shade(Color.white, Mathf.Clamp01(1.6f - d));
         });
+        // The same chevron pointing right, for a folded group (rotating the drawing goes wrong inside a scroll view).
+        ChevronRight = Paint(12, 12, (x, y) => Chevron.GetPixel(y, 11 - x));
         Dot = Circle(10, Color.white);
         Ring = Paint(10, 10, (x, y) => Shade(Color.white, Mathf.Clamp01(Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4.5f)) - Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 2.5f)))));
         Square = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 4f))));
