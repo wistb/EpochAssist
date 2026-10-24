@@ -8,10 +8,18 @@ internal enum HudCorner { TopLeft, TopRight, BottomLeft, BottomRight }
 // The mod's own settings. Values live in UserData/MelonPreferences.cfg; each feature declares its own group too.
 internal static class Config
 {
-    public static readonly SettingsGroup Group = new("EpochAssist", "General");
+    // Version 2: MenuKey is a Hotkey (chord text) instead of a KeyCode; PanicKey is new.
+    public static readonly SettingsGroup Group = new("EpochAssist", "General", version: 2) { ActionKey = "general" };
 
     private static readonly Section Menu = Group.Section("menu", "Menu");
-    public static readonly Key MenuKey = new(Menu, "MenuKey", "Menu key", KeyCode.F2);
+    public static readonly Hotkey MenuKey = new(Menu, "MenuKey", "Menu key", "F2", HotkeyKind.Press, HotkeyScope.Global)
+    {
+        Action = "menu.toggle",
+    };
+    public static readonly Hotkey PanicKey = new(Menu, "PanicKey", "Panic key", string.Empty, HotkeyKind.Press, HotkeyScope.Gameplay)
+    {
+        Clearable = true, Action = "panic", Help = "Lets go of everything at once and switches all automation off.",
+    };
     public static readonly Number UiScale = new(Menu, "UiScale", "UI scale", 1f, 0.75f, 2f)
     {
         Step = 0.05f, Unit = "x", ApplyOnRelease = true, Help = "Size of the menu and the mini HUD.",
@@ -44,7 +52,16 @@ internal static class Config
 
     public static HudCorner HudPosition => (HudCorner)Math.Clamp(HudPlacement.Value, 0, 3);
 
-    public static void Init() => Group.Register();
+    public static void Init()
+    {
+        // Version 1 stored a KeyCode name, which is already a one-key chord; clamping resets anything else to F2.
+        Group.Migration(2, _ =>
+        {
+            bool valid = Chord.TryParse(MenuKey.Value, HotkeyKind.Press, out var chord) && !chord.IsEmpty;
+            Log.Info($"General MenuKey: '{MenuKey.Value}'{(valid ? string.Empty : " is not a key, so it goes back to F2")}");
+        });
+        Group.Register();
+    }
 
     private const float SaveDelaySeconds = 1f;
     private static float s_dirtySince = -1f;

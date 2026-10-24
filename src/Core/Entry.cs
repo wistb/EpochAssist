@@ -34,12 +34,17 @@ public static class Runtime
             .Cast<System.Reflection.AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == "BuildId")?.Value ?? "unknown";
 
+    /// <summary>A text field has focus; the dev loader reads it by name so Ctrl+F5 doesn't reload while typing.</summary>
+    public static bool Typing => GameState.Typing;
+
     public static void Init(bool hosted)
     {
         Hosted = hosted;
         LoadedAt = DateTime.Now;
         Config.Init();
-        FeatureHost.Register(new GameStateFeature(), new MenuFeature(), new HudFeature(), new InputGateFeature(), new AutoCastFeature());
+        // A feature's needs come before it; the hotkey layer comes before the menu, which reads its results that frame.
+        FeatureHost.Register(new GameStateFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new InputGateFeature(),
+            new DispatcherFeature(), new AutoCastFeature());
         if (hosted) FeatureHost.Register(new DevBridgeFeature());
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");
@@ -48,6 +53,7 @@ public static class Runtime
     public static void Update()
     {
         FeatureHost.UpdateAll();
+        FeatureHost.LateUpdateAll();
         Config.SaveIfDirty();
     }
 
@@ -58,7 +64,7 @@ public static class Runtime
     // MelonLoader reports both loads and unloads; pass on only a change of the active scene, once.
     public static void SceneChanged()
     {
-        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
+        string scene = GameState.ActiveSceneName;
         if (string.Equals(scene, s_lastScene, StringComparison.Ordinal)) return;
         s_lastScene = scene;
         FeatureHost.SceneChangedAll();

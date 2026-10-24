@@ -4,7 +4,8 @@
 #   tools/shot.sh "menu open settings" "shot menu settings"
 #   tools/shot.sh "menu open autocast 3" "shot menu gate" "menu close" "hud panel open" "shot hud"
 # Commands: menu open autocast|potion|settings [tab], menu close, menu search [text], hud panel open|close,
-#           set [setting id] [value], state, compat, move [x] [y] [held], stopmove, probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name]. Shots land in UserData/EpochAssist/dev/shots/.
+#           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
+#           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name]. Shots land in UserData/EpochAssist/dev/shots/.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

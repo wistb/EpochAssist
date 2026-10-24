@@ -33,7 +33,9 @@ internal static class Hud
         }
     }
 
-    public static void SetPanel(bool open) => s_panelOpen = open;
+    public static bool PanelOpen => s_panelOpen;
+
+    public static void TogglePanel() => s_panelOpen = !s_panelOpen;
 
     /// <summary>Whether a screen point (top-left origin) is on the pill or the open panel; InputGate blocks clicks there.</summary>
     public static bool HitTest(Vector2 screenPoint) =>
@@ -103,7 +105,7 @@ internal static class Hud
         try
         {
             DrawPill(pill, label, labelWidth);
-            if (GUI.Button(pill, GUIContent.none, GUIStyle.none)) s_panelOpen = !s_panelOpen;
+            if (GUI.Button(pill, GUIContent.none, GUIStyle.none)) Actions.Run("hud.togglePanel", "HUD pill");
             if (s_panelOpen) DrawPanel(panel);
         }
         finally
@@ -122,9 +124,9 @@ internal static class Hud
         bool hover = pill.Contains(Event.current.mousePosition);
         Theme.DrawSliced(pill, hover ? Theme.Pill.hover.background : Theme.Pill.normal.background, 16);
 
-        AutoCast.State state = AutoCast.CurrentState;
+        FeatureStatus status = FeatureHost.Get<AutoCastFeature>()?.Status ?? FeatureStatus.Off(string.Empty);
         float x = pill.x + 10f;
-        Menu.DrawDot(new Rect(x, pill.center.y - 4f, 8f, 8f), Theme.StateColor(state));
+        Menu.DrawDot(new Rect(x, pill.center.y - 4f, 8f, 8f), Theme.StateColor(status.State));
         x += 8f + 8f;
         Theme.PillLabel.normal.textColor = S.Enabled.Value ? Theme.Text : Theme.Dim;
         GUI.Label(new Rect(x, pill.y, labelWidth, pill.height), label, Theme.PillLabel);
@@ -133,8 +135,8 @@ internal static class Hud
         for (int i = 0; i < AutoCast.Slots; i++)
         {
             var pip = new Rect(x + i * (PipSize + 3f), pill.center.y - PipSize / 2f, PipSize, PipSize);
-            bool toggled = AutoCast.IsSlotToggled(i);
-            bool live = toggled && state == AutoCast.State.Active;
+            bool toggled = status.Slots?[i] ?? false;
+            bool live = toggled && status.State == StatusState.Active;
             Theme.DrawSliced(pip, live ? Theme.PipOn : toggled ? Theme.PipPaused : Theme.PipOff, 5);
             Theme.Pip.normal.textColor = live ? Color.white : toggled ? Theme.Pause : Theme.Dim;
             GUI.Label(pip, (i + 1).ToString(), Theme.Pip);
@@ -145,12 +147,15 @@ internal static class Hud
     {
         GUILayout.BeginArea(panel, Theme.Panel);
         GUILayout.Label("QUICK TOGGLES", Theme.CardTitle);
-        foreach (var toggle in SettingsRegistry.QuickToggles) toggle.Value = Switch(toggle.QuickLabel!, toggle.Value);
+        foreach (var toggle in SettingsRegistry.QuickToggles)
+        {
+            if (Switch(toggle.QuickLabel!, toggle.Value) != toggle.Value) Actions.Run(SettingsRegistry.ToggleAction(toggle), "HUD quick toggle");
+        }
         GUILayout.Space(6f);
-        if (GUILayout.Button($"Open full menu  ·  {Config.MenuKey.Value}", Theme.SmallButton))
+        if (GUILayout.Button($"Open full menu  ·  {Config.MenuKey.Display}", Theme.SmallButton))
         {
             s_panelOpen = false;
-            Menu.Open(Page.AutoCast);
+            Actions.Run("menu.page.autocast", "HUD open full menu");
         }
         GUILayout.EndArea();
     }

@@ -267,19 +267,19 @@ internal static class Theme
         style.Draw(rect, false, false, false, false);
     }
 
-    public static Texture2D BadgeFor(Features.AutoCast.State state) => state switch
+    public static Texture2D BadgeFor(StatusState state) => state switch
     {
-        Features.AutoCast.State.Active => BadgeGood,
-        Features.AutoCast.State.Holding or Features.AutoCast.State.Paused => BadgePause,
-        Features.AutoCast.State.Waiting => BadgeWaiting,
+        StatusState.Active => BadgeGood,
+        StatusState.Holding or StatusState.Paused => BadgePause,
+        StatusState.Waiting => BadgeWaiting,
         _ => BadgeOff,
     };
 
-    public static Color StateColor(Features.AutoCast.State state) => state switch
+    public static Color StateColor(StatusState state) => state switch
     {
-        Features.AutoCast.State.Active => Good,
-        Features.AutoCast.State.Holding or Features.AutoCast.State.Paused => Pause,
-        Features.AutoCast.State.Waiting => AccentText,
+        StatusState.Active => Good,
+        StatusState.Holding or StatusState.Paused => Pause,
+        StatusState.Waiting => AccentText,
         _ => Dim,
     };
 

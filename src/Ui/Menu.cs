@@ -29,6 +29,8 @@ internal static class Menu
 
     public static void Close() => SetVisible(false);
 
+    public static void Toggle() => SetVisible(!Visible);
+
     /// <summary>The window in screen pixels (top-left origin), after UI scale.</summary>
     public static Rect ScreenRect
     {
@@ -54,6 +56,7 @@ internal static class Menu
 
     public static void Open(Page page)
     {
+        if (s_page != page) s_scroll = Vector2.zero;
         s_page = page;
         SetVisible(true);
     }
@@ -62,9 +65,10 @@ internal static class Menu
     {
         // Only IMGUI text fields take keyboard control; buttons and sliders don't.
         GameState.UiTyping = Visible && GUIUtility.keyboardControl != 0;
-        if (UpdateKeyCapture(Visible)) return;
 
-        if (Input.GetKeyDown(Config.MenuKey.Value) || (Visible && Input.GetKeyDown(KeyCode.Escape)))
+        // The hotkey layer runs menu.toggle and menu.close; while it is down, the menu still answers its key and Esc.
+        if (FeatureHost.Find("hotkeys")?.State != FeatureState.Running
+            && (Hotkeys.FallbackPressed(Config.MenuKey) || (Visible && Hotkeys.FallbackEscape())))
         {
             SetVisible(!Visible);
         }
@@ -102,11 +106,12 @@ internal static class Menu
 
     private static void SetVisible(bool visible)
     {
+        if (visible && !Visible) HotkeyConflicts.Invalidate();
         Visible = visible;
         InputGate.Menu = visible;
         if (!visible)
         {
-            Capturing = null;
+            Hotkeys.CancelCapture();
             Config.Save();
         }
     }
@@ -143,9 +148,17 @@ internal static class Menu
         GUI.DragWindow(new Rect(0f, 0f, s_rect.width, 48f));
     }
 
-    // A feature stopped by repeated errors says so at the top of every page, with a way to try again.
+    // A feature stopped by repeated errors says so at the top of every page, with a way to try again; so do settings
+    // that couldn't be brought up to date.
     private static void FaultBanners()
     {
+        foreach (var group in SettingsRegistry.Groups)
+        {
+            if (group.Failures.Count == 0) continue;
+            GUILayout.BeginHorizontal(Style(() => Theme.Card, GUI.skin.box));
+            GUILayout.Label($"{Colored(group.Name + " settings not updated", Theme.Pause)}  {string.Join("; ", group.Failures)}", Style(() => Theme.Hint, GUI.skin.label));
+            GUILayout.EndHorizontal();
+        }
         foreach (var feature in FeatureHost.All)
         {
             bool degraded = feature.Degraded;
@@ -159,7 +172,7 @@ internal static class Menu
             GUILayout.Label($"{title}  {detail}", Style(() => Theme.Hint, GUI.skin.label));
             // A restart can't bring back what the game no longer has; an update of the mod can.
             if (!unavailable && !degraded && GUILayout.Button("Restart", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
-                FeatureHost.Restart(feature);
+                Actions.Run($"feature.restart.{feature.Id}", "menu fault banner");
             GUILayout.EndHorizontal();
         }
     }
@@ -177,23 +190,21 @@ internal static class Menu
             var page = (Page)i;
             bool selected = s_page == page;
             if (GUILayout.Toggle(selected, s_pageNames[i], Style(() => Theme.NavItem, GUI.skin.button)) && !selected)
-            {
-                s_page = page;
-                s_scroll = Vector2.zero;
-            }
+                Actions.Run($"menu.page.{page.ToString().ToLowerInvariant()}", "menu sidebar");
 
             Rect item = GUILayoutUtility.GetLastRect();
             if (Themed && page != Page.Settings && Event.current.type == EventType.Repaint)
             {
+                StatusState state = CastStatus.State;
                 bool castRunning = FeatureHost.Get<AutoCastFeature>()?.State == FeatureState.Running;
-                Color dot = page == Page.AutoCast && castRunning ? Theme.StateColor(AutoCast.CurrentState) : Theme.Off;
-                if (selected && page == Page.AutoCast && AutoCast.CurrentState == AutoCast.State.Off) dot = Color.white;
+                Color dot = page == Page.AutoCast && castRunning ? Theme.StateColor(state) : Theme.Off;
+                if (selected && page == Page.AutoCast && state == StatusState.Off) dot = Color.white;
                 DrawDot(new Rect(item.x + 10f, item.center.y - 4f, 8f, 8f), dot);
             }
         }
 
         GUILayout.FlexibleSpace();
-        GUILayout.Label($"{Config.MenuKey.Value} or Esc closes", Style(() => Theme.Hint, GUI.skin.label));
+        GUILayout.Label($"{Config.MenuKey.Display} or Esc closes", Style(() => Theme.Hint, GUI.skin.label));
         GUILayout.EndVertical();
 
         if (Themed && Event.current.type == EventType.Repaint)
@@ -203,19 +214,26 @@ internal static class Menu
         }
     }
 
-    private static void PageHeader(string title, AutoCast.State? state, Toggle? toggle)
+    /// <summary>Auto-cast's status: the dispatcher's while it runs, otherwise off with the reason.</summary>
+    private static FeatureStatus CastStatus => FeatureHost.Get<AutoCastFeature>()?.Status ?? FeatureStatus.Off(string.Empty);
+
+    private static void PageHeader(string title, StatusState? state, Toggle? toggle)
     {
         GUILayout.BeginHorizontal(GUILayout.Height(30f));
         GUILayout.Label(title, Style(() => Theme.PageTitle, GUI.skin.label));
         if (state.HasValue) StateBadge(state.Value);
         GUILayout.FlexibleSpace();
-        if (toggle != null) toggle.Value = InlineSwitch(toggle.Value);
-        if (GUILayout.Button("×", Style(() => Theme.Close, GUI.skin.button))) SetVisible(false);
+        if (toggle != null && InlineSwitch(toggle.Value) != toggle.Value)
+        {
+            // The page's master switch is a quick toggle, so it has its own action.
+            if (Actions.Run(SettingsRegistry.ToggleAction(toggle), "menu page switch").StartsWith("error")) toggle.Value = !toggle.Value;
+        }
+        if (GUILayout.Button("×", Style(() => Theme.Close, GUI.skin.button))) Actions.Run("menu.close", "menu ×");
         GUILayout.EndHorizontal();
         GUILayout.Space(8f);
     }
 
-    private static void StateBadge(AutoCast.State state)
+    private static void StateBadge(StatusState state)
     {
         if (!Themed)
         {
@@ -236,12 +254,12 @@ internal static class Menu
 
     private static void DrawAutoCast()
     {
-        PageHeader("Auto-Cast", AutoCast.CurrentState, S.Enabled);
+        FeatureStatus status = CastStatus;
+        PageHeader("Auto-Cast", status.State, S.Enabled);
 
         SlotChips(52f);
-        string detail = AutoCast.StateDetail;
         Hint($"Hold {AutoCast.ModifierKeyName} and press a skill's key to toggle its slot."
-            + (detail.Length > 0 ? $"  {Colored(detail, Theme.StateColor(AutoCast.CurrentState))}" : string.Empty));
+            + (status.Detail.Length > 0 ? $"  {Colored(status.Detail, Theme.StateColor(status.State))}" : string.Empty));
         GUILayout.Space(8f);
 
         GUILayout.BeginHorizontal();
@@ -273,7 +291,7 @@ internal static class Menu
         {
             GUILayout.Space(6f);
             if (GUILayout.Button($"Reset {tab.Title.ToLowerInvariant()}", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)))
-                tab.Reset();
+                Actions.Run(SettingsRegistry.ResetAction(tab), "menu tab reset");
         }
         EndScroll();
 
@@ -320,14 +338,14 @@ internal static class Menu
         Rect row = GUILayoutUtility.GetRect(10f, height, GUILayout.ExpandWidth(true));
         if (Event.current.type != EventType.Repaint) return;
 
-        AutoCast.State state = AutoCast.CurrentState;
+        FeatureStatus status = CastStatus;
         const float gap = 6f;
         float width = (row.width - gap * (AutoCast.Slots - 1)) / AutoCast.Slots;
         for (int i = 0; i < AutoCast.Slots; i++)
         {
             var chip = new Rect(row.x + i * (width + gap), row.y, width, row.height);
-            bool toggled = AutoCast.IsSlotToggled(i);
-            bool live = toggled && state == AutoCast.State.Active;
+            bool toggled = status.Slots?[i] ?? false;
+            bool live = toggled && status.State == StatusState.Active;
             string name = AutoCast.SlotAbilityName(i) ?? "-";
 
             if (!Themed)

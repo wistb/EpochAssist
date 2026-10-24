@@ -9,6 +9,7 @@ namespace EpochAssist.Ui;
 /// and reports to result.txt, ending with "done". tools/shot.sh drives it.
 ///   menu open autocast|potion|settings [tab]   menu close   menu search [text]
 ///   hud panel open|close   set [setting id] [value]   state   facts   compat   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]
+///   actions   run [action]   status   hotkeys
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
@@ -112,15 +113,15 @@ internal static class DevBridge
         switch (verb)
         {
             case "menu" when Arg(1) == "open":
-                Menu.Open(Arg(2) switch { "potion" => Page.Potion, "settings" => Page.Settings, _ => Page.AutoCast });
+                string opened = Actions.Run($"menu.page.{(Arg(2) is "potion" or "settings" ? Arg(2) : "autocast")}", "dev bridge");
                 if (int.TryParse(Arg(3), out int tab)) Menu.SetTab(tab);
                 s_waitFrames = SettleFrames;
-                Report($"ok {command}");
+                Report(opened.StartsWith("ok") ? $"ok {command}" : opened);
                 break;
             case "menu" when Arg(1) == "close":
-                Menu.Close();
+                string closed = Actions.Run("menu.close", "dev bridge");
                 s_waitFrames = SettleFrames;
-                Report($"ok {command}");
+                Report(closed.StartsWith("ok") ? $"ok {command}" : closed);
                 break;
             case "menu" when Arg(1) == "search":
                 Menu.SetSearch(string.Join(' ', p.Skip(2)));
@@ -128,12 +129,21 @@ internal static class DevBridge
                 Report($"ok {command}");
                 break;
             case "hud" when Arg(1) == "panel":
-                Hud.SetPanel(Arg(2) == "open");
+                string panel = Hud.PanelOpen == (Arg(2) == "open") ? "ok" : Actions.Run("hud.togglePanel", "dev bridge");
                 s_waitFrames = SettleFrames;
-                Report($"ok {command}");
+                Report(panel.StartsWith("ok") ? $"ok {command}" : panel);
                 break;
             case "set":
                 Report(Set(Arg(1), p.Length > 2 ? p[2] : string.Empty) ? $"ok {command}" : $"error {command}: no such setting or bad value");
+                s_waitFrames = SettleFrames;
+                break;
+            case "actions":
+                Report("ok actions: " + string.Join(", ", Actions.All.Select(a =>
+                    $"{a.Name} ({(a.IsToggle ? "toggle" : "run")}{(Actions.StateOf(a) is bool on ? on ? ", on" : ", off" : string.Empty)})")));
+                break;
+            case "run":
+                // Action names keep their case (hud.togglePanel), so the argument isn't lowered.
+                Report(Actions.Run(p.Length > 1 ? p[1] : string.Empty, "dev bridge"));
                 s_waitFrames = SettleFrames;
                 break;
             case "probe":
@@ -144,9 +154,16 @@ internal static class DevBridge
                 break;
             case "state":
                 Report($"ok state: build {Runtime.BuildId}, scene '{GameState.Scene}' {GameState.Kind}, in game {GameState.InGame}, online {GameState.Online?.ToString() ?? "?"}, "
-                    + $"alive {GameState.PlayerAlive} (health {(Player.Health is Il2Cpp.PlayerHealth h ? $"{h.currentHealth:F0}/{h.maxHealth:F0}" : "none")}), typing {GameState.Typing}; "
+                    + $"alive {GameState.PlayerAlive} (health {(GameState.Health is { } h ? $"{h.Current:F0}/{h.Max:F0}" : "none")}), typing {GameState.Typing}, "
+                    + $"loading {(GameState.CanReadLoading ? GameState.Loading.ToString() : "?")}, gameMenu {(GameState.CanReadPauseMenu ? GameState.GamePaused.ToString() : "?")}; "
                     + MovementState() + "; features "
-                    + string.Join(", ", FeatureHost.All.Select(f => $"{f.Id}={f.State}" + (f.LastError != null ? $" ({f.LastError})" : string.Empty))));
+                    + string.Join(", ", FeatureHost.All.Select(f => $"{f.Id}={f.State}/{f.Status.State.ToString().ToLowerInvariant()}" + (f.LastError != null ? $" ({f.LastError})" : string.Empty))));
+                break;
+            case "hotkeys":
+                Report("ok hotkeys: " + HotkeysText());
+                break;
+            case "status":
+                Report("ok status: " + string.Join(" | ", FeatureHost.All.Select(FeatureStatusText)));
                 break;
             case "facts":
                 Report("ok facts: " + Facts());
@@ -189,6 +206,40 @@ internal static class DevBridge
                 Report($"error unknown command: {command}");
                 break;
         }
+    }
+
+    // Every binding with its kind, scope and conflicts, the slot-toggle chords, capture and focus-ignored keys.
+    private static string HotkeysText()
+    {
+        var bindings = Hotkeys.Bindings.Select(b =>
+        {
+            var conflicts = HotkeyConflicts.For(b);
+            return $"{b.Id}={b.Value} ({b.Kind.ToString().ToLowerInvariant()}, {b.Scope.ToString().ToLowerInvariant()})"
+                + (conflicts.Count > 0 ? $" [{string.Join("; ", conflicts)}]" : string.Empty);
+        });
+        var slots = Hotkeys.SlotChords().Select(c => $"slot{c.Slot + 1}={c.Chord.Text}");
+        string slotText = string.Join(", ", slots), ignored = string.Join(",", Hotkeys.Ignored);
+        return $"{string.Join(", ", bindings)}; slot chords {(slotText.Length > 0 ? slotText : "none")}; "
+            + $"capture {Hotkeys.Capturing?.Id ?? "none"}; ignored {(ignored.Length > 0 ? ignored : "none")}";
+    }
+
+    // <id>: <state> (<detail>); for automation clients also every rule, the held slots and press times.
+    private static string FeatureStatusText(Feature feature)
+    {
+        FeatureStatus status = feature.Status;
+        string text = $"{feature.Id}: {status.State.ToString().ToLowerInvariant()}" + (status.Detail.Length > 0 ? $" ({status.Detail})" : string.Empty);
+        var client = Dispatcher.Clients.FirstOrDefault(c => c.Feature == feature);
+        if (client == null) return text;
+
+        static string Time(float at) => at > 0f ? $"{at:F2}s" : "-";
+        var held = Enumerable.Range(0, Dispatcher.SlotCount).Where(client.Holds).Select(i => (i + 1).ToString()).ToList();
+        string rules = string.Join(", ", PauseRules.States(client).Select(r => $"{r.Rule.Name}={(r.Active is bool on ? on ? "active" : "inactive" : "unknown")}"));
+        string presses = string.Join(", ", Enumerable.Range(0, Dispatcher.SlotCount)
+            .Select(i => $"{i + 1}@{Time(Dispatcher.LastPressAt[i])}/f{Dispatcher.LastPressFrame[i]}"));
+        string manual = string.Join(", ", Enumerable.Range(0, Dispatcher.SlotCount).Select(i => $"{i + 1}@{Time(Dispatcher.LastManualPressAt[i])}"));
+        string slots = status.Slots is { } on ? string.Concat(on.Select(b => b ? '1' : '0')) : "-";
+        return $"{text}; rules {rules}; slots {slots}; held {(held.Count > 0 ? string.Join(",", held) : "none")}; "
+            + $"pressed {presses}; manual {manual}; now {UnityEngine.Time.unscaledTime:F2}s/f{UnityEngine.Time.frameCount}";
     }
 
     // Outside a game scene the movement processor can be alive while its getters throw; report that, not the error.
@@ -335,6 +386,7 @@ internal static class DevBridge
             case Number n when float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f): n.Value = n.Snap(f); return true;
             case Choice<int> c when int.TryParse(value, out int i) && c.Options.Any(o => o.Value == i): c.Value = i; return true;
             case Key k when Enum.TryParse(value, true, out KeyCode key): k.Value = key; return true;
+            case Hotkey h when Chord.TryParse(value, h.Kind, out var chord) && (h.Clearable || !chord.IsEmpty): h.Value = chord.Text; return true;
             case Choice<KeyCode> c when Enum.TryParse(value, true, out KeyCode key) && c.Options.Any(o => o.Value == key): c.Value = key; return true;
             default: return false;
         }

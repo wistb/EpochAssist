@@ -5,18 +5,20 @@ namespace EpochAssist.Features;
 
 internal static class AutoCastSettings
 {
-    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Auto-Cast");
+    // Version 2: HoldToPauseKey is a Hotkey (chord text) instead of a KeyCode.
+    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Auto-Cast", version: 2) { ActionKey = "autocast" };
 
     private static readonly Section Main = Group.Section("main", "Auto-Cast");
     public static readonly Toggle Enabled = new(Main, "Enabled", "Auto-cast", false) { QuickLabel = "Auto-cast" };
 
     public static readonly Section Controls = Group.Section("controls", "Controls");
     public static readonly Choice<KeyCode> ModifierKey = new(Controls, "ModifierKey", "Modifier", KeyCode.LeftControl,
-        (KeyCode.LeftControl, "Left Ctrl"), (KeyCode.LeftAlt, "Left Alt"), (KeyCode.LeftShift, "Left Shift"))
+        (KeyCode.LeftControl, "Left Ctrl"), (KeyCode.LeftAlt, "Left Alt"), (KeyCode.LeftShift, "Left Shift"),
+        (KeyCode.RightControl, "Right Ctrl"), (KeyCode.RightAlt, "Right Alt"), (KeyCode.RightShift, "Right Shift"))
     {
         Help = "Hold it and press a skill's key to toggle that slot.",
     };
-    public static readonly Key HoldToPauseKey = new(Controls, "HoldToPauseKey", "Hold to pause", KeyCode.None)
+    public static readonly Hotkey HoldToPauseKey = new(Controls, "HoldToPauseKey", "Hold to pause", string.Empty, HotkeyKind.Hold, HotkeyScope.Gameplay)
     {
         Clearable = true, Help = "While held, auto-cast stops and lets go of any channel.",
     };
@@ -63,7 +65,16 @@ internal static class AutoCastSettings
     /// <summary>The sections shown as tabs on the Auto-Cast page.</summary>
     public static readonly Section[] Tabs = { Controls, Pausing, Targeting, Gate };
 
-    public static void Register() => Group.Register();
+    public static void Register()
+    {
+        // Version 1 stored KeyCode names, with "None" for unset; any other name is already a one-key chord.
+        Group.Migration(2, _ =>
+        {
+            if (HoldToPauseKey.Value.Equals("None", StringComparison.OrdinalIgnoreCase)) HoldToPauseKey.Value = string.Empty;
+            Log.Info($"Auto-Cast HoldToPauseKey: '{HoldToPauseKey.Value}'");
+        });
+        Group.Register();
+    }
 
     private static Number Weight(string id, string label, float defaultValue) => new(Gate, id, label, defaultValue, 0f, 50f)
     {

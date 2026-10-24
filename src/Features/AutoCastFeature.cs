@@ -9,14 +9,11 @@ internal sealed class AutoCastFeature : Feature
     public override string Id => "autocast";
     public override string Name => "Auto-Cast";
     public override GuiLayer Layer => GuiLayer.World;
-    public override Type[] PatchClasses => NestedPatches(typeof(AutoCast));
+    public override string[] Needs => new[] { "game", "dispatch", "hotkeys" };
 
+    // Sending, channel stops and retargeting are the dispatcher's requirements; these are what auto-cast reads itself.
     public override Requirement[] Requirements => new[]
     {
-        Need<EpochInputManager>(nameof(EpochInputManager.useAbilityProcessor)),
-        Need<UseAbilityProcessor>(nameof(UseAbilityProcessor.UseBarAbilityCommand)),
-        Need<UseAbilityProcessor>(nameof(UseAbilityProcessor.PlayerAbilityState)),
-        Need<ClientUsingAbilityState>(nameof(ClientUsingAbilityState.AttemptToStopAbility)),
         Need<LocalTreeData>(nameof(LocalTreeData.playerAbilityList)),
         Need<PlayerAbilityList>(nameof(PlayerAbilityList.getAbility)),
         Need<PlayerAbilityList>(nameof(PlayerAbilityList.TransformAbilityId)),
@@ -27,15 +24,17 @@ internal sealed class AutoCastFeature : Feature
         Need<Ability>(nameof(Ability.channelled)),
         Need<PlayerChargeManager>(nameof(PlayerChargeManager.onCoooldown)),
         Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.channelling)),
-        Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.TryUpdateTargetLocationIfChannelling)),
-        Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.stopUsingAbility)),
         Need<MouseManager>(nameof(MouseManager.AbilityUseMousePoint)),
         Need<ActorManager>(nameof(ActorManager.visuals)),
         Need<ActorDisplayInformation>(nameof(ActorDisplayInformation.actorClass)),
     };
 
+    /// <summary>The dispatcher's status for auto-cast while it runs.</summary>
+    public override FeatureStatus Status =>
+        State == FeatureState.Running && AutoCast.Client is { } client ? Dispatcher.StatusOf(client) : base.Status;
+
     public override void RegisterSettings() => AutoCastSettings.Register();
-    public override void Start() => AutoCast.Start();
+    public override void Start() => AutoCast.Start(this);
     public override void Update() => AutoCast.OnUpdate();
     public override void OnGUI() => AutoCast.OnGUI();
     public override void Shutdown() => AutoCast.Shutdown();

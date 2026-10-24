@@ -26,7 +26,8 @@ internal static class SettingsView
     /// <summary>A section's settings as a card titled with the section, with a Reset button when anything differs.</summary>
     public static void Card(Section section, string? title = null)
     {
-        if (BeginCard((title ?? section.Title).ToUpperInvariant(), canReset: !section.IsDefault)) section.Reset();
+        if (BeginCard((title ?? section.Title).ToUpperInvariant(), canReset: !section.IsDefault))
+            Actions.Run(SettingsRegistry.ResetAction(section), "settings card reset");
         float width = RowWidth;
         RowWidth -= CardPadding;
         Rows(section.Settings);
@@ -63,6 +64,9 @@ internal static class SettingsView
                 break;
             case Key key:
                 KeyRow(key);
+                break;
+            case Hotkey hotkey:
+                HotkeyRow(hotkey);
                 break;
             case Choice<int> choice:
                 Buttons(choice);

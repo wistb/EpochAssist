@@ -31,7 +31,8 @@ internal abstract class Setting
     public abstract bool IsDefault { get; }
     public abstract void Reset();
 
-    internal abstract void Register(MelonPreferences_Category category);
+    /// <summary>Binds the stored entry; false when one of another type already holds the id in this game session.</summary>
+    internal abstract bool Register(MelonPreferences_Category category);
     /// <summary>Puts a hand-edited or outdated stored value back in range.</summary>
     internal abstract void Clamp();
 }
@@ -58,8 +59,21 @@ internal abstract class Setting<T> : Setting
     public override bool IsDefault => EqualityComparer<T>.Default.Equals(Value, Default);
     public override void Reset() => Value = Default;
 
-    internal override void Register(MelonPreferences_Category category) =>
-        _entry = Config.Entry(category, Id, Default, Help ?? Label);
+    // MelonPreferences keeps an entry's type for the whole game session, so after a retype only a restart can rebind it.
+    internal override bool Register(MelonPreferences_Category category)
+    {
+        try
+        {
+            _entry = Config.Entry(category, Id, Default, Help ?? Label);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _entry = null;
+            Log.Warn($"{Section.Group.Name} setting {Id} has an older type in this game session; its default is used until the game restarts ({e.GetType().Name})");
+            return false;
+        }
+    }
 }
 
 internal sealed class Toggle : Setting<bool>
@@ -113,6 +127,151 @@ internal sealed class Key : Setting<KeyCode>
     {
         if (!Enum.IsDefined(typeof(KeyCode), Value) || (!Clearable && Value == KeyCode.None)) Reset();
     }
+}
+
+// Never stored: a hotkey stores only its chord text.
+internal enum HotkeyKind { Press, Hold }
+internal enum HotkeyScope { Global, Gameplay }
+
+/// <summary>
+/// A key binding, stored as chord text: Unity KeyCode names joined by '+', modifiers first (LeftControl, RightControl,
+/// LeftShift, RightShift, LeftAlt, RightAlt), then at most one main key; empty is unbound. A press binding runs its
+/// action; a hold binding is asked whether it is held. The hotkey layer (Hotkeys) reads it.
+/// </summary>
+internal sealed class Hotkey : Setting<string>
+{
+    private string? _parsedText;
+    private Chord _chord;
+
+    public Hotkey(Section section, string id, string label, string defaultValue, HotkeyKind kind, HotkeyScope scope)
+        : base(section, id, label, defaultValue)
+    {
+        Kind = kind;
+        Scope = scope;
+    }
+
+    public HotkeyKind Kind { get; }
+    public HotkeyScope Scope { get; }
+    /// <summary>May be left unbound.</summary>
+    public bool Clearable { get; init; }
+    /// <summary>The action a press binding runs.</summary>
+    public string? Action { get; init; }
+
+    /// <summary>The parsed chord; empty when unbound or unparsable.</summary>
+    public Chord Chord
+    {
+        get
+        {
+            string text = Value;
+            if (!ReferenceEquals(text, _parsedText))
+            {
+                _chord = Chord.TryParse(text, Kind, out var chord) ? chord : default;
+                _parsedText = text;
+            }
+            return _chord;
+        }
+    }
+
+    public string Display => Chord.IsEmpty ? "Not set" : Chord.Display;
+
+    internal override void Clamp()
+    {
+        string value = Value;
+        if (Chord.TryParse(value, Kind, out var chord) && (Clearable || !chord.IsEmpty))
+        {
+            Value = chord.Text;
+            return;
+        }
+        Log.Warn($"{Section.Group.Name} setting {Id}: '{value}' isn't a usable key, so it is back to '{Default}'");
+        Reset();
+    }
+}
+
+/// <summary>A parsed key chord: modifier keys (left and right apart) and at most one main key.</summary>
+internal readonly struct Chord : IEquatable<Chord>
+{
+    /// <summary>Modifier keys in their canonical order; bit i of Modifiers is ModifierKeys[i].</summary>
+    public static readonly KeyCode[] ModifierKeys =
+    {
+        KeyCode.LeftControl, KeyCode.RightControl, KeyCode.LeftShift, KeyCode.RightShift, KeyCode.LeftAlt, KeyCode.RightAlt,
+    };
+    private static readonly string[] s_modifierNames = { "Left Ctrl", "Right Ctrl", "Left Shift", "Right Shift", "Left Alt", "Right Alt" };
+
+    public Chord(int modifiers, KeyCode main)
+    {
+        Modifiers = modifiers;
+        Main = main;
+    }
+
+    public int Modifiers { get; }
+    /// <summary>KeyCode.None for a chord of modifiers only.</summary>
+    public KeyCode Main { get; }
+
+    public bool IsEmpty => Modifiers == 0 && Main == KeyCode.None;
+    public bool ModifiersOnly => Modifiers != 0 && Main == KeyCode.None;
+
+    /// <summary>Every key of the chord, modifiers first.</summary>
+    public IEnumerable<KeyCode> Keys
+    {
+        get
+        {
+            for (int i = 0; i < ModifierKeys.Length; i++)
+            {
+                if ((Modifiers & (1 << i)) != 0) yield return ModifierKeys[i];
+            }
+            if (Main != KeyCode.None) yield return Main;
+        }
+    }
+
+    /// <summary>The stored form.</summary>
+    public string Text => string.Join("+", Keys.Select(k => k.ToString()));
+
+    /// <summary>For the menu: "Left Ctrl + F2".</summary>
+    public string Display => string.Join(" + ", Keys.Select(k => ModifierBit(k) is int bit ? s_modifierNames[bit] : k.ToString()));
+
+    public static int? ModifierBit(KeyCode key)
+    {
+        int index = Array.IndexOf(ModifierKeys, key);
+        return index >= 0 ? index : null;
+    }
+
+    /// <summary>Whether a key may be a chord's main key: any keyboard key; mouse buttons 3 to 7 only for hold bindings.</summary>
+    public static bool AllowedMain(KeyCode key, HotkeyKind kind)
+    {
+        if (key == KeyCode.None || key == KeyCode.Escape || key == KeyCode.Mouse0 || key == KeyCode.Mouse1) return false;
+        if (key >= KeyCode.JoystickButton0) return false;
+        if (key >= KeyCode.Mouse2 && key <= KeyCode.Mouse6) return kind == HotkeyKind.Hold;
+        return Enum.IsDefined(typeof(KeyCode), key);
+    }
+
+    /// <summary>Parses chord text, ignoring case and order. Empty text is the unbound chord.</summary>
+    public static bool TryParse(string? text, HotkeyKind kind, out Chord chord)
+    {
+        chord = default;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+
+        int modifiers = 0;
+        KeyCode main = KeyCode.None;
+        foreach (string raw in text.Split('+'))
+        {
+            string part = raw.Trim();
+            // Enum.TryParse also takes numbers, which aren't key names.
+            if (part.Length == 0 || char.IsDigit(part[0]) || part[0] == '-' || !Enum.TryParse(part, true, out KeyCode key)) return false;
+            if (ModifierBit(key) is int bit)
+            {
+                modifiers |= 1 << bit;
+                continue;
+            }
+            if (main != KeyCode.None || !AllowedMain(key, kind)) return false;
+            main = key;
+        }
+        chord = new Chord(modifiers, main);
+        return true;
+    }
+
+    public bool Equals(Chord other) => Modifiers == other.Modifiers && Main == other.Main;
+    public override bool Equals(object? obj) => obj is Chord other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(Modifiers, Main);
 }
 
 /// <summary>One of a fixed list of values, shown as a row of buttons. T must be storable: an int or a game enum, never one of ours.</summary>
@@ -179,8 +338,12 @@ internal sealed class SettingsGroup
 
     public string Id { get; }
     public string Name { get; }
+    /// <summary>The group's part of action names (settings.reset.[key].[section]); lowercase letters and digits.</summary>
+    public string ActionKey { get; init; } = string.Empty;
     /// <summary>Raise when a setting is renamed or changes type, and add a migration for the new version.</summary>
     public int Version { get; }
+    /// <summary>What went wrong bringing the stored settings up to Version at the last registration; shown in the menu.</summary>
+    public List<string> Failures { get; } = new();
     public List<Section> Sections { get; } = new();
     public IEnumerable<Setting> All => Sections.SelectMany(s => s.Settings);
 
@@ -191,35 +354,50 @@ internal sealed class SettingsGroup
         return section;
     }
 
-    /// <summary>Runs once for users whose stored settings are older than toVersion, before the settings are read.</summary>
+    /// <summary>
+    /// Runs once for users whose stored settings are older than toVersion. It runs after the entries are registered and
+    /// before they are clamped, so it can read and write the typed settings (and the raw category).
+    /// </summary>
     public void Migration(int toVersion, Action<MelonPreferences_Category> step) => _migrations.Add((toVersion, step));
 
     public void Register()
     {
         _category = Config.Category(Id, $"{BuildInfo.Name} - {Name}");
         var stored = Config.Entry(_category, VersionKey, 0, "Settings format version; do not edit");
+        Failures.Clear();
 
-        // 0 is both a first run and settings from before versioning, so a migration must cope with finding nothing.
-        foreach (var (version, step) in _migrations.OrderBy(m => m.Version))
+        var unbound = All.Where(setting => !setting.Register(_category)).Select(setting => setting.Id).ToList();
+        int reached = stored.Value;
+        if (unbound.Count > 0)
         {
-            if (version <= stored.Value || version > Version) continue;
-            try
+            // A retyped entry still has its old type in this session; migrate after a restart instead.
+            Failures.Add($"{string.Join(", ", unbound)} {(unbound.Count == 1 ? "keeps its" : "keep their")} old type until the game restarts");
+        }
+        else
+        {
+            // 0 is both a first run and settings from before versioning, so a migration must cope with finding nothing.
+            reached = Version;
+            foreach (var (version, step) in _migrations.OrderBy(m => m.Version))
             {
-                step(_category);
-                Log.Info($"{Name} settings migrated to version {version}");
-            }
-            catch (Exception e)
-            {
-                Log.Error($"{Name} settings migration to {version} failed: {e.Message}");
+                if (version <= stored.Value || version > Version) continue;
+                try
+                {
+                    step(_category);
+                    Log.Info($"{Name} settings migrated to version {version}");
+                }
+                catch (Exception e)
+                {
+                    // Later steps would build on this one; stop here and try again on the next start.
+                    reached = _migrations.Where(m => m.Version < version).Select(m => m.Version).Prepend(stored.Value).Max();
+                    Failures.Add($"migration to version {version} failed: {e.Message}");
+                    Log.Error($"{Name} settings migration to version {version} failed: {e.Message}");
+                    break;
+                }
             }
         }
 
-        foreach (var setting in All)
-        {
-            setting.Register(_category);
-            setting.Clamp();
-        }
-        stored.Value = Version;
+        foreach (var setting in All) setting.Clamp();
+        stored.Value = reached;
         SettingsRegistry.Add(this);
     }
 
@@ -239,10 +417,28 @@ internal static class SettingsRegistry
     public static IEnumerable<Toggle> QuickToggles =>
         s_groups.SelectMany(g => g.All).OfType<Toggle>().Where(t => t.QuickLabel != null);
 
+    // Each group's sections get a reset action and its quick toggles a toggle action, owned by the settings layer.
     internal static void Add(SettingsGroup group)
     {
-        if (!s_groups.Contains(group)) s_groups.Add(group);
+        if (s_groups.Contains(group)) return;
+        s_groups.Add(group);
+        foreach (var section in group.Sections)
+        {
+            Actions.Register("settings", ResetAction(section), $"Reset {section.Title}", section.Reset);
+        }
+        foreach (var toggle in group.All.OfType<Toggle>().Where(t => t.QuickLabel != null))
+        {
+            Actions.Register("settings", ToggleAction(toggle), toggle.QuickLabel!, () => toggle.Value = !toggle.Value, () => toggle.Value);
+        }
     }
+
+    public static string ResetAction(Section section) => $"settings.reset.{Key(section.Group)}.{Slug(section.Id)}";
+
+    public static string ToggleAction(Toggle toggle) => $"setting.toggle.{Key(toggle.Section.Group)}.{Slug(toggle.Id)}";
+
+    private static string Key(SettingsGroup group) => Slug(group.ActionKey.Length > 0 ? group.ActionKey : group.Id);
+
+    private static string Slug(string text) => new(text.ToLowerInvariant().Where(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9')).ToArray());
 
     public static IEnumerable<Setting> Search(string query)
     {

@@ -11,10 +11,6 @@ internal static class Widgets
     /// <summary>Set by the caller at the start of each OnGUI pass.</summary>
     public static bool Themed;
 
-    // The key setting being rebound, or null.
-    public static Key? Capturing;
-    private static KeyCode[]? s_bindableKeys;
-
     public static GUIStyle Style(Func<GUIStyle> themed, GUIStyle fallback) => Themed ? themed() : fallback;
 
     // A full-width row with the label on the left and a switch on the right; the whole row is clickable.
@@ -88,23 +84,55 @@ internal static class Widgets
         GUIStyle rowLabel = Style(() => Theme.RowLabel, GUI.skin.label);
         GUILayout.BeginHorizontal(GUILayout.Height(30f));
         GUILayout.Label(key.Label, rowLabel, GUILayout.Width(LabelWidth), GUILayout.Height(30f));
-        if (Capturing == key)
+        if (Hotkeys.Capturing == key)
         {
             GUILayout.Label(Colored("Press a key...", Theme.AccentText), rowLabel, GUILayout.Height(30f));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Cancel", button)) Capturing = null;
+            if (GUILayout.Button("Cancel", button)) Hotkeys.CancelCapture();
         }
         else
         {
             GUILayout.Label(key.Value == KeyCode.None ? "Not set" : key.Value.ToString(), Style(() => Theme.KeyChip, GUI.skin.box));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Change", button)) Capturing = key;
+            if (GUILayout.Button("Change", button)) Hotkeys.BeginCapture(key);
             if (key.Clearable && key.Value != KeyCode.None && GUILayout.Button("Clear", button))
                 key.Value = KeyCode.None;
             else if (!key.Clearable && !key.IsDefault && GUILayout.Button("Reset", button))
                 key.Reset();
         }
         GUILayout.EndHorizontal();
+    }
+
+    // A binding: its chord, Change and Clear (or Reset), and a warning line for each conflict.
+    public static void HotkeyRow(Hotkey hotkey)
+    {
+        GUIStyle button = Style(() => Theme.SmallButton, GUI.skin.button);
+        GUIStyle rowLabel = Style(() => Theme.RowLabel, GUI.skin.label);
+        GUILayout.BeginHorizontal(GUILayout.Height(30f));
+        GUILayout.Label(hotkey.Label, rowLabel, GUILayout.Width(LabelWidth), GUILayout.Height(30f));
+        if (Hotkeys.Capturing == hotkey)
+        {
+            string prompt = hotkey.Kind == HotkeyKind.Hold ? "Press keys or a mouse button..." : "Press keys...";
+            GUILayout.Label(Colored(prompt, Theme.AccentText), rowLabel, GUILayout.Height(30f));
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Cancel", button)) Hotkeys.CancelCapture();
+        }
+        else
+        {
+            GUILayout.Label(hotkey.Display, Style(() => Theme.KeyChip, GUI.skin.box));
+            GUILayout.FlexibleSpace();
+            // Capture is read by the hotkey layer, so it needs that layer running.
+            bool wasEnabled = GUI.enabled;
+            GUI.enabled = wasEnabled && FeatureHost.Find("hotkeys")?.State == FeatureState.Running;
+            if (GUILayout.Button("Change", button)) Hotkeys.BeginCapture(hotkey);
+            GUI.enabled = wasEnabled;
+            if (hotkey.Clearable && hotkey.Value.Length > 0 && GUILayout.Button("Clear", button))
+                hotkey.Value = string.Empty;
+            else if (!hotkey.Clearable && !hotkey.IsDefault && GUILayout.Button("Reset", button))
+                hotkey.Reset();
+        }
+        GUILayout.EndHorizontal();
+        foreach (string warning in HotkeyConflicts.For(hotkey)) Hint(Colored(warning, Theme.Pause));
     }
 
     /// <summary>Starts a card; returns true when its Reset button was pressed (shown only when canReset).</summary>
@@ -124,30 +152,4 @@ internal static class Widgets
     public static void Hint(string text) => GUILayout.Label(text, Style(() => Theme.Hint, GUI.skin.label));
 
     public static string Colored(string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
-
-    /// <summary>Feeds key presses to a pending rebind. True while one is in progress.</summary>
-    public static bool UpdateKeyCapture(bool menuVisible)
-    {
-        if (Capturing == null) return false;
-        if (!menuVisible || Input.GetKeyDown(KeyCode.Escape))
-        {
-            Capturing = null;
-            return true;
-        }
-
-        s_bindableKeys ??= Enum.GetValues<KeyCode>()
-            .Where(k => k != KeyCode.None && k != KeyCode.Escape && (k < KeyCode.Mouse0 || k > KeyCode.Mouse6) && k < KeyCode.JoystickButton0)
-            .ToArray();
-        foreach (KeyCode key in s_bindableKeys)
-        {
-            if (!Input.GetKeyDown(key)) continue;
-            // Holding the menu key to pause would toggle the menu.
-            if (Capturing != Config.MenuKey && key == Config.MenuKey.Value) continue;
-
-            Capturing.Value = key;
-            Capturing = null;
-            break;
-        }
-        return true;
-    }
 }
