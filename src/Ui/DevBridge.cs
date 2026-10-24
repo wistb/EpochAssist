@@ -8,7 +8,7 @@ namespace EpochAssist.Ui;
 /// Dev builds only: runs commands written to UserData/EpochAssist/dev/commands.txt (one per line, one per frame)
 /// and reports to result.txt, ending with "done". tools/shot.sh drives it.
 ///   menu open autocast|potion|settings [tab]   menu close   menu search [text]
-///   hud panel open|close   set [setting id] [value]   state   compat   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]
+///   hud panel open|close   set [setting id] [value]   state   facts   compat   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
@@ -148,6 +148,9 @@ internal static class DevBridge
                     + MovementState() + "; features "
                     + string.Join(", ", FeatureHost.All.Select(f => $"{f.Id}={f.State}" + (f.LastError != null ? $" ({f.LastError})" : string.Empty))));
                 break;
+            case "facts":
+                Report("ok facts: " + Facts());
+                break;
             case "compat":
                 var report = FeatureHost.All.Select(f => (f.Id, Missing: Compat.Missing(f))).ToList();
                 report.Add(("selftest", Compat.Missing(new CompatProbeFeature())));
@@ -188,7 +191,20 @@ internal static class DevBridge
         }
     }
 
+    // Outside a game scene the movement processor can be alive while its getters throw; report that, not the error.
     private static string MovementState()
+    {
+        try
+        {
+            return MovementStateUnsafe();
+        }
+        catch (Exception e)
+        {
+            return $"movement: unreadable ({e.GetType().Name})";
+        }
+    }
+
+    private static string MovementStateUnsafe()
     {
         var input = Game.Input;
         if (input == null) return "movement: no input manager";
@@ -196,6 +212,69 @@ internal static class DevBridge
         string pos = Player.Transform is Transform t ? $"pos ({t.position.x:F2}, {t.position.z:F2}), " : string.Empty;
         return $"movement: {pos}focused {Application.isFocused}, ours {InputGate.Blocking}, blocked {input.forceDisableInput}, mouseMoveBlocked {input.blockMouseMovementInput}, input {input.input}, lastInput {input.lastInput}, kbHeld {input.isKeyboardMovementButtonHeld}, "
             + (Game.Alive(mp) ? $"moving {mp.IsMoving}, kbActive {mp.IsKeyboardMovementActive}" : "no movement processor");
+    }
+
+    // facts: read-only values behind the state checks (typing, game pause menu, loading, arrival, death),
+    // each read on its own so one missing member doesn't hide the rest.
+    private static string Facts()
+    {
+        static string Read(string label, Func<string> read)
+        {
+            try
+            {
+                return $"{label} {read()}";
+            }
+            catch (Exception e)
+            {
+                return $"{label} ? ({e.GetType().Name})";
+            }
+        }
+        static IEnumerable<T> All<T>() where T : Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase =>
+            Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<T>()).Select(o => o.TryCast<T>()).Where(o => o != null)!;
+
+        var ui = Il2Cpp.UIBase.instance;
+        var obj = Player.Object;
+        string scene = GameState.Scene;
+        return string.Join("; ", new[]
+        {
+            Read("timeScale", () => $"{Time.timeScale:F2}, focused {Application.isFocused}"),
+            Read("typing:", () => $"game {GameState.Typing}, chat {(Game.Alive(ui) ? ui!.IsChatInputFocused.ToString() : "no UIBase")}, imgui keyboardControl {GUIUtility.keyboardControl}"),
+            Read("selected", () =>
+            {
+                var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+                if (selected == null) return "none";
+                var field = selected.GetComponentInParent<UnityEngine.UI.InputField>();
+                bool tmp = selected.GetComponentsInParent<Component>().Any(c => c.GetIl2CppType().Name == "TMP_InputField");
+                return $"'{selected.name}' (InputField {(field != null ? $"focused {field.isFocused}" : "none")}, TMP_InputField {(tmp ? "present" : "none")})";
+            }),
+            Read("pause: menuOpen", () => Game.Alive(ui) ? $"{ui!.menuOpen}, keybindMenuOpen {ui.keybindMenuOpen}" : "no UIBase"),
+            Read("bottomScreenMenu", () =>
+            {
+                var bottom = Game.Alive(ui) ? ui!.bottomScreenMenu : null;
+                if (!Game.Alive(bottom)) return "none";
+                bool image = bottom!.transform.Find("Menu Image") != null;
+                return $"active {bottom.gameObject.activeSelf}, 'Menu Image' {(image ? "present" : "missing")}";
+            }),
+            Read("pauseWhileActiveIfOffline", () => string.Join(", ", All<Il2Cpp.PauseWhileActiveIfOffline>()
+                .Where(p => p.gameObject.activeInHierarchy).Select(p => $"'{p.gameObject.name}' hasPaused {p.hasPaused}")) is { Length: > 0 } s ? s : "none active"),
+            Read("loading: visible", () => Il2CppLE.UI.LoadingScreen.IsVisible.ToString()),
+            Read("scenes:", () =>
+            {
+                var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                var names = Enumerable.Range(0, UnityEngine.SceneManagement.SceneManager.sceneCount)
+                    .Select(i => UnityEngine.SceneManagement.SceneManager.GetSceneAt(i))
+                    .Select(s => s.name + (s.handle == active.handle ? "*" : string.Empty) + (s.isLoaded ? string.Empty : "(loading)"));
+                return string.Join(", ", names);
+            }),
+            Read("zone:", () => scene.Length == 0 ? "no scene" : $"town {Il2Cpp.SceneList.IsTownZone(scene)}, nonCombat {Il2Cpp.SceneList.IsNonCombatZone(scene)}, restZone {Il2Cpp.SceneList.IsMonolithRestZone(scene)}"),
+            Read("arrival:", () => Player.Health is Il2Cpp.PlayerHealth h
+                ? $"isInSceneLoad {h.isInSceneLoad}, damageable {(Game.Alive(h.playerZoneTransition) ? h.playerZoneTransition.damageable().ToString() : "no handler")}, isDamageable {h.isDamageable()}"
+                : "no PlayerHealth"),
+            Read("death: health", () => Player.Health is Il2Cpp.PlayerHealth h ? $"{h.currentHealth:F0}/{h.maxHealth:F0}" : "none"),
+            Read("visuals.dead", () => obj != null && obj.GetComponent<Il2Cpp.ActorVisuals>() is Il2Cpp.ActorVisuals v ? v.dead.ToString() : "no ActorVisuals"),
+            Read("sync.IsDead", () => obj != null && obj.GetComponent<Il2Cpp.ActorSync>() is Il2Cpp.ActorSync a ? a.IsDead.ToString() : "no ActorSync"),
+            Read("deathScreen active", () => string.Join(", ", All<Il2Cpp.DeathScreen>().Select(d => d.gameObject.activeInHierarchy.ToString())) is { Length: > 0 } s ? s : "none"),
+        });
     }
 
     // probe <type> [filter]: the type's declared methods, fields and properties, from the game's interop assemblies.
