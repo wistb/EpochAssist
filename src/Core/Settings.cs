@@ -371,7 +371,7 @@ internal sealed class SettingsGroup
         if (unbound.Count > 0)
         {
             // A retyped entry still has its old type in this session; migrate after a restart instead.
-            Failures.Add($"{string.Join(", ", unbound)} {(unbound.Count == 1 ? "keeps its" : "keep their")} old type until the game restarts");
+            Failures.Add($"Restart the game to finish updating: {string.Join(", ", unbound)}");
         }
         else
         {
