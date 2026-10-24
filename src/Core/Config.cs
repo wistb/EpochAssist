@@ -16,7 +16,7 @@ internal readonly record struct ScreenSpot(int Horizontal, int Vertical)
 // The mod's own settings. Values live in UserData/MelonPreferences.cfg; each feature declares its own group too.
 internal static class Config
 {
-    // Version 2: MenuKey is a Hotkey (chord text) instead of a KeyCode; PanicKey is new.
+    // Version 2: MenuKey is a Hotkey (chord text) instead of a KeyCode.
     public static readonly SettingsGroup Group = new("EpochAssist", "General", version: 2) { ActionKey = "general" };
 
     // Each section is a tab on the Settings page, in this order. Setting ids, not sections, are what is stored.
@@ -104,10 +104,6 @@ internal static class Config
     public static readonly Hotkey MenuKey = new(Keys, "MenuKey", "Menu key", "F2", HotkeyKind.Press, HotkeyScope.Global)
     {
         Action = "menu.toggle",
-    };
-    public static readonly Hotkey PanicKey = new(Keys, "PanicKey", "Panic key", string.Empty, HotkeyKind.Press, HotkeyScope.Gameplay)
-    {
-        Clearable = true, Action = "panic", Help = "Lets go of everything at once and switches all automation off.",
     };
     public static readonly Hotkey ConsoleKey = new(Keys, "ConsoleKey", "Console key", string.Empty, HotkeyKind.Press, HotkeyScope.Global)
     {

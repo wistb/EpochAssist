@@ -33,7 +33,7 @@ internal sealed class GameAction
 internal static class Actions
 {
     // Lowercase segments, camelCase allowed after the first letter (hud.togglePanel).
-    private static readonly Regex s_name = new(@"^[a-z0-9][a-zA-Z0-9]*(\.[a-z0-9][a-zA-Z0-9]*)+$|^panic$", RegexOptions.CultureInvariant);
+    private static readonly Regex s_name = new(@"^[a-z0-9][a-zA-Z0-9]*(\.[a-z0-9][a-zA-Z0-9]*)+$", RegexOptions.CultureInvariant);
     private static readonly Dictionary<string, GameAction> s_actions = new(StringComparer.Ordinal);
 
     /// <summary>Sorted by name.</summary>

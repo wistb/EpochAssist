@@ -63,7 +63,6 @@ internal static class PauseRules
 
     public static readonly PauseRule[] Global =
     {
-        new("panic", "off (panic)", RuleKind.Global, c => c.Panicked && !c.MasterToggle.Value),
         new("disabled", "off", RuleKind.Global, c => !c.MasterToggle.Value),
         new("no-player", "no player", RuleKind.Global, _ => !GameState.InGame),
         new("no-input", "game input not ready", RuleKind.Global, _ => Game.Input == null || Game.AbilityProcessor == null),
@@ -79,7 +78,7 @@ internal static class PauseRules
     };
 
     /// <summary>Rules a status shows as off rather than waiting.</summary>
-    public static bool IsOff(PauseRule rule) => rule == Global[0] || rule == Global[1];
+    public static bool IsOff(PauseRule rule) => rule == Global[0];
 
     /// <summary>The first active rule for the client, or null when it may act. skip leaves out one kind of the client's own.</summary>
     public static PauseRule? FirstActive(DispatchClient client, RuleKind? skip = null)

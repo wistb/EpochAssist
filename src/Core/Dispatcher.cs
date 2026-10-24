@@ -40,8 +40,6 @@ internal sealed class DispatchClient
     /// <summary>True while the slot's key toggles instead of casting, so holding it isn't a manual cast.</summary>
     public Func<int, bool>? SlotChordHeld { get; set; }
 
-    /// <summary>Set by panic; cleared when the master switch is turned back on.</summary>
-    public bool Panicked { get; internal set; }
     /// <summary>The rule that stopped the client at the last check, or null.</summary>
     public PauseRule? Blocking { get; internal set; }
 
@@ -135,22 +133,6 @@ internal static class Dispatcher
         if (slot >= 0 && slot < SlotCount) client.StopRequested[slot] = true;
     }
 
-    /// <summary>
-    /// Lets go of everything every client holds, this frame, and switches each one off (saved like any setting change).
-    /// Its status reads "off (panic)" until the player switches it back on.
-    /// </summary>
-    public static void Panic()
-    {
-        foreach (var client in s_clients)
-        {
-            Release(client);
-            client.Panicked = true;
-            client.MasterToggle.Value = false;
-        }
-        Log.Warn($"Panic: all automation released and switched off ({string.Join(", ", s_clients.Select(c => c.Feature.Name))})");
-        Toasts.Show("dispatch", "Panic: automation is off. Switch it back on when ready.", ToastKind.Warning);
-    }
-
     /// <summary>Lets go of every slot held for the client now: the key-up, then the channel stop for channelled ones.</summary>
     public static void Release(DispatchClient client)
     {
@@ -176,7 +158,6 @@ internal static class Dispatcher
     {
         foreach (var client in s_clients)
         {
-            if (client.Panicked && client.MasterToggle.Value) client.Panicked = false;
             client.Blocking = PauseRules.FirstActive(client);
             if (client.Blocking != null) Release(client);
         }
@@ -441,7 +422,6 @@ internal sealed class DispatcherFeature : Feature
     public override void Start()
     {
         Dispatcher.CanReadManualHolds = Has(ManualHolds);
-        Actions.Register(Id, "panic", "Panic: stop all automation", Dispatcher.Panic);
     }
     public override void Update() => Dispatcher.Update();
     public override void LateUpdate() => Dispatcher.LateUpdate();
