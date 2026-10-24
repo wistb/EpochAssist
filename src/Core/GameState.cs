@@ -24,10 +24,19 @@ internal static class GameState
     /// <summary>Off when the game lacks the chat focus flag (set by GameStateFeature).</summary>
     public static bool CanReadChat = true;
 
+    /// <summary>Off when the game lacks the loading screen flag (set by GameStateFeature).</summary>
+    public static bool CanReadLoading = true;
+
+    /// <summary>Off when the game lacks the pause menu flag (set by GameStateFeature).</summary>
+    public static bool CanReadPauseMenu = true;
+
     /// <summary>One of the mod's own text fields has focus (set by the menu).</summary>
     public static bool UiTyping;
 
     public static string Scene { get; private set; } = string.Empty;
+
+    /// <summary>The active scene's name right now, which may be ahead of Scene until the next update.</summary>
+    public static string ActiveSceneName => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
     public static SceneKind Kind { get; private set; }
 
     /// <summary>A character is loaded and the scene is a playable zone.</summary>
@@ -35,6 +44,23 @@ internal static class GameState
 
     /// <summary>Null until the player is found.</summary>
     public static bool? Online => Player.Online;
+
+    /// <summary>The player's health and maximum, or null without a player.</summary>
+    public static (float Current, float Max)? Health
+    {
+        get
+        {
+            try
+            {
+                PlayerHealth? health = Player.Health;
+                return health != null ? (health.currentHealth, health.maxHealth) : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
 
     public static bool PlayerAlive
     {
@@ -52,11 +78,48 @@ internal static class GameState
         }
     }
 
+    /// <summary>The game's loading screen is up; false when it can't be read.</summary>
+    public static bool Loading
+    {
+        get
+        {
+            if (!CanReadLoading) return false;
+            try
+            {
+                return Il2CppLE.UI.LoadingScreen.IsVisible;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>The game's own pause menu (Esc) is open; false when it can't be read.</summary>
+    public static bool GamePaused
+    {
+        get
+        {
+            if (!CanReadPauseMenu) return false;
+            try
+            {
+                return Game.UI?.menuOpen ?? false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>
     /// A text box has focus, so keys belong to it. Tested in game: the game's input-field flag covers fields like the
     /// stash search but not the chat box, which has its own flag, and neither sees the mod's own fields.
     /// </summary>
     public static bool Typing => UiTyping || GameFieldActive || ChatFocused;
+
+    /// <summary>A game text field or the chat box has focus (not one of the mod's own fields).</summary>
+    public static bool GameTyping => GameFieldActive || ChatFocused;
 
     private static bool GameFieldActive
     {
@@ -199,6 +262,9 @@ internal sealed class GameStateFeature : Feature
     public override string Name => "Game state";
     // Chat focus is optional: without it, typing in chat is missed but everything else keeps working.
     private const string ChatTyping = "chat typing";
+    // Optional too: without them automation doesn't pause for that one condition.
+    private const string LoadingGroup = "loading";
+    private const string PauseMenu = "pause menu";
 
     public override Type[] PatchClasses => NestedPatches(typeof(GameState));
     public override Requirement[] Requirements => new[]
@@ -210,11 +276,16 @@ internal sealed class GameStateFeature : Feature
         Need<EpochInputManager>(nameof(EpochInputManager.IsInputFieldActive)),
         Need<UIBase>(nameof(UIBase.instance), ChatTyping),
         Need<UIBase>(nameof(UIBase.IsChatInputFocused), ChatTyping),
+        Need(typeof(Il2CppLE.UI.LoadingScreen), nameof(Il2CppLE.UI.LoadingScreen.IsVisible), LoadingGroup),
+        Need<UIBase>(nameof(UIBase.instance), PauseMenu),
+        Need<UIBase>(nameof(UIBase.menuOpen), PauseMenu),
     };
 
     public override void Start()
     {
         GameState.CanReadChat = Has(ChatTyping);
+        GameState.CanReadLoading = Has(LoadingGroup);
+        GameState.CanReadPauseMenu = Has(PauseMenu);
         GameState.OnSceneChanged();
     }
 
