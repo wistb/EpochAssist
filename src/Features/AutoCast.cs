@@ -7,8 +7,8 @@ using S = EpochAssist.Features.AutoCastSettings;
 namespace EpochAssist.Features;
 
 /// <summary>
-/// Per-slot skill auto-cast. Hold the modifier key and press a skill's own keybind to toggle
-/// auto-cast for that slot. Casts are requested from the dispatcher, which checks the pause rules
+/// Per-slot skill autocast. Hold the modifier key and press a skill's own keybind to toggle
+/// autocast for that slot. Casts are requested from the dispatcher, which checks the pause rules
 /// and sends them through the game's UseAbilityProcessor, the entry point a real key press uses.
 /// Toggles come from the hotkey layer, which reads the keys bound to each slot, because the game drops
 /// the skill press when modifier+key is a binding of its own (Ctrl+F is its search field).
@@ -82,7 +82,7 @@ internal static class AutoCast
 
     public const int Slots = SlotCount;
 
-    /// <summary>The dispatcher's view of auto-cast while it runs.</summary>
+    /// <summary>The dispatcher's view of autocast while it runs.</summary>
     public static DispatchClient? Client => s_run?.Client;
 
     public static bool IsSlotToggled(int slot) => CurrentToggles()[slot];
@@ -153,7 +153,7 @@ internal static class AutoCast
         if (run.ZonePaused && Dispatcher.PlainPressThisFrame)
         {
             run.ZonePaused = false;
-            Log.Info("AutoCast: resumed");
+            Log.Info("Autocast: resumed");
         }
 
         UpdateEnemyGate(run);
@@ -166,7 +166,7 @@ internal static class AutoCast
         }
         catch (Exception e)
         {
-            Log.ErrorThrottled("autocast:icons", $"AutoCast icon update failed: {e.Message}", 30);
+            Log.ErrorThrottled("autocast:icons", $"Autocast icon update failed: {e.Message}", 30);
         }
     }
 
@@ -182,22 +182,7 @@ internal static class AutoCast
         float radius = S.EnemyRange.Value;
         Color color = run.EnemyGateOpen ? s_rangeRingCastingColor : s_rangeRingHoldingColor;
 
-        Draw.Begin();
-        try
-        {
-            Vector3 previous = center + new Vector3(radius, 0f, 0f);
-            for (int i = 1; i <= RangeRingSegments; i++)
-            {
-                float angle = i * (2f * Mathf.PI / RangeRingSegments);
-                Vector3 next = center + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
-                Draw.WorldLine(previous, next, color, RangeRingWidth);
-                previous = next;
-            }
-        }
-        finally
-        {
-            Draw.End();
-        }
+        Draw.WorldCircle(center, radius, color, RangeRingWidth, RangeRingSegments);
     }
 
     private static void LogStatusChanges(Run run)
@@ -209,10 +194,10 @@ internal static class AutoCast
         if (status == run.LastLoggedStatus) return;
 
         run.LastLoggedStatus = status;
-        Log.Info($"AutoCast status: {status}");
+        Log.Info($"Autocast status: {status}");
     }
 
-    /// <summary>Starts a clean run and registers with the dispatcher, with auto-cast's own pause rules in rank order.</summary>
+    /// <summary>Starts a clean run and registers with the dispatcher, with autocast's own pause rules in rank order.</summary>
     public static void Start(Feature feature)
     {
         var run = new Run();
@@ -235,7 +220,7 @@ internal static class AutoCast
         s_run = run;
         GameState.ZoneChanged += OnZoneChanged;
 
-        Actions.Register(feature.Id, "autocast.toggle", "Auto-cast", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
+        Actions.Register(feature.Id, "autocast.toggle", "Autocast", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
         for (int i = 0; i < SlotCount; i++)
         {
             int slot = i;
@@ -245,7 +230,7 @@ internal static class AutoCast
         Hotkeys.SetSlotChords(() => S.ModifierKey.Value, "autocast.slot.");
     }
 
-    // Slots toggle only while auto-cast is on; switching it off forgets them.
+    // Slots toggle only while autocast is on; switching it off forgets them.
     private static void ToggleSlot(int slot)
     {
         if (s_run is { } run && S.Enabled.Value) Toggle(run, slot);
@@ -276,10 +261,15 @@ internal static class AutoCast
         }
     }
 
-    // The dispatcher lets go of held slots as soon as the zone-pause rule is active.
+    // The dispatcher lets go of held slots as soon as the zone-pause rule is active. With no slot on there is nothing to
+    // tell the player beyond the status.
     private static void PauseForZone(Run run)
     {
-        if (!run.ZonePaused) Log.Info($"AutoCast: paused (scene '{GameState.Scene}')");
+        if (!run.ZonePaused)
+        {
+            Log.Info($"Autocast: paused (scene '{GameState.Scene}')");
+            if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
+        }
         run.ZonePaused = true;
     }
 
@@ -309,7 +299,7 @@ internal static class AutoCast
         return true;
     }
 
-    /// <summary>Lets go of everything auto-cast holds: channels (through the dispatcher), toggles, tinted icons.</summary>
+    /// <summary>Lets go of everything autocast holds: channels (through the dispatcher), toggles, tinted icons.</summary>
     public static void Shutdown()
     {
         GameState.ZoneChanged -= OnZoneChanged;
@@ -394,7 +384,7 @@ internal static class AutoCast
         }
         catch (Exception e)
         {
-            Log.ErrorThrottled("autocast:refs", $"AutoCast reference lookup failed: {e.Message}", 30);
+            Log.ErrorThrottled("autocast:refs", $"Autocast reference lookup failed: {e.Message}", 30);
             return null;
         }
     }
@@ -487,11 +477,11 @@ internal static class AutoCast
         if (toggles[slot] && run.ZonePaused)
         {
             run.ZonePaused = false;
-            Log.Info("AutoCast: resumed");
+            Log.Info("Autocast: resumed");
         }
 
         bool paused = run.Client != null && Dispatcher.StatusOf(run.Client, RuleKind.Momentary).State == StatusState.Paused;
-        Log.Info($"AutoCast: slot {slot + 1} ({run.Slots[slot].Ability?.abilityName ?? "?"}) {(toggles[slot] ? "ON" : "off")}{(paused ? " (paused)" : string.Empty)}");
+        Log.Info($"Autocast: slot {slot + 1} ({run.Slots[slot].Ability?.abilityName ?? "?"}) {(toggles[slot] ? "ON" : "off")}{(paused ? " (paused)" : string.Empty)}");
     }
 
     private static void ClearToggles(Run run)
@@ -551,12 +541,12 @@ internal static class AutoCast
         }
         catch (Exception e)
         {
-            // If the scan breaks, fail open so auto-cast keeps working ungated.
+            // If the scan breaks, fail open so autocast keeps working ungated.
             run.EnemiesInRange = 0;
             run.EnemyWeightInRange = 0f;
             run.ClosestEnemy = null;
             run.EnemyGateOpen = true;
-            Log.ErrorThrottled("autocast:enemies", $"AutoCast enemy scan failed: {e.Message}", 30);
+            Log.ErrorThrottled("autocast:enemies", $"Autocast enemy scan failed: {e.Message}", 30);
             return;
         }
 
@@ -663,7 +653,7 @@ internal static class AutoCast
         }
     }
 
-    // Toggled slots pulse while auto-cast may cast (the enemy gate holding it counts); they turn blue while paused
+    // Toggled slots pulse while autocast may cast (the enemy gate holding it counts); they turn blue while paused
     // or while the hold-to-pause key is held.
     private static void UpdateIcons(Run run)
     {

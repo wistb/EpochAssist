@@ -1,4 +1,5 @@
 using EpochAssist.Core;
+using EpochAssist.Ui;
 using Il2Cpp;
 using Feature = EpochAssist.Core.Feature;
 
@@ -7,11 +8,15 @@ namespace EpochAssist.Features;
 internal sealed class AutoCastFeature : Feature
 {
     public override string Id => "autocast";
-    public override string Name => "Auto-Cast";
+    public override string Name => "Autocast";
     public override GuiLayer Layer => GuiLayer.World;
     public override string[] Needs => new[] { "game", "dispatch", "hotkeys" };
+    public override FeaturePage? Page => s_page;
+    public override string? StatusName => "Autocast";
 
-    // Sending, channel stops and retargeting are the dispatcher's requirements; these are what auto-cast reads itself.
+    private static readonly FeaturePage s_page = new("Autocast", 10, AutoCastPage.Draw) { Switch = AutoCastSettings.Enabled };
+
+    // Sending, channel stops and retargeting are the dispatcher's requirements; these are what autocast reads itself.
     public override Requirement[] Requirements => new[]
     {
         Need<LocalTreeData>(nameof(LocalTreeData.playerAbilityList)),
@@ -29,7 +34,7 @@ internal sealed class AutoCastFeature : Feature
         Need<ActorDisplayInformation>(nameof(ActorDisplayInformation.actorClass)),
     };
 
-    /// <summary>The dispatcher's status for auto-cast while it runs.</summary>
+    /// <summary>The dispatcher's status for autocast while it runs.</summary>
     public override FeatureStatus Status =>
         State == FeatureState.Running && AutoCast.Client is { } client ? Dispatcher.StatusOf(client) : base.Status;
 

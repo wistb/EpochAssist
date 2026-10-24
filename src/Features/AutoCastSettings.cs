@@ -6,10 +6,10 @@ namespace EpochAssist.Features;
 internal static class AutoCastSettings
 {
     // Version 2: HoldToPauseKey is a Hotkey (chord text) instead of a KeyCode.
-    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Auto-Cast", version: 2) { ActionKey = "autocast" };
+    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Autocast", version: 2) { ActionKey = "autocast" };
 
-    private static readonly Section Main = Group.Section("main", "Auto-Cast");
-    public static readonly Toggle Enabled = new(Main, "Enabled", "Auto-cast", false) { QuickLabel = "Auto-cast" };
+    private static readonly Section Main = Group.Section("main", "Autocast");
+    public static readonly Toggle Enabled = new(Main, "Enabled", "Autocast", false) { QuickLabel = "Autocast" };
 
     public static readonly Section Controls = Group.Section("controls", "Controls");
     public static readonly Choice<KeyCode> ModifierKey = new(Controls, "ModifierKey", "Modifier", KeyCode.LeftControl,
@@ -20,7 +20,7 @@ internal static class AutoCastSettings
     };
     public static readonly Hotkey HoldToPauseKey = new(Controls, "HoldToPauseKey", "Hold to pause", string.Empty, HotkeyKind.Hold, HotkeyScope.Gameplay)
     {
-        Clearable = true, Help = "While held, auto-cast stops and lets go of any channel.",
+        Clearable = true, Help = "While held, autocast stops and lets go of any channel.",
     };
 
     public static readonly Section Pausing = Group.Section("pausing", "Pausing");
@@ -62,8 +62,8 @@ internal static class AutoCastSettings
     public static readonly Number WeightRare = Weight("WeightRare", "Rare", 5f);
     public static readonly Number WeightBoss = Weight("WeightBoss", "Boss", 20f);
 
-    /// <summary>The sections shown as tabs on the Auto-Cast page.</summary>
-    public static readonly Section[] Tabs = { Controls, Pausing, Targeting, Gate };
+    /// <summary>The sections shown as cards on the Autocast page, in order.</summary>
+    public static readonly Section[] PageSections = { Controls, Pausing, Targeting, Gate };
 
     public static void Register()
     {
@@ -71,7 +71,7 @@ internal static class AutoCastSettings
         Group.Migration(2, _ =>
         {
             if (HoldToPauseKey.Value.Equals("None", StringComparison.OrdinalIgnoreCase)) HoldToPauseKey.Value = string.Empty;
-            Log.Info($"Auto-Cast HoldToPauseKey: '{HoldToPauseKey.Value}'");
+            Log.Info($"Autocast HoldToPauseKey: '{HoldToPauseKey.Value}'");
         });
         Group.Register();
     }
