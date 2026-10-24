@@ -142,6 +142,9 @@ internal static class FeatureHost
         {
             // World drawing uses one camera for the frame, taken here and dropped after, whatever a feature does.
             if (layer == GuiLayer.World) Draw.Begin();
+#if DEV
+            if (layer == GuiLayer.Hud) Dev.DevCommands.DrawBackdrop();
+#endif
             try
             {
                 foreach (var feature in s_features)
