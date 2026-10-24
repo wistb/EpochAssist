@@ -18,11 +18,13 @@ internal sealed class MenuFeature : Feature
             string page = feature.Id;
             Actions.Register(Id, $"menu.page.{page}", $"Open {feature.Page!.Title}", () => Menu.Open(page));
         }
-        Actions.Register(Id, $"menu.page.{Menu.SettingsPage}", "Open Settings", () => Menu.Open(Menu.SettingsPage));
+        Actions.Register(Id, $"menu.page.{Menu.SettingsPage}", "Open Settings", Menu.OpenSettings);
+        Actions.Register(Id, "menu.profiles", "Open Profiles", Menu.OpenProfiles);
         // The theme choice lists presets and player files, which the core setting can't know about.
         Themes.Rescan();
         Config.Theme.Options = () => Themes.Names;
         Config.Theme.Notes = () => Themes.NotesFor(Config.Theme.Value);
+        Diagnostics.ThemeProblems = () => Themes.Problems;
     }
 
     public override void Update() => Menu.OnUpdate();
@@ -33,6 +35,7 @@ internal sealed class MenuFeature : Feature
         Menu.Close();
         Config.Theme.Options = null;
         Config.Theme.Notes = null;
+        Diagnostics.ThemeProblems = null;
         InputGate.Menu = false;
         GameState.UiTyping = false;
     }
