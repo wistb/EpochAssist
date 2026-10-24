@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using EpochAssist.Core;
 using EpochAssist.Ui;
 using UnityEngine;
@@ -22,6 +23,9 @@ internal static class DevCommands
         Add("menu", "menu open <page> [tab]|close|search [text]", "Opens the menu on a page, closes it, or searches the settings.", MenuCommand);
         Add("hud", "hud panel open|close", "Opens or closes the mini HUD's quick panel.", HudCommand);
         Add("probe", "probe <type> [filter]", "Writes a game type's members to probe.txt.", call => Plain(Probe(Arg(call, 1), call.Args.Length > 1 ? call.Args[1] : null)));
+        Add("patchcheck", "patchcheck <game version>", "Checks every patch target's first bytes in GameAssembly.dll and saves patch-check.json for the release.", call =>
+            Regex.IsMatch(Arg(call, 1), @"^[0-9]+(\.[0-9]+){1,3}$") ? PatchCheck.Run(Arg(call, 1))
+                : CommandResult.Error("usage: patchcheck <game version, as the game shows it, e.g. 1.5.3>"));
         Add("find", "find <text>", "Writes every game method whose name has the text to find.txt.", call => Plain(Find(Arg(call, 1))));
         Add("facts", "facts", "Reads the game values behind typing, pause, loading, arrival and death.", _ => CommandResult.Ok("facts: " + Facts()));
         Add("move", "move <x> <y> [true|false]", "Feeds the game a keyboard movement direction, as a held key would.", Move);

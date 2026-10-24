@@ -56,6 +56,11 @@
     <Reference Include="UnityEngine.UIModule" HintPath="$(Il2Cpp)\UnityEngine.UIModule.dll" />
   </ItemGroup>
 
+  <!-- patchcheck (Dev/) decodes the game's native code with the Iced decoder MelonLoader already ships and loads. -->
+  <ItemGroup Condition="'$(Configuration)' != 'Release'">
+    <Reference Include="Iced" HintPath="$(ML)\net6\Iced.dll" />
+  </ItemGroup>
+
   <!-- Release builds write dist/EpochAssist-v<version>.zip: the DLL under Mods/, README, LICENSE and CHANGELOG, nothing else. -->
   <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>

@@ -6,7 +6,8 @@
 # Commands: menu open [feature id]|settings [tab], menu close, menu search [text], hud panel open|close,
 #           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
 #           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name],
-#           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off. Shots land in UserData/EpochAssist/dev/shots/.
+#           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off,
+#           patchcheck [game version] (saves dev/patch-check.json for tools/release.sh). Shots land in UserData/EpochAssist/dev/shots/.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

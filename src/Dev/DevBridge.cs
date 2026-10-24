@@ -14,6 +14,7 @@ namespace EpochAssist.Dev;
 ///            facts   probe [type] [filter]   find [text]   fonts   wait [frames]   shot full|menu|hud [name]   move [x] [y] [held]   stopmove
 ///            theme set [name]|check   resources   toast [text]   toasts   travel [scene]   focus   draw test on|off
 ///            reload   diag   perf [timers on|off]   profile   crash fault|start|throw [n]   reports
+///            patchcheck [game version]
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
