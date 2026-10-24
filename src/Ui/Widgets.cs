@@ -13,6 +13,9 @@ internal static class Widgets
 
     public static GUIStyle Style(Func<GUIStyle> themed, GUIStyle fallback) => Themed ? themed() : fallback;
 
+    /// <summary>A control's click, or its activation by key; call right after drawing it with GUILayout.</summary>
+    public static bool Pressed(bool clicked, string key) => Focus.Item(key) || clicked;
+
     // A full-width row with the label on the left and a switch on the right; the whole row is clickable.
     public static bool Switch(string label, bool value)
     {
@@ -21,6 +24,7 @@ internal static class Widgets
         Rect row = GUILayoutUtility.GetRect(10f, 28f, GUILayout.ExpandWidth(true));
         bool hover = GUI.enabled && row.Contains(Event.current.mousePosition);
         bool next = GUI.Toggle(row, value, GUIContent.none, GUIStyle.none);
+        if (Focus.Item("switch." + label, row)) next = !value;
         if (Event.current.type == EventType.Repaint)
         {
             var knob = new Rect(row.xMax - 36f, row.y + (row.height - 20f) / 2f, 36f, 20f);
@@ -31,13 +35,14 @@ internal static class Widgets
     }
 
     /// <summary>Just the switch, for a header row.</summary>
-    public static bool InlineSwitch(bool value)
+    public static bool InlineSwitch(bool value, string key)
     {
         if (!Themed) return GUILayout.Toggle(value, string.Empty, GUILayout.Width(20f));
 
         Rect r = GUILayoutUtility.GetRect(36f, 26f, GUILayout.Width(36f), GUILayout.Height(26f));
         bool hover = GUI.enabled && r.Contains(Event.current.mousePosition);
         bool next = GUI.Toggle(r, value, GUIContent.none, GUIStyle.none);
+        if (Focus.Item(key, r)) next = !value;
         if (Event.current.type == EventType.Repaint)
         {
             GUI.DrawTexture(new Rect(r.x, r.y + 3f, 36f, 20f),
@@ -46,8 +51,8 @@ internal static class Widgets
         return next;
     }
 
-    // Double-clicking the slider returns resetTo, when given.
-    public static float SliderRow(string label, float value, float min, float max, string valueText, float? resetTo = null)
+    // Double-clicking the slider returns resetTo, when given. Left and Right move a focused slider by one step.
+    public static float SliderRow(string label, float value, float min, float max, string valueText, float? resetTo = null, float step = 1f)
     {
         GUILayout.BeginHorizontal();
         GUILayout.Label(label, Style(() => Theme.RowLabel, GUI.skin.label), GUILayout.Width(LabelWidth), GUILayout.Height(28f));
@@ -72,6 +77,8 @@ internal static class Widgets
                 Theme.TrackFill.Draw(new Rect(track.x, track.y, 8f + t * (r.width - 16f), track.height), false, false, false, false);
             }
             value = GUI.HorizontalSlider(new Rect(r.x, r.center.y - 9f, r.width, 18f), value, min, max, Theme.SliderBody, Theme.Thumb);
+            Focus.Item("slider." + label, r, out int adjust);
+            if (adjust != 0) value = Mathf.Clamp(value + adjust * step, min, max);
         }
         GUILayout.Label(valueText, Style(() => Theme.Value, GUI.skin.label), GUILayout.Width(52f), GUILayout.Height(28f));
         GUILayout.EndHorizontal();
@@ -88,16 +95,16 @@ internal static class Widgets
         {
             GUILayout.Label(Colored("Press a key...", Theme.AccentText), rowLabel, GUILayout.Height(30f));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Cancel", button)) Hotkeys.CancelCapture();
+            if (Pressed(GUILayout.Button("Cancel", button), $"key.{key.Id}.cancel")) Hotkeys.CancelCapture();
         }
         else
         {
             GUILayout.Label(key.Value == KeyCode.None ? "Not set" : key.Value.ToString(), Style(() => Theme.KeyChip, GUI.skin.box));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Change", button)) Hotkeys.BeginCapture(key);
-            if (key.Clearable && key.Value != KeyCode.None && GUILayout.Button("Clear", button))
+            if (Pressed(GUILayout.Button("Change", button), $"key.{key.Id}.change")) Hotkeys.BeginCapture(key);
+            if (key.Clearable && key.Value != KeyCode.None && Pressed(GUILayout.Button("Clear", button), $"key.{key.Id}.clear"))
                 key.Value = KeyCode.None;
-            else if (!key.Clearable && !key.IsDefault && GUILayout.Button("Reset", button))
+            else if (!key.Clearable && !key.IsDefault && Pressed(GUILayout.Button("Reset", button), $"key.{key.Id}.reset"))
                 key.Reset();
         }
         GUILayout.EndHorizontal();
@@ -115,7 +122,7 @@ internal static class Widgets
             string prompt = hotkey.Kind == HotkeyKind.Hold ? "Press keys or a mouse button..." : "Press keys...";
             GUILayout.Label(Colored(prompt, Theme.AccentText), rowLabel, GUILayout.Height(30f));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Cancel", button)) Hotkeys.CancelCapture();
+            if (Pressed(GUILayout.Button("Cancel", button), $"key.{hotkey.Id}.cancel")) Hotkeys.CancelCapture();
         }
         else
         {
@@ -124,11 +131,11 @@ internal static class Widgets
             // Capture is read by the hotkey layer, so it needs that layer running.
             bool wasEnabled = GUI.enabled;
             GUI.enabled = wasEnabled && FeatureHost.Find("hotkeys")?.State == FeatureState.Running;
-            if (GUILayout.Button("Change", button)) Hotkeys.BeginCapture(hotkey);
+            if (Pressed(GUILayout.Button("Change", button), $"key.{hotkey.Id}.change")) Hotkeys.BeginCapture(hotkey);
             GUI.enabled = wasEnabled;
-            if (hotkey.Clearable && hotkey.Value.Length > 0 && GUILayout.Button("Clear", button))
+            if (hotkey.Clearable && hotkey.Value.Length > 0 && Pressed(GUILayout.Button("Clear", button), $"key.{hotkey.Id}.clear"))
                 hotkey.Value = string.Empty;
-            else if (!hotkey.Clearable && !hotkey.IsDefault && GUILayout.Button("Reset", button))
+            else if (!hotkey.Clearable && !hotkey.IsDefault && Pressed(GUILayout.Button("Reset", button), $"key.{hotkey.Id}.reset"))
                 hotkey.Reset();
         }
         GUILayout.EndHorizontal();
@@ -142,7 +149,7 @@ internal static class Widgets
         GUILayout.BeginHorizontal();
         GUILayout.Label(title, Style(() => Theme.CardTitle, GUI.skin.label));
         GUILayout.FlexibleSpace();
-        bool reset = canReset && GUILayout.Button("Reset", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false));
+        bool reset = canReset && Pressed(GUILayout.Button("Reset", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)), "reset." + title);
         GUILayout.EndHorizontal();
         return reset;
     }

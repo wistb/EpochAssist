@@ -12,9 +12,17 @@ internal sealed class MenuFeature : Feature
     {
         Actions.Register(Id, "menu.toggle", "Menu", Menu.Toggle, () => Menu.Visible);
         Actions.Register(Id, "menu.close", "Close the menu", Menu.Close);
-        Actions.Register(Id, "menu.page.autocast", "Open Auto-Cast", () => Menu.Open(Page.AutoCast));
-        Actions.Register(Id, "menu.page.potion", "Open Potion", () => Menu.Open(Page.Potion));
-        Actions.Register(Id, "menu.page.settings", "Open Settings", () => Menu.Open(Page.Settings));
+        // One per page, from the registered features; a page that isn't running still opens, to show why.
+        foreach (var feature in Menu.PageFeatures)
+        {
+            string page = feature.Id;
+            Actions.Register(Id, $"menu.page.{page}", $"Open {feature.Page!.Title}", () => Menu.Open(page));
+        }
+        Actions.Register(Id, $"menu.page.{Menu.SettingsPage}", "Open Settings", () => Menu.Open(Menu.SettingsPage));
+        // The theme choice lists presets and player files, which the core setting can't know about.
+        Themes.Rescan();
+        Config.Theme.Options = () => Themes.Names;
+        Config.Theme.Notes = () => Themes.NotesFor(Config.Theme.Value);
     }
 
     public override void Update() => Menu.OnUpdate();
@@ -23,6 +31,8 @@ internal sealed class MenuFeature : Feature
     public override void Shutdown()
     {
         Menu.Close();
+        Config.Theme.Options = null;
+        Config.Theme.Notes = null;
         InputGate.Menu = false;
         GameState.UiTyping = false;
     }

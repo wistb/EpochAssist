@@ -3,26 +3,34 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// Slate theme: the menu's own GUISkin copy plus extra styles, built once from procedural textures.
+// The selected theme: the menu's own GUISkin copy plus extra styles, built from the theme's values with procedural
+// textures, and built again when the theme, font or weight changes.
 internal static class Theme
 {
-    public static readonly Color Text = Hex(0xE4E7EC);
-    public static readonly Color Dim = Hex(0x8E96A4);
-    public static readonly Color Accent = Hex(0x4C8DFF);
-    public static readonly Color AccentText = Hex(0x7DAAFF);
-    public static readonly Color Good = Hex(0x3FCF8E);
-    public static readonly Color Pause = Hex(0xF2B84B);
-    public static readonly Color Off = Hex(0x5A6272);
+    // The values the skin was built from; Slate until the first build.
+    private static ThemeValues s_values = ThemeValues.Presets[0].Values;
+    private static string? s_builtIdentity;
 
-    private static readonly Color s_windowFill = Hex(0x0F1115);
-    private static readonly Color s_edge = Hex(0x232833);
-    private static readonly Color s_sidebar = Hex(0x12151B);
-    private static readonly Color s_card = Hex(0x161A21);
-    private static readonly Color s_cardEdge = Hex(0x222833);
-    private static readonly Color s_control = Hex(0x232935);
-    private static readonly Color s_controlHover = Hex(0x2B3240);
-    private static readonly Color s_controlActive = Hex(0x343C4C);
-    private static readonly Color s_track = Hex(0x2A303B);
+    public static ThemeValues Values => s_values;
+    public static Color Text => s_values.Text;
+    public static Color Dim => s_values.Dim;
+    public static Color Accent => s_values.Accent;
+    public static Color AccentText => s_values.AccentText;
+    public static Color OnAccent => s_values.OnAccent;
+    public static Color Good => s_values.StateActive;
+    public static Color Pause => s_values.StatePaused;
+    public static Color Off => s_values.StateOff;
+    /// <summary>Base window and sidebar opacity, before the player's Background setting.</summary>
+    public static float Opacity => s_values.Opacity;
+
+    // Corner radii the drawing code slices textures with; each matches the texture it goes with.
+    public static int WindowRadius => s_values.RadiusWindow;
+    public static int ChipRadius => s_values.RadiusChip;
+    public static int PillRadius => Math.Min(16, s_values.RadiusWindow + 2);
+    public static int PipRadius => Math.Max(0, s_values.RadiusChip - 4);
+    public static int PanelRadius => Math.Min(12, s_values.RadiusCard + 2);
+    /// <summary>Horizontal padding inside a card, both sides together.</summary>
+    public static float CardInset => s_values.CardPad * 2f;
 
     public const float SidebarWidth = 150f;
 
@@ -32,24 +40,25 @@ internal static class Theme
     // FontStyle on Unity's built-in font. The skin is rebuilt when the setting changes.
     private static int s_builtWeight = -1;
     private static int s_builtFont = -1;
+    private static float s_builtCorners = -1f;
     // Config.Font options: game font asset names; null keeps Unity's built-in font. The game owns these, never destroy them.
     private static readonly string?[] s_gameFonts = { null, "PretendardVariable", "NotoSansJP-Regular" };
     private static FontStyle s_body = FontStyle.Normal;
     private static readonly List<Texture2D> s_textures = new();
 
-    public static GUIStyle Sidebar = null!, NavTitle = null!, NavVersion = null!, NavItem = null!, Main = null!;
+    public static GUIStyle Sidebar = null!, NavTitle = null!, NavVersion = null!, NavItem = null!, NavIcon = null!, NavHint = null!, Main = null!;
     public static GUIStyle PageTitle = null!, Badge = null!, Close = null!;
     public static GUIStyle Card = null!, CardTitle = null!, RowLabel = null!, Hint = null!, Value = null!;
-    public static GUIStyle SearchField = null!, SubTab = null!, Segment = null!, SmallButton = null!, KeyChip = null!;
+    public static GUIStyle SearchField = null!, Placeholder = null!, FieldClear = null!, SubTab = null!, Segment = null!, SmallButton = null!, KeyChip = null!;
     public static GUIStyle Track = null!, TrackFill = null!, SliderBody = null!, Thumb = null!;
     public static GUIStyle ChipNumber = null!, ChipName = null!;
-    public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!;
+    public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, ToastText = null!;
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
     // Drawn by the menu itself so its opacity setting applies; the styles carry no background.
     public static Texture2D WindowBg = null!, SidebarBg = null!;
-    public static Texture2D Dot = null!, Divider = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
+    public static Texture2D Gear = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, Divider = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
-    public static Texture2D BadgeGood = null!, BadgePause = null!, BadgeWaiting = null!, BadgeOff = null!;
+    public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
 
     /// <summary>The themed skin, or null to draw with the default one.</summary>
     public static GUISkin? Skin
@@ -57,11 +66,13 @@ internal static class Theme
         get
         {
             if (s_failed) return null;
-            if (s_skin != null && (s_builtWeight != Config.FontWeight.Value || s_builtFont != Config.Font.Value)) Release();
+            var theme = Themes.Resolve(Config.Theme.Value);
+            if (s_skin != null && (s_builtWeight != Config.FontWeight.Value || s_builtFont != Config.Font.Value || s_builtIdentity != theme.Identity
+                || s_builtCorners != Config.Corners.Value)) Release();
             if (s_skin != null) return s_skin;
             try
             {
-                Build();
+                Build(theme);
             }
             catch (Exception e)
             {
@@ -73,8 +84,18 @@ internal static class Theme
         }
     }
 
-    private static void Build()
+    private static void Build(ResolvedTheme theme)
     {
+        // The player's Corners setting scales the theme's radii, within the range theme files may use.
+        s_builtCorners = Config.Corners.Value;
+        var v = theme.Values.Clone();
+        int Round(int radius) => Math.Clamp(Mathf.RoundToInt(radius * s_builtCorners), 0, 16);
+        v.RadiusWindow = Round(v.RadiusWindow);
+        v.RadiusCard = Round(v.RadiusCard);
+        v.RadiusControl = Round(v.RadiusControl);
+        v.RadiusChip = Round(v.RadiusChip);
+        s_values = v;
+        s_builtIdentity = theme.Identity;
         var skin = UnityEngine.Object.Instantiate((UnityEngine.Object)GUI.skin).Cast<GUISkin>();
         skin.hideFlags = HideFlags.HideAndDontSave;
         s_builtWeight = Config.FontWeight.Value;
@@ -82,145 +103,189 @@ internal static class Theme
         Font? gameFont = FindGameFont(s_builtFont);
         if (gameFont != null) skin.font = gameFont;
         s_body = s_builtWeight == 1 ? FontStyle.Bold : FontStyle.Normal;
+        int rWindow = v.RadiusWindow, rCard = v.RadiusCard, rControl = v.RadiusControl, rChip = v.RadiusChip;
+        int rBadge = Math.Min(11, rChip + 2), rPanel = PanelRadius, rBar = Math.Min(3, rControl), rTrack = Math.Min(2, rControl);
 
-        skin.window = new GUIStyle(skin.window) { border = Offset(14), padding = Offset(0), overflow = Offset(0), contentOffset = Vector2.zero };
-        WindowBg = Rounded(14, 14, s_windowFill, s_edge, 1f);
+        skin.window = new GUIStyle(skin.window) { border = Offset(Slice(rWindow)), padding = Offset(0), overflow = Offset(0), contentOffset = Vector2.zero };
+        WindowBg = Rounded(rWindow, rWindow, v.Window, v.WindowEdge, 1f);
         Background(skin.window, null);
 
-        skin.label = new GUIStyle(skin.label) { fontSize = 13, fontStyle = s_body, wordWrap = false, richText = true, padding = new RectOffset(0, 0, 2, 2) };
-        TextColor(skin.label, Text);
-        skin.button = MakeButton(skin.button, s_control, s_controlHover, s_controlActive, Accent);
-        skin.box = new GUIStyle(skin.box) { border = Offset(10), padding = Offset(10) };
-        Background(skin.box, Rounded(10, 10, s_card, s_cardEdge, 1f));
+        skin.label = new GUIStyle(skin.label) { fontSize = v.FontBody, fontStyle = s_body, wordWrap = false, richText = true, padding = new RectOffset(0, 0, 2, 2) };
+        TextColor(skin.label, v.Text);
+        skin.button = MakeButton(skin.button, v.Control, v.ControlHover, v.ControlActive, v.Accent);
+        skin.box = new GUIStyle(skin.box) { border = Offset(Slice(rCard)), padding = Offset(10) };
+        Background(skin.box, Rounded(rCard, rCard, v.Card, v.CardEdge, 1f));
 
         skin.scrollView = new GUIStyle(skin.scrollView);
         Background(skin.scrollView, null);
         skin.verticalScrollbar = new GUIStyle(skin.verticalScrollbar)
         {
-            fixedWidth = 6f, border = Offset(3), margin = new RectOffset(6, 0, 0, 0), padding = Offset(0),
+            fixedWidth = 6f, border = Offset(Slice(rBar)), margin = new RectOffset(6, 0, 0, 0), padding = Offset(0),
         };
-        Background(skin.verticalScrollbar, Rounded(3, 3, s_sidebar, s_sidebar, 0f));
-        skin.verticalScrollbarThumb = new GUIStyle(skin.verticalScrollbarThumb) { fixedWidth = 6f, border = Offset(3) };
-        Background(skin.verticalScrollbarThumb, Rounded(3, 3, s_controlActive, s_controlActive, 0f));
-        skin.verticalScrollbarThumb.hover.background = Rounded(3, 3, Dim, Dim, 0f);
+        Background(skin.verticalScrollbar, Rounded(rBar, rBar, v.Sidebar, v.Sidebar, 0f));
+        skin.verticalScrollbarThumb = new GUIStyle(skin.verticalScrollbarThumb) { fixedWidth = 6f, border = Offset(Slice(rBar)) };
+        Background(skin.verticalScrollbarThumb, Rounded(rBar, rBar, v.ControlActive, v.ControlActive, 0f));
+        skin.verticalScrollbarThumb.hover.background = Rounded(rBar, rBar, v.Dim, v.Dim, 0f);
         skin.horizontalScrollbar = new GUIStyle(skin.horizontalScrollbar) { fixedHeight = 0f };
         Background(skin.horizontalScrollbar, null);
 
         // Rounded on the left only, so it sits flush against the content area.
-        Sidebar = new GUIStyle { border = new RectOffset(14, 2, 14, 14), padding = new RectOffset(10, 10, 14, 12) };
-        SidebarBg = Rounded(14, 0, s_sidebar, s_sidebar, 0f);
-        NavTitle = new GUIStyle(skin.label) { fontSize = 15, fontStyle = FontStyle.Bold, padding = new RectOffset(6, 0, 0, 0) };
-        NavVersion = new GUIStyle(skin.label) { fontSize = 11, padding = new RectOffset(6, 0, 0, 0) };
-        TextColor(NavVersion, Dim);
-        NavItem = MakeButton(skin.button, Color.clear, Hex(0x1C2029), Hex(0x232935), Accent);
+        Sidebar = new GUIStyle { border = new RectOffset(Slice(rWindow), 2, Slice(rWindow), Slice(rWindow)), padding = new RectOffset(10, 10, 14, 12) };
+        SidebarBg = Rounded(rWindow, 0, v.Sidebar, v.Sidebar, 0f);
+        NavTitle = new GUIStyle(skin.label) { fontSize = v.FontNav, fontStyle = FontStyle.Bold, padding = new RectOffset(6, 0, 0, 0) };
+        NavVersion = new GUIStyle(skin.label) { fontSize = v.FontCaption, padding = new RectOffset(6, 0, 0, 0) };
+        TextColor(NavVersion, v.Dim);
+        NavItem = MakeButton(skin.button, Color.clear, v.NavHover, v.Control, v.Accent);
         NavItem.alignment = TextAnchor.MiddleLeft;
         NavItem.fontStyle = FontStyle.Bold;
         NavItem.fixedHeight = 32f;
         NavItem.padding = new RectOffset(26, 10, 0, 1);
         NavItem.margin = new RectOffset(0, 0, 0, 4);
-        TextColor(NavItem, Dim);
-        NavItem.hover.textColor = Text;
-        SetOnText(NavItem, Color.white);
+        TextColor(NavItem, v.Dim);
+        NavItem.hover.textColor = v.Text;
+        SetOnText(NavItem, v.OnAccent);
+        // A small square button for the Settings gear, on the closing hint's line.
+        NavIcon = MakeButton(skin.button, Color.clear, v.NavHover, v.Control, v.Accent);
+        NavIcon.fixedWidth = 24f;
+        NavIcon.fixedHeight = 24f;
+        NavIcon.padding = new RectOffset(0, 0, 0, 0);
+        NavIcon.margin = new RectOffset(0, 6, 0, 0);
         Main = new GUIStyle { padding = new RectOffset(16, 16, 12, 14) };
 
-        PageTitle = new GUIStyle(skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, padding = new RectOffset(0, 0, 1, 0) };
+        PageTitle = new GUIStyle(skin.label) { fontSize = v.FontTitle, fontStyle = FontStyle.Bold, padding = new RectOffset(0, 0, 1, 0) };
         Badge = new GUIStyle(skin.label)
         {
-            fontSize = 12, fontStyle = FontStyle.Bold, border = Offset(11), alignment = TextAnchor.MiddleLeft,
+            fontSize = v.FontSmall, fontStyle = FontStyle.Bold, border = Offset(Slice(rBadge)), alignment = TextAnchor.MiddleLeft,
             padding = new RectOffset(20, 9, 0, 1), margin = new RectOffset(8, 0, 3, 0), fixedHeight = 22f,
         };
-        Close = MakeButton(skin.button, Color.clear, s_controlHover, s_controlActive, Accent);
-        Close.fontSize = 18;
+        Close = MakeButton(skin.button, Color.clear, v.ControlHover, v.ControlActive, v.Accent);
+        Close.fontSize = v.FontTitle;
         Close.fixedWidth = 26f;
         Close.fixedHeight = 26f;
         Close.padding = new RectOffset(0, 0, 0, 3);
         Close.margin = new RectOffset(8, 0, 0, 0);
-        TextColor(Close, Dim);
-        Close.hover.textColor = Text;
+        TextColor(Close, v.Dim);
+        Close.hover.textColor = v.Text;
 
-        Card = new GUIStyle(skin.box) { margin = new RectOffset(0, 0, 0, 10), padding = new RectOffset(14, 14, 10, 12) };
-        CardTitle = new GUIStyle(skin.label) { fontSize = 11, fontStyle = FontStyle.Bold, padding = new RectOffset(0, 0, 0, 4) };
-        TextColor(CardTitle, Dim);
+        // Padding comes from one theme value: the sides take it whole, top and bottom a little less.
+        int pad = v.CardPad;
+        Card = new GUIStyle(skin.box) { margin = new RectOffset(0, 0, 0, v.CardGap), padding = new RectOffset(pad, pad, Math.Max(pad - 4, 4), Math.Max(pad - 2, 10)) };
+        CardTitle = new GUIStyle(skin.label) { fontSize = v.FontCaption, fontStyle = FontStyle.Bold, padding = new RectOffset(0, 0, 0, 4) };
+        TextColor(CardTitle, v.Dim);
         // No left margin, so layout labels line up with the switch rows, which draw their label at the row's edge.
         RowLabel = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleLeft, margin = new RectOffset(0, 4, 0, 0) };
-        Hint = new GUIStyle(skin.label) { fontSize = 12, fontStyle = FontStyle.Normal, wordWrap = true, margin = new RectOffset(0, 0, 2, 4) };
-        TextColor(Hint, Dim);
+        Hint = new GUIStyle(skin.label) { fontSize = v.FontSmall, fontStyle = FontStyle.Normal, wordWrap = true, margin = new RectOffset(0, 0, 2, 4) };
+        TextColor(Hint, v.Dim);
+        NavHint = new GUIStyle(Hint) { wordWrap = false, alignment = TextAnchor.MiddleLeft, fixedHeight = 24f, margin = new RectOffset(0, 0, 0, 0) };
         Value = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleRight, margin = new RectOffset(4, 0, 0, 0) };
 
         skin.textField = new GUIStyle(skin.textField)
         {
-            border = Offset(8), padding = new RectOffset(9, 9, 5, 5), margin = new RectOffset(0, 6, 0, 0),
-            fontSize = 13, fontStyle = FontStyle.Normal, fixedHeight = 26f, alignment = TextAnchor.MiddleLeft, wordWrap = false,
+            border = Offset(Slice(rControl)), padding = new RectOffset(9, 9, 5, 5), margin = new RectOffset(0, 6, 0, 0),
+            fontSize = v.FontBody, fontStyle = FontStyle.Normal, fixedHeight = 26f, alignment = TextAnchor.MiddleLeft, wordWrap = false,
         };
-        Background(skin.textField, Rounded(8, 8, Hex(0x0F1115), Hex(0x2F3644), 1f));
-        skin.textField.focused.background = Rounded(8, 8, Hex(0x0F1115), Accent, 1f);
+        Background(skin.textField, Rounded(rControl, rControl, v.InputBg, v.InputEdge, 1f));
+        skin.textField.focused.background = Rounded(rControl, rControl, v.InputBg, v.Accent, 1f);
         skin.textField.onFocused.background = skin.textField.focused.background;
-        TextColor(skin.textField, Text);
-        skin.settings.cursorColor = Text;
-        skin.settings.selectionColor = Hex(0x4C8DFF, 0.45f);
-        SearchField = skin.textField;
+        TextColor(skin.textField, v.Text);
+        skin.settings.cursorColor = v.Text;
+        skin.settings.selectionColor = new Color(v.Accent.r, v.Accent.g, v.Accent.b, 0.45f);
+        // Room on the right for the clear button drawn inside it.
+        SearchField = new GUIStyle(skin.textField) { padding = new RectOffset(9, 28, 5, 5), margin = new RectOffset(0, 0, 0, 0) };
+        Placeholder = new GUIStyle(skin.label)
+        {
+            fontSize = v.FontBody, fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(10, 28, 0, 1),
+        };
+        TextColor(Placeholder, v.Dim);
+        FieldClear = new GUIStyle(skin.label) { fontSize = v.FontBody + 3, alignment = TextAnchor.MiddleCenter, padding = new RectOffset(0, 0, 0, 2) };
+        TextColor(FieldClear, v.Dim);
+        FieldClear.hover.textColor = v.Text;
 
-        SubTab = MakeButton(skin.button, Color.clear, s_controlHover, s_controlActive, s_control);
-        SubTab.fontSize = 12;
+        SubTab = MakeButton(skin.button, Color.clear, v.ControlHover, v.ControlActive, v.Control);
+        SubTab.fontSize = v.FontSmall;
         SubTab.fontStyle = FontStyle.Bold;
         SubTab.margin = new RectOffset(0, 4, 0, 0);
-        TextColor(SubTab, Dim);
-        SubTab.hover.textColor = Text;
-        SetOnText(SubTab, Text);
+        TextColor(SubTab, v.Dim);
+        SubTab.hover.textColor = v.Text;
+        SetOnText(SubTab, v.Text);
 
-        Segment = MakeButton(skin.button, s_control, s_controlHover, s_controlActive, Accent);
+        Segment = MakeButton(skin.button, v.Control, v.ControlHover, v.ControlActive, v.Accent);
         Segment.margin = new RectOffset(0, 4, 2, 2);
-        SmallButton = MakeButton(skin.button, s_control, s_controlHover, s_controlActive, Accent);
-        SmallButton.fontSize = 12;
+        SmallButton = MakeButton(skin.button, v.Control, v.ControlHover, v.ControlActive, v.Accent);
+        SmallButton.fontSize = v.FontSmall;
         SmallButton.fixedHeight = 24f;
         SmallButton.padding = new RectOffset(10, 10, 2, 3);
         SmallButton.margin = new RectOffset(0, 4, 2, 2);
         KeyChip = new GUIStyle(skin.label)
         {
-            alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = Offset(8),
+            alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = Offset(Slice(rControl)),
             padding = new RectOffset(9, 9, 2, 3), margin = new RectOffset(4, 6, 2, 2), fixedHeight = 24f,
         };
-        Background(KeyChip, Rounded(8, 8, Hex(0x0F1115), Hex(0x2F3644), 1f));
-        TextColor(KeyChip, AccentText);
+        Background(KeyChip, Rounded(rControl, rControl, v.InputBg, v.InputEdge, 1f));
+        TextColor(KeyChip, v.AccentText);
 
-        Track = new GUIStyle { border = Offset(2) };
-        Track.normal.background = Rounded(2, 2, s_track, s_track, 0f);
-        TrackFill = new GUIStyle { border = Offset(2) };
-        TrackFill.normal.background = Rounded(2, 2, Accent, Accent, 0f);
+        Track = new GUIStyle { border = Offset(Slice(rTrack)) };
+        Track.normal.background = Rounded(rTrack, rTrack, v.Track, v.Track, 0f);
+        TrackFill = new GUIStyle { border = Offset(Slice(rTrack)) };
+        TrackFill.normal.background = Rounded(rTrack, rTrack, v.Accent, v.Accent, 0f);
         SliderBody = new GUIStyle { fixedHeight = 18f };
         Thumb = new GUIStyle { fixedWidth = 16f, fixedHeight = 16f };
-        Thumb.normal.background = Circle(16, Color.white);
-        Thumb.hover.background = Circle(16, Hex(0xDCE6FF));
-        Thumb.active.background = Circle(16, AccentText);
+        Thumb.normal.background = Circle(16, v.Thumb);
+        Thumb.hover.background = Circle(16, v.ThumbHover);
+        Thumb.active.background = Circle(16, v.AccentText);
 
-        ChipNumber = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 16, fontStyle = FontStyle.Bold };
-        ChipName = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 10, clipping = TextClipping.Clip };
-        ChipOff = Rounded(9, 9, s_sidebar, s_cardEdge, 1f);
-        ChipOn = Rounded(9, 9, Hex(0x16264A), Accent, 1.5f);
-        ChipPaused = Rounded(9, 9, Hex(0x2B2414), Pause, 1.5f);
+        ChipNumber = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = v.FontTitle - 2, fontStyle = FontStyle.Bold };
+        ChipName = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = v.FontCaption - 1, clipping = TextClipping.Clip };
+        ChipOff = Rounded(rChip, rChip, v.Sidebar, v.CardEdge, 1f);
+        ChipOn = Rounded(rChip, rChip, v.ChipOn, v.Accent, 1.5f);
+        ChipPaused = Rounded(rChip, rChip, v.ChipPaused, v.StatePaused, 1.5f);
 
-        SwitchOff = Switch(on: false, s_track, Dim);
-        SwitchOffHover = Switch(on: false, s_controlActive, Text);
-        SwitchOn = Switch(on: true, Accent, Color.white);
-        SwitchOnHover = Switch(on: true, Hex(0x6AA1FF), Color.white);
+        SwitchOff = Switch(on: false, v.Track, v.Dim);
+        SwitchOffHover = Switch(on: false, v.ControlActive, v.Text);
+        SwitchOn = Switch(on: true, v.Accent, v.OnAccent);
+        SwitchOnHover = Switch(on: true, v.AccentHover, v.OnAccent);
+        // State shapes, white and tinted when drawn, so colour is never the only cue.
+        Gear = Paint(32, 32, (x, y) =>
+        {
+            float px = x + 0.5f - 16f, py = y + 0.5f - 16f;
+            float angle = Mathf.Atan2(py, px), distance = Mathf.Sqrt(px * px + py * py);
+            // Eight teeth around a body, with a hole in the middle; edges smoothed over about a pixel.
+            float edge = Mathf.Cos(angle * 8f) > 0.25f ? 14.5f : 11f;
+            float body = Mathf.Clamp01(edge - distance + 0.5f);
+            float hole = Mathf.Clamp01(5f - distance + 0.5f);
+            return Shade(Color.white, Mathf.Clamp01(body - hole));
+        });
         Dot = Circle(10, Color.white);
-        Divider = Paint(1, 1, (_, _) => s_cardEdge);
+        Ring = Paint(10, 10, (x, y) => Shade(Color.white, Mathf.Clamp01(Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4.5f)) - Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 2.5f)))));
+        Square = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 4f))));
+        Bars = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(Mathf.Min(RectDistance(x + 0.5f, y + 0.5f, 3f, 5f, 1.2f, 4.5f), RectDistance(x + 0.5f, y + 0.5f, 7f, 5f, 1.2f, 4.5f)))));
+        Dash = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 1.2f))));
+        FocusRing = Rounded(rControl + 2, rControl + 2, Color.clear, v.Focus, 2f);
+        Divider = Paint(1, 1, (_, _) => v.CardEdge);
 
-        BadgeGood = Rounded(11, 11, Hex(0x12301F), Hex(0x12301F), 0f);
-        BadgePause = Rounded(11, 11, Hex(0x3A2E14), Hex(0x3A2E14), 0f);
-        BadgeWaiting = Rounded(11, 11, Hex(0x16264A), Hex(0x16264A), 0f);
-        BadgeOff = Rounded(11, 11, s_control, s_control, 0f);
+        BadgeActive = Rounded(rBadge, rBadge, v.BadgeActive, v.BadgeActive, 0f);
+        BadgeWaiting = Rounded(rBadge, rBadge, v.BadgeWaiting, v.BadgeWaiting, 0f);
+        BadgeHolding = Rounded(rBadge, rBadge, v.BadgeHolding, v.BadgeHolding, 0f);
+        BadgePaused = Rounded(rBadge, rBadge, v.BadgePaused, v.BadgePaused, 0f);
+        BadgeOff = Rounded(rBadge, rBadge, v.BadgeOff, v.BadgeOff, 0f);
 
-        Pill = new GUIStyle { border = Offset(16) };
-        Pill.normal.background = Rounded(16, 16, s_windowFill, s_edge, 1f);
-        Pill.hover.background = Rounded(16, 16, s_card, Hex(0x2F3644), 1f);
-        PillLabel = new GUIStyle(skin.label) { fontSize = 12, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
-        Pip = new GUIStyle(skin.label) { fontSize = 11, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, padding = Offset(0) };
-        PipOn = Rounded(5, 5, Accent, Accent, 0f);
-        PipOff = Rounded(5, 5, Color.clear, Hex(0x3A4150), 1f);
-        PipPaused = Rounded(5, 5, Hex(0x2B2414), Pause, 1f);
-        Panel = new GUIStyle { border = Offset(12), padding = new RectOffset(12, 12, 10, 12) };
-        Panel.normal.background = Rounded(12, 12, s_windowFill, s_edge, 1f);
+        int rPill = PillRadius;
+        Pill = new GUIStyle { border = Offset(Slice(rPill)) };
+        Pill.normal.background = Rounded(rPill, rPill, v.Window, v.WindowEdge, 1f);
+        Pill.hover.background = Rounded(rPill, rPill, v.Card, v.InputEdge, 1f);
+        PillLabel = new GUIStyle(skin.label) { fontSize = v.FontSmall, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
+        Pip = new GUIStyle(skin.label) { fontSize = v.FontCaption, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, padding = Offset(0) };
+        int rPip = PipRadius;
+        PipOn = Rounded(rPip, rPip, v.Accent, v.Accent, 0f);
+        PipOff = Rounded(rPip, rPip, Color.clear, v.PipEdge, 1f);
+        PipPaused = Rounded(rPip, rPip, v.ChipPaused, v.StatePaused, 1f);
+        Panel = new GUIStyle { border = Offset(Slice(rPanel)), padding = new RectOffset(12, 12, 10, 12) };
+        Panel.normal.background = Rounded(rPanel, rPanel, v.Window, v.WindowEdge, 1f);
+        ToastText = new GUIStyle(skin.label) { wordWrap = true, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(28, 14, 9, 10) };
+        // World labels: white text tinted by the caller's colour, so the theme gives the font and size.
+        var worldLabel = new GUIStyle(skin.label) { fontSize = v.FontSmall, alignment = TextAnchor.MiddleCenter, font = skin.font };
+        TextColor(worldLabel, Color.white);
+        Draw.LabelStyle = worldLabel;
 
         s_skin = skin;
     }
@@ -242,6 +307,9 @@ internal static class Theme
     {
         s_builtWeight = -1;
         s_builtFont = -1;
+        s_builtCorners = -1f;
+        s_builtIdentity = null;
+        Draw.LabelStyle = null;
         foreach (var texture in s_textures)
         {
             if (texture != null) UnityEngine.Object.Destroy(texture);
@@ -258,6 +326,7 @@ internal static class Theme
     /// <summary>Draws a rounded texture 9-sliced, so its corners keep their shape at any size.</summary>
     public static void DrawSliced(Rect rect, Texture2D texture, int border)
     {
+        border = Slice(border);
         if (!s_sliced.TryGetValue(border, out var style))
         {
             style = new GUIStyle { border = Offset(border) };
@@ -269,19 +338,36 @@ internal static class Theme
 
     public static Texture2D BadgeFor(StatusState state) => state switch
     {
-        StatusState.Active => BadgeGood,
-        StatusState.Holding or StatusState.Paused => BadgePause,
+        StatusState.Active => BadgeActive,
         StatusState.Waiting => BadgeWaiting,
+        StatusState.Holding => BadgeHolding,
+        StatusState.Paused => BadgePaused,
         _ => BadgeOff,
     };
 
     public static Color StateColor(StatusState state) => state switch
     {
-        StatusState.Active => Good,
-        StatusState.Holding or StatusState.Paused => Pause,
-        StatusState.Waiting => AccentText,
-        _ => Dim,
+        StatusState.Active => s_values.StateActive,
+        StatusState.Waiting => s_values.StateWaiting,
+        StatusState.Holding => s_values.StateHolding,
+        StatusState.Paused => s_values.StatePaused,
+        _ => s_values.StateOff,
     };
+
+    /// <summary>The dot for a state: Active filled circle, Waiting ring, Holding square, Paused two bars, Off a dash.</summary>
+    public static Texture2D StateShape(StatusState state) => state switch
+    {
+        StatusState.Active => Dot,
+        StatusState.Waiting => Ring,
+        StatusState.Holding => Square,
+        StatusState.Paused => Bars,
+        _ => Dash,
+    };
+
+    public static int FocusRadius => s_values.RadiusControl + 2;
+
+    /// <summary>Textures the skin holds now, for the dev bridge.</summary>
+    public static int TextureCount => s_textures.Count;
 
     private static GUIStyle MakeButton(GUIStyle from, Color normal, Color hover, Color active, Color on)
     {
@@ -299,8 +385,8 @@ internal static class Theme
         style.onHover.background = Rounded(8, 8, onHover, onHover, 0f);
         style.onActive.background = style.onHover.background;
         style.onFocused.background = style.onNormal.background;
-        TextColor(style, Text);
-        if (on == Accent) SetOnText(style, Color.white);
+        TextColor(style, s_values.Text);
+        if (on == s_values.Accent) SetOnText(style, s_values.OnAccent);
         return style;
     }
 
@@ -338,13 +424,13 @@ internal static class Theme
 
     private static RectOffset Offset(int all) => new(all, all, all, all);
 
-    public static Color Hex(int rgb, float alpha = 1f) =>
-        new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, alpha);
+    // Square corners still need a slice wide enough for the edge; every rounded texture is cut at this border.
+    private static int Slice(int radius) => Math.Max(radius, 2);
 
     // A 9-sliceable rounded rectangle with left and right corner radii (0 = square).
     private static Texture2D Rounded(int left, int right, Color fill, Color edge, float edgeWidth)
     {
-        int r = Math.Max(left, right);
+        int r = Slice(Math.Max(left, right));
         int size = r * 2 + 2;
         return Paint(size, size, (x, y) =>
         {
@@ -380,6 +466,10 @@ internal static class Theme
         float outside = new Vector2(Mathf.Max(qx, 0f), Mathf.Max(qy, 0f)).magnitude;
         return outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - r;
     }
+
+    // Signed distance to an axis-aligned rectangle (centre, half sizes); square corners.
+    private static float RectDistance(float px, float py, float cx, float cy, float hw, float hh) =>
+        Mathf.Max(Mathf.Abs(px - cx) - hw, Mathf.Abs(py - cy) - hh);
 
     private static float CircleDistance(float px, float py, float cx, float cy, float r) =>
         new Vector2(px - cx, py - cy).magnitude - r;
