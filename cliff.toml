@@ -1,0 +1,32 @@
+# git-cliff config: tools/release.sh generates each CHANGELOG.md entry from the conventional commits since the last
+# release tag and inserts it under the file's header itself, so there is no header here.
+# Run: npx --yes git-cliff@2.14.2 --unreleased --tag v<version> --strip all
+
+[changelog]
+body = """
+## {% if version %}{{ version | trim_start_matches(pat="v") }} - {{ timestamp | date(format="%Y-%m-%d") }}{% else %}Unreleased{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope | lower }}**: {% endif %}{{ commit.message | split(pat="\n") | first | trim | upper_first }}\
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+# Players see features and fixes; dev tooling, docs, chores and release commits stay out.
+commit_parsers = [
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^feat\\(dev\\)", skip = true },
+  { message = "^feat\\(tools\\)", skip = true },
+  { message = "^feat", group = "<!-- 0 -->Added" },
+  { message = "^fix", group = "<!-- 1 -->Fixed" },
+  { message = "^perf", group = "<!-- 2 -->Changed" },
+  { message = "^refactor", group = "<!-- 2 -->Changed" },
+  { message = ".*", skip = true },
+]
+tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+"
+sort_commits = "oldest"
