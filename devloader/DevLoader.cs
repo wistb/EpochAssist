@@ -10,7 +10,7 @@ namespace EpochAssist.DevLoader;
 
 /// <summary>
 /// Loads EpochAssist.dll from UserData/EpochAssist/dev as bytes (so the file is never locked) and drives its
-/// Runtime class. When the file changes, or on Ctrl+F5, the old copy is shut down and a fresh one is loaded.
+/// Runtime class. When the file changes, or on Ctrl+F5 (not while typing), the old copy is shut down and a fresh one is loaded.
 /// Old load contexts are left loaded: Harmony does not cope well with unloading, and a few MB per reload is fine.
 /// </summary>
 public class DevLoader : MelonMod
@@ -28,6 +28,7 @@ public class DevLoader : MelonMod
     private bool _missingLogged;
 
     private Action? _update, _gui, _scene, _save, _shutdown;
+    private Func<bool>? _typing;
 
     public override void OnInitializeMelon()
     {
@@ -40,7 +41,7 @@ public class DevLoader : MelonMod
     public override void OnUpdate()
     {
         bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-        if (ctrl && Input.GetKeyDown(KeyCode.F5))
+        if (ctrl && Input.GetKeyDown(KeyCode.F5) && !Typing())
         {
             TryLoad("hotkey");
         }
@@ -58,6 +59,19 @@ public class DevLoader : MelonMod
     public override void OnSceneWasUnloaded(int buildIndex, string sceneName) => Call(_scene, "scene");
     public override void OnApplicationQuit() => Call(_save, "save");
     public override void OnDeinitializeMelon() => Unload();
+
+    // Builds without Runtime.Typing, or one that throws, don't block the reload key.
+    private bool Typing()
+    {
+        try
+        {
+            return _typing?.Invoke() ?? false;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     private void PollForChange()
     {
@@ -115,6 +129,8 @@ public class DevLoader : MelonMod
             _scene = Bind(runtime, "SceneChanged");
             _save = Bind(runtime, "Save");
             _shutdown = Bind(runtime, "Shutdown");
+            var typing = runtime.GetProperty("Typing", BindingFlags.Public | BindingFlags.Static)?.GetGetMethod();
+            _typing = typing != null ? (Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>), typing) : null;
 
             runtime.GetMethod("Init", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new object[] { true });
             LoggerInstance.Msg($"Loaded build #{_generation} ({reason})");
@@ -135,7 +151,11 @@ public class DevLoader : MelonMod
         Clear();
     }
 
-    private void Clear() => _update = _gui = _scene = _save = _shutdown = null;
+    private void Clear()
+    {
+        _update = _gui = _scene = _save = _shutdown = null;
+        _typing = null;
+    }
 
     private static Action Bind(Type type, string method) =>
         (Action)Delegate.CreateDelegate(typeof(Action), type.GetMethod(method, BindingFlags.Public | BindingFlags.Static)
