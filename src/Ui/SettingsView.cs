@@ -82,6 +82,9 @@ internal static class SettingsView
             case Pick pick:
                 PickButtons(pick);
                 break;
+            case ColorSetting color:
+                ColorPicker.Row(color);
+                break;
         }
         if (setting.Help != null) Hint(setting.Help);
     }

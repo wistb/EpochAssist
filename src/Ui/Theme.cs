@@ -41,6 +41,7 @@ internal static class Theme
     private static int s_builtWeight = -1;
     private static int s_builtFont = -1;
     private static float s_builtCorners = -1f;
+    private static string? s_builtAccent;
     // Config.Font options: game font asset names; null keeps Unity's built-in font. The game owns these, never destroy them.
     private static readonly string?[] s_gameFonts = { null, "PretendardVariable", "NotoSansJP-Regular" };
     private static FontStyle s_body = FontStyle.Normal;
@@ -56,7 +57,7 @@ internal static class Theme
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
     // Drawn by the menu itself so its opacity setting applies; the styles carry no background.
     public static Texture2D WindowBg = null!, SidebarBg = null!;
-    public static Texture2D Gear = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, Divider = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
+    public static Texture2D Swatch = null!, SwatchRing = null!, Gear = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, Divider = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
     public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
 
@@ -68,7 +69,7 @@ internal static class Theme
             if (s_failed) return null;
             var theme = Themes.Resolve(Config.Theme.Value);
             if (s_skin != null && (s_builtWeight != Config.FontWeight.Value || s_builtFont != Config.Font.Value || s_builtIdentity != theme.Identity
-                || s_builtCorners != Config.Corners.Value)) Release();
+                || s_builtCorners != Config.Corners.Value || s_builtAccent != Config.Accent.Value)) Release();
             if (s_skin != null) return s_skin;
             try
             {
@@ -94,6 +95,9 @@ internal static class Theme
         v.RadiusCard = Round(v.RadiusCard);
         v.RadiusControl = Round(v.RadiusControl);
         v.RadiusChip = Round(v.RadiusChip);
+        ThemeAccent = v.Accent;
+        s_builtAccent = Config.Accent.Value;
+        if (Config.Accent.TryGetColor(out Color accent)) ApplyAccent(v, accent);
         s_values = v;
         s_builtIdentity = theme.Identity;
         var skin = UnityEngine.Object.Instantiate((UnityEngine.Object)GUI.skin).Cast<GUISkin>();
@@ -261,6 +265,9 @@ internal static class Theme
         Bars = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(Mathf.Min(RectDistance(x + 0.5f, y + 0.5f, 3f, 5f, 1.2f, 4.5f), RectDistance(x + 0.5f, y + 0.5f, 7f, 5f, 1.2f, 4.5f)))));
         Dash = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 1.2f))));
         FocusRing = Rounded(rControl + 2, rControl + 2, Color.clear, v.Focus, 2f);
+        // Colour swatches: white, tinted when drawn; the ring marks the chosen one.
+        Swatch = Rounded(rChip, rChip, Color.white, Color.white, 0f);
+        SwatchRing = Rounded(rChip + 3, rChip + 3, Color.clear, Color.white, 2f);
         Divider = Paint(1, 1, (_, _) => v.CardEdge);
 
         BadgeActive = Rounded(rBadge, rBadge, v.BadgeActive, v.BadgeActive, 0f);
@@ -308,7 +315,9 @@ internal static class Theme
         s_builtWeight = -1;
         s_builtFont = -1;
         s_builtCorners = -1f;
+        s_builtAccent = null;
         s_builtIdentity = null;
+        ColorPicker.Release();
         Draw.LabelStyle = null;
         foreach (var texture in s_textures)
         {
@@ -353,6 +362,34 @@ internal static class Theme
         StatusState.Paused => s_values.StatePaused,
         _ => s_values.StateOff,
     };
+
+    /// <summary>The selected theme's own accent, before the player's Accent setting.</summary>
+    public static Color ThemeAccent { get; private set; } = ThemeValues.Presets[0].Values.Accent;
+
+    // The player's accent replaces the theme's and everything made from it. Status colours stay the theme's, so states
+    // keep their lightness rules. Text on the accent turns dark on light accents (Catppuccin's are pastels).
+    private static void ApplyAccent(ThemeValues v, Color accent)
+    {
+        v.Accent = accent;
+        v.AccentHover = Color.Lerp(accent, Color.white, 0.15f);
+        v.AccentText = Luminance(accent) < 0.3f ? Color.Lerp(accent, Color.white, 0.3f) : accent;
+        v.Focus = accent;
+        var window = new Color(v.Window.r, v.Window.g, v.Window.b, 1f);
+        v.ChipOn = Color.Lerp(window, accent, 0.25f);
+        v.OnAccent = Contrast(Color.white, accent) >= Contrast(window, accent) ? Color.white : window;
+    }
+
+    private static float Luminance(Color c)
+    {
+        static float Linear(float x) => x <= 0.04045f ? x / 12.92f : Mathf.Pow((x + 0.055f) / 1.055f, 2.4f);
+        return 0.2126f * Linear(c.r) + 0.7152f * Linear(c.g) + 0.0722f * Linear(c.b);
+    }
+
+    private static float Contrast(Color a, Color b)
+    {
+        float la = Luminance(a) + 0.05f, lb = Luminance(b) + 0.05f;
+        return Mathf.Max(la, lb) / Mathf.Min(la, lb);
+    }
 
     /// <summary>The dot for a state: Active filled circle, Waiting ring, Holding square, Paused two bars, Off a dash.</summary>
     public static Texture2D StateShape(StatusState state) => state switch
