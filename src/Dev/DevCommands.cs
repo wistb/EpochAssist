@@ -26,6 +26,14 @@ internal static class DevCommands
         Add("patchcheck", "patchcheck <game version>", "Checks every patch target's first bytes in GameAssembly.dll and saves patch-check.json for the release.", call =>
             Regex.IsMatch(Arg(call, 1), @"^[0-9]+(\.[0-9]+){1,3}$") ? PatchCheck.Run(Arg(call, 1))
                 : CommandResult.Error("usage: patchcheck <game version, as the game shows it, e.g. 1.5.3>"));
+        Add("instances", "instances <type> [count|all]", "Lists a type's live objects in the loaded scenes, nearest the player first.", Instances);
+        Add("inspect", "inspect <target> [member.path]", "Shows a live object's members and values; target is player, <type>, <type>#n, hovered or hovered:item.", call =>
+            Plain(Inspect.Run(Arg(call, 1), Arg(call, 2))));
+        Add("statics", "statics <type>", "Shows a game type's static members and their values.", call => Plain(Inspect.Statics(Arg(call, 1))));
+        Add("watch", "watch <target> <member.path> [seconds]|stop", "Samples one value 10 times a second into watch.txt (10 s when not given, up to 120).", call => Plain(Watch.Command(call)));
+        Add("hovered", "hovered", "Names the game UI under the cursor and the item behind an open tooltip.", _ => Plain(Hovered.Run()));
+        Add("rva", "rva <type> <method>", "Shows where each overload of a game method's code is in GameAssembly.dll, for a native decompile.", call =>
+            Plain(PatchCheck.Rva(Arg(call, 1), Arg(call, 2))));
         Add("find", "find <text>", "Writes every game method whose name has the text to find.txt.", call => Plain(Find(Arg(call, 1))));
         Add("facts", "facts", "Reads the game values behind typing, pause, loading, arrival and death.", _ => CommandResult.Ok("facts: " + Facts()));
         Add("move", "move <x> <y> [true|false]", "Feeds the game a keyboard movement direction, as a held key would.", Move);
@@ -65,10 +73,12 @@ internal static class DevCommands
             return CommandResult.Ok($"toasts: {shown.Count} shown" + (shown.Count > 0 ? ": " : string.Empty)
                 + string.Join(", ", shown.Select(t => $"\"{t.Text}\" ({Time.unscaledTime - t.ShownAt:F1} s)")));
         });
-        // All textures in the game too, so textures leaked by an earlier load show up across reloads.
-        Add("resources", "resources", "Counts the mod's textures and every texture in the game.", _ =>
+        // All textures in the game too, so textures leaked by an earlier load show up across reloads; and every Harmony
+        // patch, ours and other mods', so a batch of read-only commands can be shown to patch nothing.
+        Add("resources", "resources", "Counts the mod's textures, every texture in the game and every Harmony-patched method.", _ =>
             CommandResult.Ok($"resources: theme textures {Theme.TextureCount}, draw textures {Draw.ResourceCount}, "
-                + $"unity textures {Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Texture2D>()).Length}"));
+                + $"unity textures {Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Texture2D>()).Length}, "
+                + $"harmony patched methods {HarmonyLib.Harmony.GetAllPatchedMethods().Count()}"));
         Add("reload", "reload", "Reloads the mod through the dev loader (after the bridge batch).", Reload);
         Add("diag", "diag", "Shows the diagnostics text, as Copy diagnostics puts it on the clipboard.", _ =>
         {
@@ -88,7 +98,27 @@ internal static class DevCommands
         Add("perf", "perf [timers on|off]", "Shows the mod's frame time and what measuring it costs, or turns the timers off.", Perf);
     }
 
-    public static void Reset() => s_drawTest = false;
+    public static void Reset()
+    {
+        s_drawTest = false;
+        Watch.Stop("bridge stopped");
+        Hovered.Reset();
+    }
+
+    // instances <type> [count|all]: count 5 when not given, 1 to 50; all lists every one (into instances.txt past 40).
+    private static CommandResult Instances(CommandCall call)
+    {
+        var lookup = GameTypes.Resolve(Arg(call, 1));
+        if (lookup.Type is not { } type) return CommandResult.Error($"instances: {lookup.Error}");
+        int count = call.Lower(2) == "all" ? int.MaxValue : int.TryParse(Arg(call, 2), out int n) ? Math.Clamp(n, 1, 50) : 5;
+        var (list, error) = GameTypes.Instances(lookup);
+        if (list == null) return CommandResult.Error($"instances: {error}");
+        if (list.Count == 0) return CommandResult.Ok($"instances {type.FullName}: 0 live");
+        var lines = new List<string> { $"ok instances {type.FullName}: {list.Count} live ({list.Count(i => i.Active)} active) in {GameState.ActiveSceneName}" };
+        lines.AddRange(list.Take(count).Select(i =>
+            $"#{i.Index} {(i.Distance is float d ? d.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) : "-")} m {(i.Active ? "active" : "inactive")} {i.Path.Value}"));
+        return Plain(DevOutput.Reply("instances", lines));
+    }
 
     // The dev loader reloads on its next update; from the bridge, once this batch's results are written.
     private static CommandResult Reload(CommandCall call)
@@ -400,10 +430,8 @@ internal static class DevCommands
     // probe <type> [filter]: the type's declared methods, fields and properties, from the game's interop assemblies.
     private static string Probe(string typeName, string? filter)
     {
-        Type? type = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetType(typeName) ?? a.GetType("Il2Cpp." + typeName))
-            .FirstOrDefault(t => t != null);
-        if (type == null) return $"error probe: no type {typeName}";
+        var lookup = GameTypes.Resolve(typeName);
+        if (lookup.Type is not { } type) return $"error probe: {lookup.Error}";
 
         const System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
             | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly;

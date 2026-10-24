@@ -118,6 +118,31 @@ internal static class PatchCheck
         return found;
     }
 
+    /// <summary>rva &lt;type&gt; &lt;method&gt;: every overload's code address in GameAssembly.dll, for a native decompile.</summary>
+    public static string Rva(string typeName, string method)
+    {
+        var lookup = GameTypes.Resolve(typeName);
+        if (lookup.Type is not { } type) return $"error rva: {lookup.Error}";
+        if (GameModule() is not { } module) return "error rva: GameAssembly.dll isn't loaded";
+        IntPtr klass = Il2CppClassPointerStore.GetNativeClassPointer(type);
+        if (klass == IntPtr.Zero) return $"error rva: {type.FullName} has no il2cpp class";
+        var lines = new List<string>();
+        IntPtr iter = IntPtr.Zero;
+        IntPtr info;
+        while ((info = IL2CPP.il2cpp_class_get_methods(klass, ref iter)) != IntPtr.Zero)
+        {
+            if (Marshal.PtrToStringAnsi(IL2CPP.il2cpp_method_get_name(info)) != method) continue;
+            uint count = IL2CPP.il2cpp_method_get_param_count(info);
+            var parameters = Enumerable.Range(0, (int)count)
+                .Select(i => Marshal.PtrToStringAnsi(IL2CPP.il2cpp_type_get_name(IL2CPP.il2cpp_method_get_param(info, (uint)i))) + " "
+                    + Marshal.PtrToStringAnsi(IL2CPP.il2cpp_method_get_param_name(info, (uint)i)));
+            long rva = (long)Marshal.ReadIntPtr(info) - (long)module.BaseAddress;
+            lines.Add($"  {method}({string.Join(", ", parameters)}): rva 0x{rva:X}");
+        }
+        return lines.Count == 0 ? $"error rva: no method {type.FullName}.{method}"
+            : $"ok rva {type.FullName}.{method}: {lines.Count} overloads\n" + string.Join("\n", lines);
+    }
+
     private static ProcessModule? GameModule() =>
         Process.GetCurrentProcess().Modules.Cast<ProcessModule>().FirstOrDefault(m => string.Equals(m.ModuleName, "GameAssembly.dll", StringComparison.OrdinalIgnoreCase));
 

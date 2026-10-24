@@ -15,6 +15,8 @@ namespace EpochAssist.Dev;
 ///            theme set [name]|check   resources   toast [text]   toasts   travel [scene]   focus   draw test on|off
 ///            reload   diag   perf [timers on|off]   profile   crash fault|start|throw [n]   reports
 ///            patchcheck [game version]
+///            instances [type] [count]   inspect [target] [member.path]   statics [type]   watch [target] [member.path] [seconds]|stop
+///            hovered
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
@@ -142,7 +144,11 @@ internal sealed class DevBridgeFeature : Feature
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
     }
 
-    public override void Update() => DevBridge.Update();
+    public override void Update()
+    {
+        Watch.Update();
+        DevBridge.Update();
+    }
     public override void OnGUI() => DevCommands.OnGUI();
 
     public override void Shutdown()
