@@ -13,6 +13,8 @@ internal sealed class AutoCastFeature : Feature
     public override string[] Needs => new[] { "game", "dispatch", "hotkeys", "player", "world" };
     public override FeaturePage? Page => s_page;
     public override string? StatusName => "Autocast";
+    // It averages 0.28–0.35 ms, above the default.
+    public override double BudgetMs => 0.7;
 
     private static readonly FeaturePage s_page = new("Autocast", 10, AutoCastPage.Draw) { Switch = AutoCastSettings.Enabled };
 

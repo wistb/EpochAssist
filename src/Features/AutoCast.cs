@@ -58,12 +58,11 @@ internal static class AutoCast
         public int ProfileGeneration = -1;
         public bool IconsTinted;
         public int FormKey = HumanFormKey;
-        public float NextSlotRefreshAt;
-        public float NextStatusLogAt;
         public string LastLoggedStatus = string.Empty;
+        // The run's jobs, made in Start; the host drops them with the feature.
+        public Job? SlotRefresh, EnemyScan;
 
         // Enemies near the player from the world model, counted a few times a second while the enemy gate is on.
-        public float NextEnemyScanAt;
         public int EnemiesInRange;
         public float EnemyWeightInRange;
         public bool EnemyGateOpen = true;
@@ -127,9 +126,10 @@ internal static class AutoCast
             return;
         }
 
+        // Switched on: the bar is read in this frame, as it was before the slot refresh became a job.
+        if (!run.Active && Player.Exists) run.SlotRefresh?.RunNow();
         run.Active = true;
         UpdateState(run);
-        LogStatusChanges(run);
     }
 
     private static void UpdateState(Run run)
@@ -145,12 +145,9 @@ internal static class AutoCast
             return;
         }
 
-        // Ability details only refine timing (cooldowns, channelling); casting works without them.
+        // Ability details only refine timing (cooldowns, channelling); casting works without them. The bar itself is
+        // read by the slot refresh job, at once on a form change.
         CheckFormChange(run);
-        if (Time.unscaledTime >= run.NextSlotRefreshAt)
-        {
-            RefreshSlots(run);
-        }
 
         // After a zone change or entering the game, wait for the player to press any skill themselves before resuming.
         if ((run.ZonePaused || run.EntryPaused) && Dispatcher.PlainPressThisFrame)
@@ -190,9 +187,7 @@ internal static class AutoCast
 
     private static void LogStatusChanges(Run run)
     {
-        if (run.Client == null || Time.unscaledTime < run.NextStatusLogAt) return;
-        run.NextStatusLogAt = Time.unscaledTime + StatusLogIntervalSeconds;
-
+        if (run.Client == null) return;
         string status = BuildStatus(run.Client);
         if (status == run.LastLoggedStatus) return;
 
@@ -223,7 +218,20 @@ internal static class AutoCast
         run.Client.SwallowRealPress = OnRealBarCommand;
         run.Client.SlotChordHeld = Hotkeys.SlotChordEngaged;
         s_run = run;
-        GameState.ZoneChanged += OnZoneChanged;
+        Bus.Subscribe<ZoneChange>(feature, OnZoneChanged);
+        // Each body keeps the checks the update made before calling it: this run, switched on, a player.
+        run.SlotRefresh = Scheduler.Every(feature, "slot refresh", SlotRefreshIntervalSeconds, () =>
+        {
+            if (s_run == run && S.Enabled.Value && Player.Exists) RefreshSlots(run);
+        }, startNow: true);
+        run.EnemyScan = Scheduler.Every(feature, "enemy scan", EnemyScanIntervalSeconds, () =>
+        {
+            if (s_run == run && S.Enabled.Value && Player.Exists) ScanEnemyGate(run);
+        }, startNow: true);
+        Scheduler.Every(feature, "status log", StatusLogIntervalSeconds, () =>
+        {
+            if (s_run == run && S.Enabled.Value) LogStatusChanges(run);
+        });
 
         Actions.Register(feature.Id, "autocast.toggle", "Autocast", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
         for (int i = 0; i < SlotCount; i++)
@@ -253,7 +261,7 @@ internal static class AutoCast
         {
             if (!S.Enabled.Value) return;
             if (S.PauseOnZoneChange.Value) PauseForZone(run);
-            run.NextSlotRefreshAt = 0f;
+            run.SlotRefresh?.Due();
             return;
         }
 
@@ -352,7 +360,6 @@ internal static class AutoCast
     /// <summary>Lets go of everything autocast holds: channels (through the dispatcher), toggles, tinted icons.</summary>
     public static void Shutdown()
     {
-        GameState.ZoneChanged -= OnZoneChanged;
         Hotkeys.SetSlotChords(null, null);
         var run = s_run;
         if (run == null) return;
@@ -388,8 +395,8 @@ internal static class AutoCast
 
     private static void ClearRefs(Run run)
     {
-        run.NextSlotRefreshAt = 0f;
-        run.NextEnemyScanAt = 0f;
+        run.SlotRefresh?.Due();
+        run.EnemyScan?.Due();
         run.EnemiesInRange = 0;
         run.EnemyWeightInRange = 0f;
         run.ClosestEnemy = null;
@@ -404,8 +411,6 @@ internal static class AutoCast
     // The skill bar comes from the player model; a slot it can't read this frame is left empty until the next refresh.
     private static void RefreshSlots(Run run)
     {
-        run.NextSlotRefreshAt = Time.unscaledTime + SlotRefreshIntervalSeconds;
-
         for (int i = 0; i < SlotCount; i++)
         {
             Core.Slot? modelSlot = PlayerModel.Slot(i + 1);
@@ -430,7 +435,7 @@ internal static class AutoCast
 
         if (run.Client != null) Dispatcher.Release(run.Client);
         run.FormKey = formKey;
-        run.NextSlotRefreshAt = 0f;
+        run.SlotRefresh?.RunNow();
     }
 
     private static void Toggle(Run run, int slot)
@@ -493,18 +498,18 @@ internal static class AutoCast
         }
     }
 
+    // The ungated part, each update; the count itself is the enemy scan job.
     private static void UpdateEnemyGate(Run run)
     {
         bool gated = S.RequireEnemies.Value;
         if (!gated) run.EnemyGateOpen = true;
-        if (!gated && !S.AimAtClosestEnemy.Value)
-        {
-            run.ClosestEnemy = null;
-            return;
-        }
+        if (!gated && !S.AimAtClosestEnemy.Value) run.ClosestEnemy = null;
+    }
 
-        if (Time.unscaledTime < run.NextEnemyScanAt) return;
-        run.NextEnemyScanAt = Time.unscaledTime + EnemyScanIntervalSeconds;
+    private static void ScanEnemyGate(Run run)
+    {
+        bool gated = S.RequireEnemies.Value;
+        if (!gated && !S.AimAtClosestEnemy.Value) return;
 
         try
         {
