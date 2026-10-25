@@ -107,6 +107,8 @@ internal static class FeatureHost
                 else Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
                 Actions.RemoveOwner(feature.Id);
                 Scheduler.RemoveOwner(feature);
+                Edits.RemoveOwner(feature);
+                TooltipLines.RemoveOwner(feature);
                 Bus.RemoveOwner(feature);
                 Commands.RemoveOwner(feature.Id);
                 return;
@@ -139,6 +141,8 @@ internal static class FeatureHost
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
         Scheduler.RemoveOwner(feature);
+        Edits.RemoveOwner(feature);
+        TooltipLines.RemoveOwner(feature);
         Bus.RemoveOwner(feature);
         Commands.RemoveOwner(feature.Id);
     }
@@ -352,6 +356,8 @@ internal static class FeatureHost
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
         Scheduler.RemoveOwner(feature);
+        Edits.RemoveOwner(feature);
+        TooltipLines.RemoveOwner(feature);
         Bus.RemoveOwner(feature);
         Commands.RemoveOwner(feature.Id);
     }

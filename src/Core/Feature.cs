@@ -112,6 +112,8 @@ internal abstract class Feature
     internal readonly HashSet<string> DemandGroupsOn = new();
     // The scheduler's jobs owned by this feature; the host drops them when it leaves Running.
     internal readonly List<Job> Jobs = new();
+    // The registry's edits owned by this feature; the host removes them when it leaves Running.
+    internal readonly List<Edit> Edits = new();
     internal readonly FrameTimes Frames = new();
     internal readonly Queue<float> RecentErrors = new();
     internal bool SettingsRegistered;

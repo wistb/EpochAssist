@@ -138,6 +138,8 @@ internal static class DiagnosticsPage
         Hint($"Tested game version: {s.TestedGameVersion}.");
         Hint(s.Mode == "not in game" ? $"Not in game; scene '{s.Scene}'." : $"Playing {s.Mode} in '{s.Scene}' ({s.SceneKind}).");
         Hint($"Frame time for the whole mod: {s.ModFrameText}.");
+        Hint($"Changes to the game: {s.ChangesText}.");
+        foreach (string edit in s.Edits) Hint(Colored(edit, Theme.Dim));
         Hint($"Profile: {s.Profiles}.");
         GUILayout.Space(4f);
         Hint(Colored("Copy diagnostics puts all of these tabs on the clipboard for a bug report, without personal data.", Theme.Dim));
@@ -232,6 +234,7 @@ internal static class DiagnosticsPage
         GUILayout.EndHorizontal();
         if (f.State == FeatureState.Running) Hint($"Frame time: {f.FrameText}.");
         foreach (string detail in f.Details) Hint(Colored(Capitalized(detail), Theme.Pause));
+        foreach (string edit in f.Edits) Hint("Edit: " + edit);
         EndCard();
     }
 

@@ -104,6 +104,8 @@ internal sealed record FeatureDiagnostics(string Id, string Name, FeatureState S
     public DateTime? OverSince { get; init; }
     public double LastSecondMs { get; init; }
     public IReadOnlyList<string> Notes { get; init; } = Array.Empty<string>();
+    /// <summary>The feature's own game edits, one line each.</summary>
+    public IReadOnlyList<string> Edits { get; init; } = Array.Empty<string>();
 
     /// <summary>The state as words: "running, paused (press any skill to resume)", "faulted at 14:01:50: ...".</summary>
     public string StateText => State switch
@@ -138,6 +140,14 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
     double ModAverageMs, double ModWorstMs, IReadOnlyList<string> SettingsFailures, string Profiles, IReadOnlyList<string> ProblemFiles,
     IReadOnlyList<string> Reports)
 {
+    /// <summary>Active game edits, one line each (owner, target, original, value, current, stack, drift).</summary>
+    public IReadOnlyList<string> Edits { get; init; } = Array.Empty<string>();
+    /// <summary>Methods our features have patched now, and the textures the mod holds.</summary>
+    public int PatchedMethods { get; init; }
+    public int Textures { get; init; }
+
+    public string ChangesText => $"edits {Edits.Count}, patched methods {PatchedMethods}, textures {Textures}";
+
     public string TestedGameVersion => BuildInfo.TestedGameVersion.Length > 0 ? BuildInfo.TestedGameVersion : "not recorded";
 
     public string ModFrameText => $"avg {ModAverageMs:F2} ms, worst {ModWorstMs:F2} ms";
@@ -149,7 +159,8 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
         text.Append($"mod {BuildInfo.Version}, build {Runtime.BuildId}, dev {(Runtime.Hosted ? "yes" : "no")}\n");
         text.Append($"tested game version: {TestedGameVersion}\n");
         text.Append($"mode {Mode}, scene '{Scene}' ({SceneKind}), built {BuiltAt:yyyy-MM-dd HH:mm:ss}\n");
-        text.Append($"mod frame time: {ModFrameText}\n\n");
+        text.Append($"mod frame time: {ModFrameText}\n");
+        text.Append($"game changes: {ChangesText}\n\n");
 
         text.Append("features:\n");
         int width = Features.Count > 0 ? Math.Max(10, Features.Max(f => f.Id.Length)) : 10;
@@ -163,6 +174,8 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
         }
         text.Append("settings: ").Append(SettingsFailures.Count > 0 ? string.Join("; ", SettingsFailures) : "none").Append('\n');
         text.Append("profiles: ").Append(Profiles).Append('\n');
+        text.Append($"Edits: {Edits.Count}\n");
+        foreach (string line in Edits) text.Append("  ").Append(line).Append('\n');
         Section(text, "problem files", ProblemFiles);
         Section(text, "reports", Reports);
         return Diagnostics.Scrub(text.ToString().TrimEnd('\n'));
@@ -232,6 +245,7 @@ internal static class Diagnostics
             {
                 BudgetMs = f.BudgetMs, OverBudget = f.OverBudget, OverSince = f.OverSince, LastSecondMs = f.Frames.LastSecondMs,
                 Notes = f.State == FeatureState.Running ? Lines(() => f.DiagnosticNotes).ToList() : Array.Empty<string>(),
+                Edits = f.Edits.Select(e => e.Describe()).ToList(),
             };
         }).ToList();
         // Dev builds: the compat self-test, which is never started, shows how missing members are reported.
@@ -248,7 +262,25 @@ internal static class Diagnostics
         string kind = GameState.Kind switch { SceneKind.NonCombat => "non-combat", SceneKind.Combat => "combat", SceneKind.Menu => "menu", _ => "none" };
         var settings = SettingsRegistry.Groups.Where(g => g.Failures.Count > 0).Select(g => $"{g.Name} settings not updated: {string.Join("; ", g.Failures)}").ToList();
         return new DiagnosticsSnapshot(DateTime.Now, mode, GameState.Scene, kind, features, ModFrames.AverageMs, ModFrames.WorstMs, settings,
-            ProfilesText(), Lines(ThemeProblems).Concat(ReportProblems()).ToList(), Reports.List().Select(r => $"{r.File} ({r.Feature}, count {r.Count})").ToList());
+            ProfilesText(), Lines(ThemeProblems).Concat(ReportProblems()).ToList(), Reports.List().Select(r => $"{r.File} ({r.Feature}, count {r.Count})").ToList())
+        {
+            Edits = Core.Edits.Lines().ToList(),
+            PatchedMethods = FeatureHost.All.Sum(f => PatchedBy(f)),
+            Textures = Draw.ResourceCount + Ui.Theme.TextureCount,
+        };
+    }
+
+    // Our own patches only: other mods' patches aren't the mod's changes.
+    private static int PatchedBy(Feature feature)
+    {
+        try
+        {
+            return feature.HarmonyInstance?.GetPatchedMethods().Count() ?? 0;
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
     }
 
     // Game members don't change while the game runs, so each feature is checked once per load (by id: the self-test is

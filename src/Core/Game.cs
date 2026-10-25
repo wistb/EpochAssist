@@ -12,9 +12,23 @@ internal static class Game
     public static EpochInputManager? Input => Get(() => EpochInputManager.instance);
     public static ActorManager? Actors => Get(() => ActorManager.instance);
     public static UIBase? UI => Get(() => UIBase.instance);
+    /// <summary>The game's virtual camera rig (CameraTarget/MainCamera_Virtual).</summary>
+    public static CameraManager? Camera => Get(() => CameraManager.instance);
     public static UseAbilityProcessor? AbilityProcessor => Get(() => Input?.useAbilityProcessor);
     public static LocalTreeData? LocalTree => Get(() => PlayerFinder.getLocalTreeData());
     public static DList<AbilityBarIcon>? BarIcons => Get(() => AbilityBarIcon.all);
+    /// <summary>The one minimap (the corner minimap and, while open, the overlay map), through its icon manager: an
+    /// object search would walk every object.</summary>
+    public static Il2CppLE.UI.Minimap.Minimap? Minimap => Get(() => Il2CppLE.UI.Minimap.MinimapIconManager.Instance?.minimap);
+    /// <summary>The minimap's zoom buttons and limits, in the same prefab as the minimap.</summary>
+    public static DMMapZoom? MinimapZoom => Get(() =>
+    {
+        var map = Minimap;
+        if (map == null) return null;
+        var t = map.transform;
+        while (t.parent != null && !t.name.StartsWith("Minimap(", StringComparison.Ordinal)) t = t.parent;
+        return t.GetComponentInChildren<DMMapZoom>(true);
+    });
 
     /// <summary>True for a live object: not null, not destroyed by Unity, not collected on the Il2Cpp side.</summary>
     public static bool Alive(Il2CppObjectBase? obj)

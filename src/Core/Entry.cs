@@ -63,10 +63,11 @@ public static class Runtime
         Hosted = hosted;
         LoadedAt = DateTime.Now;
         Config.Init();
+        Edits.RecoverSaved();
         CoreCommands.Register();
         UiCommands.Register();
         // A feature's needs come before it; the hotkey layer comes before the menu, which reads its results that frame.
-        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new GameEventsFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
+        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());
 #if DEV
@@ -82,6 +83,7 @@ public static class Runtime
         FeatureHost.UpdateAll();
         FeatureHost.LateUpdateAll();
         Scheduler.RunHostJobs();
+        Edits.Update();
         int level = Config.LogLevel.Value;
         if (level != Log.Level)
         {
@@ -113,6 +115,7 @@ public static class Runtime
     public static void Shutdown()
     {
         FeatureHost.StopAll();
+        Edits.RestoreAll();
         InputGate.Release();
         Theme.Release();
         Draw.Release();
