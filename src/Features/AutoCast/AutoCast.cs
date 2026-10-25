@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using EpochAssist.Core;
 using Il2Cpp;
 using UnityEngine;
@@ -14,7 +13,7 @@ namespace EpochAssist.Features;
 /// Toggles come from the hotkey layer, which reads the keys bound to each slot, because the game drops
 /// the skill press when modifier+key is a binding of its own (Ctrl+F is its search field).
 /// </summary>
-internal static class AutoCast
+internal static partial class AutoCast
 {
     private struct Slot
     {
@@ -87,16 +86,7 @@ internal static class AutoCast
     /// <summary>The dispatcher's view of autocast while it runs.</summary>
     public static DispatchClient? Client => s_run?.Client;
 
-    public static bool IsSlotToggled(int slot) => CurrentToggles()[slot];
-
     public static string? SlotAbilityName(int slot) => s_run?.Slots[slot].Ability?.abilityName;
-
-    // The toggles of the current form; read only.
-    private static bool[] CurrentToggles()
-    {
-        var run = s_run;
-        return run != null && run.TogglesByForm.TryGetValue(run.FormKey, out var toggles) ? toggles : s_noToggles;
-    }
 
     // The enemy gate and the hold-to-pause key flip constantly in combat, so they are left out of the logged status.
     private static string BuildStatus(DispatchClient client)
@@ -245,12 +235,6 @@ internal static class AutoCast
         if (GameState.InGame) PauseForEntry(run);
     }
 
-    // Slots toggle only while autocast is on; switching it off forgets them.
-    private static void ToggleSlot(int slot)
-    {
-        if (s_run is { } run && S.Enabled.Value) Toggle(run, slot);
-    }
-
     private static void OnZoneChanged(ZoneChange change)
     {
         var run = s_run;
@@ -288,37 +272,6 @@ internal static class AutoCast
         if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
     }
 
-    // The character's slot toggles from its profile (none without one), replacing the current ones.
-    private static void LoadToggles(Run run)
-    {
-        run.ProfileGeneration = Profiles.Generation;
-        if (run.Client != null) Dispatcher.Release(run.Client);
-        run.TogglesByForm.Clear();
-        if (Profiles.Read(SlotsKey) is not JsonObject forms) return;
-        foreach (var (form, node) in forms)
-        {
-            if (!int.TryParse(form, out int key) || node is not JsonArray slots || slots.Count != SlotCount) continue;
-            var toggles = new bool[SlotCount];
-            for (int i = 0; i < SlotCount; i++) toggles[i] = slots[i] is JsonValue v && v.TryGetValue(out bool on) && on;
-            run.TogglesByForm[key] = toggles;
-        }
-        if (run.EntryPaused && CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
-    }
-
-    // Kept in the character's profile while one is loaded.
-    private static void SaveToggles(Run run)
-    {
-        if (!Profiles.HasCharacter) return;
-        var forms = new JsonObject();
-        foreach (var (form, toggles) in run.TogglesByForm)
-        {
-            var slots = new JsonArray();
-            foreach (bool on in toggles) slots.Add(on);
-            forms[form.ToString()] = slots;
-        }
-        Profiles.Write(SlotsKey, forms);
-    }
-
     // The dispatcher lets go of held slots as soon as the zone-pause rule is active. With no slot on there is nothing to
     // tell the player beyond the status.
     private static void PauseForZone(Run run)
@@ -329,32 +282,6 @@ internal static class AutoCast
             if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
         }
         run.ZonePaused = true;
-    }
-
-    /// <summary>
-    /// Called by the dispatcher for every bar command the game itself issues (the player's real key presses).
-    /// Returns true to swallow the command: while the slot-toggle chord is engaged the key toggles, and must not cast.
-    /// </summary>
-    private static bool OnRealBarCommand(int slot, bool keyDown)
-    {
-        var run = s_run;
-        if (run == null || !S.Enabled.Value) return false;
-
-        if (!keyDown)
-        {
-            run.ToggleKeyDown[slot] = false;
-            return false;
-        }
-
-        if (!Hotkeys.SlotChordEngaged(slot)) return false;
-
-        // The hotkey layer toggles from the slot's key; when that key couldn't be looked up, toggle here, once per press.
-        if (!Hotkeys.SlotKeyKnown(slot) && !run.ToggleKeyDown[slot])
-        {
-            run.ToggleKeyDown[slot] = true;
-            Toggle(run, slot);
-        }
-        return true;
     }
 
     /// <summary>Lets go of everything autocast holds: channels (through the dispatcher), toggles, tinted icons.</summary>
@@ -438,35 +365,6 @@ internal static class AutoCast
         run.SlotRefresh?.RunNow();
     }
 
-    private static void Toggle(Run run, int slot)
-    {
-        if (!run.TogglesByForm.TryGetValue(run.FormKey, out var toggles))
-        {
-            toggles = new bool[SlotCount];
-            run.TogglesByForm[run.FormKey] = toggles;
-        }
-
-        toggles[slot] = !toggles[slot];
-
-        // Switching a slot on is explicit intent: lift a zone-change or entry pause (the non-combat pause stays).
-        if (toggles[slot] && (run.ZonePaused || run.EntryPaused))
-        {
-            run.ZonePaused = run.EntryPaused = false;
-            Log.Info("Autocast: resumed");
-        }
-        SaveToggles(run);
-
-        bool paused = run.Client != null && Dispatcher.StatusOf(run.Client, RuleKind.Momentary).State == StatusState.Paused;
-        Log.Info($"Autocast: slot {slot + 1} ({run.Slots[slot].Ability?.abilityName ?? "?"}) {(toggles[slot] ? "ON" : "off")}{(paused ? " (paused)" : string.Empty)}");
-    }
-
-    private static void ClearToggles(Run run)
-    {
-        run.TogglesByForm.Clear();
-        run.ZonePaused = run.EntryPaused = false;
-        run.FormKey = HumanFormKey;
-    }
-
     private static bool InNonCombatZone() => GameState.Kind == SceneKind.NonCombat;
 
     // Per toggled slot each frame: a press when ready, else the key-up, as the game sees from a held key. The
@@ -498,68 +396,6 @@ internal static class AutoCast
         }
     }
 
-    // The ungated part, each update; the count itself is the enemy scan job.
-    private static void UpdateEnemyGate(Run run)
-    {
-        bool gated = S.RequireEnemies.Value;
-        if (!gated) run.EnemyGateOpen = true;
-        if (!gated && !S.AimAtClosestEnemy.Value) run.ClosestEnemy = null;
-    }
-
-    private static void ScanEnemyGate(Run run)
-    {
-        bool gated = S.RequireEnemies.Value;
-        if (!gated && !S.AimAtClosestEnemy.Value) return;
-
-        try
-        {
-            ScanEnemies(run);
-        }
-        catch (Exception e)
-        {
-            // If the scan breaks, fail open so autocast keeps working ungated.
-            run.EnemiesInRange = 0;
-            run.EnemyWeightInRange = 0f;
-            run.ClosestEnemy = null;
-            run.EnemyGateOpen = true;
-            Log.ErrorThrottled("autocast:enemies", $"Autocast enemy scan failed: {e.Message}", 30);
-            return;
-        }
-
-        run.EnemyGateOpen = !gated || run.EnemyWeightInRange >= S.EnemyMinWeight.Value;
-    }
-
-    // Alive, active enemies from the world model: the count and weight within the gate's range, and the closest within
-    // the aim range. Distances are straight-line from the player, as the world model measures them this frame.
-    private static void ScanEnemies(Run run)
-    {
-        int count = 0;
-        float weight = 0f;
-        WorldEntry? closest = null;
-
-        if (S.RequireEnemies.Value)
-        {
-            var inRange = new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = S.EnemyRange.Value };
-            count = World.Count(inRange);
-            weight = World.Weight(inRange, s_enemyWeight);
-        }
-        if (S.AimAtClosestEnemy.Value) closest = World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = S.AimRange.Value });
-
-        run.EnemiesInRange = count;
-        run.EnemyWeightInRange = weight;
-        run.ClosestEnemy = closest;
-    }
-
-    private static readonly Func<Rarity, float> s_enemyWeight = EnemyWeight;
-
-    private static float EnemyWeight(Rarity rarity) => rarity switch
-    {
-        Rarity.Boss => S.WeightBoss.Value,
-        Rarity.Rare => S.WeightRare.Value,
-        Rarity.Magic => S.WeightMagic.Value,
-        _ => S.WeightNormal.Value
-    };
-
     // The player model's ready flag is the game's own cooldown check; unknown counts as ready, as before.
     private static bool IsOnCooldown(int slot, Ability? ability) =>
         ability != null && PlayerModel.Slot(slot + 1)?.Ready == false;
@@ -580,71 +416,6 @@ internal static class AutoCast
         catch (Exception)
         {
             return player.position;
-        }
-    }
-
-    // Toggled slots pulse while autocast may cast (the enemy gate holding it counts); they turn blue while paused
-    // or while the hold-to-pause key is held.
-    private static void UpdateIcons(Run run)
-    {
-        bool[] toggles = CurrentToggles();
-        bool anyToggled = false;
-        for (int i = 0; i < SlotCount; i++) anyToggled |= toggles[i];
-
-        if (!anyToggled)
-        {
-            if (run.IconsTinted) RestoreIcons(run);
-            return;
-        }
-
-        var icons = Game.BarIcons;
-        if (icons == null) return;
-
-        PauseRule? rule = run.Client?.Blocking;
-        bool held = rule != null && (rule.Kind == RuleKind.Latched || rule.Name == "hold-key");
-
-        float pulse = (Mathf.Sin(Time.unscaledTime * 5f) + 1f) * 0.5f;
-        float scale = Mathf.Lerp(0.92f, 1.07f, pulse);
-        var activeColor = new Color(1f, Mathf.Lerp(1f, 0.75f, pulse), Mathf.Lerp(1f, 0.4f, pulse), 1f);
-        var suspendedColor = new Color(0.55f, 0.75f, 1f, Mathf.Lerp(0.55f, 0.85f, pulse));
-
-        for (int i = 0; i < icons.Count; i++)
-        {
-            AbilityBarIcon? barIcon = icons[i];
-            if (barIcon == null) continue;
-
-            int slot = barIcon.abilityNumber - 1;
-            bool toggled = slot >= 0 && slot < SlotCount && toggles[slot];
-            bool on = toggled && !held;
-            bool paused = toggled && held;
-
-            barIcon.transform.localScale = on ? new Vector3(scale, scale, 1f) : Vector3.one;
-
-            var image = barIcon.icon;
-            if (image != null)
-            {
-                image.color = on ? activeColor : paused ? suspendedColor : Color.white;
-            }
-        }
-
-        run.IconsTinted = true;
-    }
-
-    private static void RestoreIcons(Run run)
-    {
-        run.IconsTinted = false;
-
-        var icons = Game.BarIcons;
-        if (icons == null) return;
-
-        for (int i = 0; i < icons.Count; i++)
-        {
-            AbilityBarIcon? barIcon = icons[i];
-            if (barIcon == null) continue;
-
-            barIcon.transform.localScale = Vector3.one;
-            var image = barIcon.icon;
-            if (image != null) image.color = Color.white;
         }
     }
 }
