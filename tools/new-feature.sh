@@ -104,6 +104,8 @@ internal sealed class __NAME__Feature : Feature
 
     // Player, world and game data come from the models: add "player", "world" or "data" to Needs and declare each part
     // it reads, e.g. public override PartNeed[] Parts => new[] { Part("player", "skill bar") };
+    // Outlines, tints and minimap markers come from the visuals layer the same way: "visuals" in Needs and
+    // Part("visuals", "outlines").
     // Every other game member it reads, checked before it starts. Replace these examples.
     public override Requirement[] Requirements => new[]
     {
@@ -138,6 +140,8 @@ internal static class __NAME__
     {
 @@RUN_CLIENT@@
         public bool UseCamera;
+        // The run's changes to the game, each an edit the registry restores.
+        public readonly List<Edit> Edits = new();
     }
 
     private static Run? s_run;
@@ -152,6 +156,11 @@ internal static class __NAME__
         //   Scheduler.Every(feature, "scan", 0.25f, () => { if (s_run == run) Scan(run); });
         // Events come through the bus; the host removes the subscription, so Shutdown doesn't:
         //   Bus.Subscribe<ZoneChange>(feature, change => { ... });
+        // Every change to a game value goes through the edit registry, never a direct write: it keeps the original,
+        // applies again after a scene rebuilds the object, and restores it when the edit is removed or the feature stops,
+        // faults or reloads (no restore code in Shutdown). A target says where the value lives:
+        //   var reveal = new EditTarget<float> { Name = "minimap: reveal radius", Find = …, Read = …, Write = … };
+        //   run.Edits.Add(Edits.Apply(feature, reveal, 400f));
         // One action per control, so bindings, buttons and the bridge share one path.
         Actions.Register(feature.Id, "__ID__.toggle", "__NAME__", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
     }
@@ -159,12 +168,25 @@ internal static class __NAME__
     public static void OnUpdate()
     {
         var run = s_run;
-        if (run == null || !S.Enabled.Value) return;
+        if (run == null) return;
+        // Turned off by its switch, the feature's changes to the game go back.
+        if (!S.Enabled.Value)
+        {
+            DropEdits(run);
+            return;
+        }
 @@CLIENT_CHECK@@
         // Reach the game through Game.* and Player.*, null-safely, and don't keep objects across scenes.
     }
 
-    // Undo everything the run did to the game first, then drop the run.
+    private static void DropEdits(Run run)
+    {
+        foreach (var edit in run.Edits) edit.Remove();
+        run.Edits.Clear();
+    }
+
+    // Undo everything the run did to the game first, then drop the run. Its edits go with the feature:
+    // the host removes them.
     public static void Shutdown()
     {
         var run = s_run;
