@@ -1,10 +1,10 @@
 using EpochAssist.Core;
-using EpochAssist.Features;
+using EpochAssist.Ui;
 using UnityEngine;
 using static EpochAssist.Ui.Widgets;
 using S = EpochAssist.Features.AutoCastSettings;
 
-namespace EpochAssist.Ui;
+namespace EpochAssist.Features;
 
 // Autocast's menu page below the header: slot chips, the toggle hint, and its settings as cards on one scrolling page.
 internal static class AutoCastPage
