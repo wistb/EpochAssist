@@ -123,8 +123,11 @@ internal static class Profiles
 
     private static List<ProfileInfo>? s_list;
     private static Dictionary<string, int>? s_users;
-    private static float s_dirtySince = -1f;
-    private static float s_spawnedAt = -1f, s_nextCheckAt;
+    // Unsaved changes, and the host job that writes them shortly after (it runs whether or not the feature does).
+    private static bool s_dirty;
+    private static Job? s_save;
+    private static float s_spawnedAt = -1f;
+    private static Cooldown s_recheck;
     private static bool s_hadPlayer;
 
     private static string ProfileDir => Path.Combine(MelonEnvironment.UserDataDirectory, "EpochAssist", "profiles");
@@ -178,19 +181,17 @@ internal static class Profiles
 
     private static void MarkDirtyNow()
     {
-        if (s_dirtySince < 0f) s_dirtySince = Time.unscaledTime;
-    }
-
-    public static void SaveIfDirty()
-    {
-        if (s_dirtySince >= 0f && Time.unscaledTime - s_dirtySince >= SaveDelaySeconds) Save();
+        s_dirty = true;
+        if (s_save is not { Pending: true }) s_save = Scheduler.HostAfter("profiles save", SaveDelaySeconds, Save);
     }
 
     /// <summary>Writes what changed: the profile in use and the character's file.</summary>
     public static void Save()
     {
-        if (s_dirtySince < 0f) return;
-        s_dirtySince = -1f;
+        s_save?.Cancel();
+        s_save = null;
+        if (!s_dirty) return;
+        s_dirty = false;
         if (InProfile && s_profile != null) SaveProfile(s_active, s_profile, current: true);
         if (s_characterDirty && HasCharacter && s_character != null && s_key != null)
         {
@@ -464,9 +465,9 @@ internal static class Profiles
             return;
         }
         // With a character loaded it is checked again now and then; while reading, every update.
-        if (s_key != null && Time.unscaledTime < s_nextCheckAt) return;
+        if (s_key != null && !s_recheck.Ready) return;
         if (State == CharacterState.NotReadable) return;
-        s_nextCheckAt = Time.unscaledTime + RecheckSeconds;
+        s_recheck.Start(RecheckSeconds);
 
         if (!TryReadKey(out var key, out string reason))
         {
@@ -587,7 +588,7 @@ internal static class Profiles
         State = CharacterState.NoCharacter;
         s_hadPlayer = false;
         s_spawnedAt = -1f;
-        s_nextCheckAt = 0f;
+        s_recheck.Clear();
         s_list = null;
         s_users = null;
     }

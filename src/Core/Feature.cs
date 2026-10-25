@@ -77,6 +77,21 @@ internal abstract class Feature
     public virtual IReadOnlyDictionary<Type, string> PatchGroups => s_noPatchGroups;
     private static readonly IReadOnlyDictionary<Type, string> s_noPatchGroups = new Dictionary<Type, string>();
 
+    /// <summary>Patch groups whose classes aren't applied at start; the feature turns them on and off with
+    /// FeatureHost.SetPatchGroup while it needs them.</summary>
+    public virtual string[] DemandGroups => Array.Empty<string>();
+
+    /// <summary>Frame time the feature should stay under, per second on average; more only when it needs it.</summary>
+    public virtual double BudgetMs => 0.3;
+
+    /// <summary>Its average was over BudgetMs for 3 counted seconds in a row (cleared after 3 under), and since when.</summary>
+    public bool OverBudget { get; internal set; }
+    public DateTime? OverSince { get; internal set; }
+    internal int OverStreak, UnderStreak;
+
+    /// <summary>Extra lines for the feature's Diagnostics details (game events: producers the mode doesn't support).</summary>
+    public virtual IEnumerable<string> DiagnosticNotes => Array.Empty<string>();
+
     /// <summary>Optional requirement groups the game lacks; the feature runs without them.</summary>
     public HashSet<string> MissingGroups { get; } = new();
 
@@ -93,6 +108,10 @@ internal abstract class Feature
             .ToArray();
 
     internal HarmonyLib.Harmony? HarmonyInstance;
+    // The DemandGroups the host has patched now.
+    internal readonly HashSet<string> DemandGroupsOn = new();
+    // The scheduler's jobs owned by this feature; the host drops them when it leaves Running.
+    internal readonly List<Job> Jobs = new();
     internal readonly FrameTimes Frames = new();
     internal readonly Queue<float> RecentErrors = new();
     internal bool SettingsRegistered;

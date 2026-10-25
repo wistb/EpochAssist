@@ -11,7 +11,7 @@ internal static class Player
 
     private static Actor? s_actor;
     private static GameObject? s_object;
-    private static float s_nextLookupAt;
+    private static Cooldown s_lookup;
     private static PlayerHealth? s_health;
 
     public static bool Exists => Object != null;
@@ -57,17 +57,18 @@ internal static class Player
         s_actor = null;
         s_object = null;
         s_health = null;
-        s_nextLookupAt = 0f;
+        s_lookup.Clear();
         Online = null;
         // Every scene change and character change comes through here, so the model never keeps the old player's values.
         PlayerModel.Reset();
+        GameEvents.ResetPlayer();
     }
 
     private static void Refresh()
     {
         if (s_object != null) return;
-        if (Time.unscaledTime < s_nextLookupAt) return;
-        s_nextLookupAt = Time.unscaledTime + RetrySeconds;
+        if (!s_lookup.Ready) return;
+        s_lookup.Start(RetrySeconds);
 
         s_actor = PlayerFinder.getPlayerActor();
         s_object = s_actor != null ? s_actor.gameObject : null;

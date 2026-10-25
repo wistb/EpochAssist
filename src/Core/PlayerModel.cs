@@ -258,7 +258,7 @@ internal static class PlayerModel
     private static ClientChargeManager? s_clientCharges;
     private static HealthPotionCharges? s_potion;
     private static BuffsUIManager? s_buffsUi;
-    private static float s_nextUiLookupAt;
+    private static Cooldown s_uiLookup;
     private static int s_modeFrame = -1;
     private static bool? s_online;
 
@@ -349,7 +349,7 @@ internal static class PlayerModel
         s_using = null;
         s_clientUsing = null;
         s_clientAbilities = null;
-        s_retryAt.Clear();
+        s_retry.Clear();
         s_charges = null;
         s_offlineCharges = null;
         s_clientCharges = null;
@@ -357,8 +357,8 @@ internal static class PlayerModel
         s_buffsUi = null;
         s_abilityInfo.Clear();
         s_reaper = null;
-        s_nextReaperLookupAt = 0f;
-        s_nextUiLookupAt = 0f;
+        s_reaperLookup.Clear();
+        s_uiLookup.Clear();
         s_modeFrame = -1;
         s_online = null;
     }
@@ -417,7 +417,7 @@ internal static class PlayerModel
         s_using = null;
         s_clientUsing = null;
         s_clientAbilities = null;
-        s_retryAt.Clear();
+        s_retry.Clear();
         s_charges = null;
         s_offlineCharges = null;
         s_clientCharges = null;
@@ -426,18 +426,19 @@ internal static class PlayerModel
 
     // Online and offline players carry different components, so a lookup that finds nothing waits a second before it
     // is tried again rather than searching every frame.
-    private static readonly Dictionary<Type, float> s_retryAt = new();
+    private static readonly Dictionary<Type, Cooldown> s_retry = new();
     private const float MissingRetrySeconds = 1f;
 
     private static T? Component<T>(ref T? cached) where T : Component
     {
         if (Game.Alive(cached)) return cached;
         cached = null;
-        if (s_object == null || (s_retryAt.TryGetValue(typeof(T), out float at) && Time.unscaledTime < at)) return null;
+        if (s_object == null || (s_retry.TryGetValue(typeof(T), out var retry) && !retry.Ready)) return null;
         cached = s_object.GetComponent<T>();
         if (Game.Alive(cached)) return cached;
         cached = null;
-        s_retryAt[typeof(T)] = Time.unscaledTime + MissingRetrySeconds;
+        retry.Start(MissingRetrySeconds);
+        s_retry[typeof(T)] = retry;
         return null;
     }
 
@@ -572,8 +573,8 @@ internal static class PlayerModel
     {
         if (Game.Alive(s_buffsUi)) return s_buffsUi;
         s_buffsUi = null;
-        if (Time.unscaledTime < s_nextUiLookupAt) return null;
-        s_nextUiLookupAt = Time.unscaledTime + UiLookupSeconds;
+        if (!s_uiLookup.Ready) return null;
+        s_uiLookup.Start(UiLookupSeconds);
         s_buffsUi = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.Of<BuffsUIManager>())?.TryCast<BuffsUIManager>();
         return Game.Alive(s_buffsUi) ? s_buffsUi : null;
     }
@@ -797,14 +798,14 @@ internal static class PlayerModel
     // second; once found it is kept while it lives. Entering the Reaper form can show up to half a second late.
     private const float ReaperLookupSeconds = 0.5f;
     private static ChangeHealthMaterialDuringLifetime? s_reaper;
-    private static float s_nextReaperLookupAt;
+    private static Cooldown s_reaperLookup;
 
     private static ChangeHealthMaterialDuringLifetime? ReaperMaterial()
     {
         if (Game.Alive(s_reaper)) return s_reaper;
         s_reaper = null;
-        if (s_object == null || Time.unscaledTime < s_nextReaperLookupAt) return null;
-        s_nextReaperLookupAt = Time.unscaledTime + ReaperLookupSeconds;
+        if (s_object == null || !s_reaperLookup.Ready) return null;
+        s_reaperLookup.Start(ReaperLookupSeconds);
         s_reaper = s_object.GetComponentInChildren<ChangeHealthMaterialDuringLifetime>();
         return Game.Alive(s_reaper) ? s_reaper : null;
     }

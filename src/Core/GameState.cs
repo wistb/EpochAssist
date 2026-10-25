@@ -9,9 +9,15 @@ internal enum SceneKind { None, Menu, NonCombat, Combat }
 /// <summary>A zone change: a new scene, or a monolith echo transition inside one (which loads no scene).</summary>
 internal readonly record struct ZoneChange(string Scene, SceneKind Kind, bool Monolith);
 
+/// <summary>The player appeared (a character entered a zone).</summary>
+internal readonly record struct PlayerSpawned;
+
+/// <summary>The player's health went from above 0 to 0 while in game.</summary>
+internal readonly record struct PlayerDied;
+
 /// <summary>
-/// What the game is doing right now, and events when it changes. Runs first, so features see fresh state.
-/// Subscribe in a feature's Start and unsubscribe in its Shutdown.
+/// What the game is doing right now, and events on the bus when it changes. Runs first, so features see fresh state.
+/// Subscribe through the bus in a feature's Start; the host removes the subscriptions when the feature stops.
 /// </summary>
 internal static class GameState
 {
@@ -34,6 +40,9 @@ internal static class GameState
     public static bool UiTyping;
 
     public static string Scene { get; private set; } = string.Empty;
+
+    /// <summary>The frame of the last scene change (the host skips that second in the budget check); -1 before one.</summary>
+    internal static int SceneChangedAt { get; private set; } = -1;
 
     /// <summary>The active scene's name right now, which may be ahead of Scene until the next update.</summary>
     public static string ActiveSceneName => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
@@ -152,10 +161,6 @@ internal static class GameState
         }
     }
 
-    public static event Action<ZoneChange>? ZoneChanged;
-    public static event Action? PlayerSpawned;
-    public static event Action? PlayerDied;
-
     public static void Update()
     {
         // The active scene can change with no scene load or unload event (entering an echo from the monolith hub,
@@ -163,11 +168,11 @@ internal static class GameState
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle != s_sceneHandle) OnSceneChanged();
 
         bool hasPlayer = Player.Exists;
-        if (hasPlayer && !s_hadPlayer) Raise(PlayerSpawned, nameof(PlayerSpawned));
+        if (hasPlayer && !s_hadPlayer) Bus.Raise(new PlayerSpawned());
         s_hadPlayer = hasPlayer;
 
         bool alive = hasPlayer && PlayerAlive;
-        if (s_wasAlive && !alive && hasPlayer) Raise(PlayerDied, nameof(PlayerDied));
+        if (s_wasAlive && !alive && hasPlayer) Bus.Raise(new PlayerDied());
         s_wasAlive = alive;
     }
 
@@ -183,11 +188,12 @@ internal static class GameState
         Kind = Classify(scene);
         s_hadPlayer = false;
         s_wasAlive = false;
-        RaiseZone(new ZoneChange(Scene, Kind, Monolith: false));
+        SceneChangedAt = UnityEngine.Time.frameCount;
+        Bus.Raise(new ZoneChange(Scene, Kind, Monolith: false));
     }
 
-    // Subscribers and the scene are kept: features unsubscribe in their own Shutdown, and a restart of this feature must
-    // neither cut them off nor report the zone the player is still in as a new one.
+    // The scene is kept: a restart of this feature must not report the zone the player is still in as a new one. Its
+    // subscribers are on the bus, which a restart of this feature doesn't touch.
     public static void Reset()
     {
         s_hadPlayer = s_wasAlive = false;
@@ -207,40 +213,7 @@ internal static class GameState
         }
     }
 
-    // One subscriber's failure must not stop the others.
-    private static void RaiseZone(ZoneChange change)
-    {
-        if (ZoneChanged == null) return;
-        foreach (Action<ZoneChange> handler in ZoneChanged.GetInvocationList())
-        {
-            try
-            {
-                handler(change);
-            }
-            catch (Exception e)
-            {
-                Log.Error($"ZoneChanged handler failed: {e}");
-            }
-        }
-    }
-
-    private static void Raise(Action? handlers, string name)
-    {
-        if (handlers == null) return;
-        foreach (Action handler in handlers.GetInvocationList())
-        {
-            try
-            {
-                handler();
-            }
-            catch (Exception e)
-            {
-                Log.Error($"{name} handler failed: {e}");
-            }
-        }
-    }
-
-    private static void OnMonolithTransition() => RaiseZone(new ZoneChange(Scene, Kind, Monolith: true));
+    private static void OnMonolithTransition() => Bus.Raise(new ZoneChange(Scene, Kind, Monolith: true));
 
     // Monolith echo transitions don't always surface as a scene change.
     [HarmonyPatch(typeof(MonolithZoneManager), nameof(MonolithZoneManager.initialise))]

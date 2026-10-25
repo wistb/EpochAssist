@@ -66,7 +66,7 @@ public static class Runtime
         CoreCommands.Register();
         UiCommands.Register();
         // A feature's needs come before it; the hotkey layer comes before the menu, which reads its results that frame.
-        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
+        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new GameEventsFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());
 #if DEV
@@ -81,8 +81,7 @@ public static class Runtime
     {
         FeatureHost.UpdateAll();
         FeatureHost.LateUpdateAll();
-        Config.SaveIfDirty();
-        Profiles.SaveIfDirty();
+        Scheduler.RunHostJobs();
         int level = Config.LogLevel.Value;
         if (level != Log.Level)
         {
@@ -118,6 +117,7 @@ public static class Runtime
         Theme.Release();
         Draw.Release();
         Config.Save();
+        Scheduler.DropHostJobs();
     }
 }
 

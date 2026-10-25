@@ -77,6 +77,9 @@ internal static class FeatureHost
         feature.LastErrorAt = null;
         feature.RecentErrors.Clear();
         feature.Frames.Reset();
+        feature.OverBudget = false;
+        feature.OverSince = null;
+        feature.OverStreak = feature.UnderStreak = 0;
         try
         {
             if (!feature.SettingsRegistered)
@@ -103,6 +106,8 @@ internal static class FeatureHost
                 if (s_startingAll) s_unavailable.Add(feature.Name);
                 else Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
                 Actions.RemoveOwner(feature.Id);
+                Scheduler.RemoveOwner(feature);
+                Bus.RemoveOwner(feature);
                 Commands.RemoveOwner(feature.Id);
                 return;
             }
@@ -133,6 +138,8 @@ internal static class FeatureHost
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
+        Scheduler.RemoveOwner(feature);
+        Bus.RemoveOwner(feature);
         Commands.RemoveOwner(feature.Id);
     }
 
@@ -146,9 +153,18 @@ internal static class FeatureHost
     public static void UpdateAll()
     {
         CloseFrame();
+        // A feature's due jobs just before its Update and its spread steps just after, so they keep the place in the
+        // frame the hand-rolled timers had.
         foreach (var feature in s_features)
         {
-            if (feature.State == FeatureState.Running) Guard(feature, "update", feature.Update);
+            if (feature.State != FeatureState.Running) continue;
+            Scheduler.RunDue(feature);
+            Action update = feature.Update;
+#if DEV
+            if (feature == s_waste && s_wasteUpdate != null) update = s_wasteUpdate;
+#endif
+            if (feature.State == FeatureState.Running) Guard(feature, "update", update);
+            if (feature.State == FeatureState.Running) Scheduler.RunSpread(feature);
         }
     }
 
@@ -192,8 +208,13 @@ internal static class FeatureHost
     }
 
     private static int s_closedFrame = -1;
+    private const int BudgetSeconds = 3;
+    // A second with a loading screen or a scene change in it doesn't count for the budget either way.
+    private static bool s_skipSecond;
+    private static int s_sceneStamp = -1;
 
-    // The last frame's time per feature goes into its buckets, once, before this frame's first call.
+    // The last frame's time per feature goes into its buckets, once, before this frame's first call. When that starts
+    // a new second, each running feature's average for the second just done is checked against its budget.
     private static void CloseFrame()
     {
         int frame = Time.frameCount;
@@ -201,18 +222,81 @@ internal static class FeatureHost
         s_closedFrame = frame;
         int second = (int)Time.unscaledTime;
         long total = 0;
+        bool skip = s_skipSecond, rolled = false;
         foreach (var feature in s_features)
         {
             total += feature.Frames.Current;
-            feature.Frames.Close(second);
+            if (feature.Frames.Close(second) && feature.State == FeatureState.Running)
+            {
+                rolled = true;
+                if (!skip) CheckBudget(feature);
+            }
+        }
+        if (rolled) s_skipSecond = false;
+        if (GameState.Loading || GameState.SceneChangedAt != s_sceneStamp)
+        {
+            s_sceneStamp = GameState.SceneChangedAt;
+            s_skipSecond = true;
         }
         Diagnostics.ModFrames.Current = total;
         Diagnostics.ModFrames.Close(second);
         Diagnostics.TimedCallsLastFrame = Diagnostics.TimedCalls;
         Diagnostics.TimedCalls = 0;
+        s_nestedTicks = 0;
     }
 
-    // Each call is timed for the Diagnostics page unless the timers are off (dev, to measure their own cost).
+    // 3 counted seconds over the budget set the warning (one log line), 3 under clear it; nothing else happens.
+    private static void CheckBudget(Feature feature)
+    {
+        double ms = feature.Frames.LastSecondMs;
+        if (ms > feature.BudgetMs)
+        {
+            feature.UnderStreak = 0;
+            if (++feature.OverStreak < BudgetSeconds || feature.OverBudget) return;
+            feature.OverBudget = true;
+            feature.OverSince = DateTime.Now;
+            Log.WarnThrottled($"budget:{feature.Id}", $"{feature.Name} is over its frame budget: avg {ms:F2} ms, budget {feature.BudgetMs:F2} ms", 30);
+            return;
+        }
+        feature.OverStreak = 0;
+        if (!feature.OverBudget || ++feature.UnderStreak < BudgetSeconds) return;
+        feature.OverBudget = false;
+        feature.OverSince = null;
+        feature.UnderStreak = 0;
+    }
+
+#if DEV
+    // Dev only (`perf waste`): spins inside one feature's update guard, to check the budget warning.
+    private static Feature? s_waste;
+    private static Action? s_wasteUpdate;
+
+    /// <summary>Spins for ms inside the feature's update guard each frame; null stops it.</summary>
+    internal static void SetWaste(Feature? feature, double ms)
+    {
+        s_waste = feature;
+        s_wasteUpdate = feature == null ? null : () =>
+        {
+            Spin(ms);
+            feature.Update();
+        };
+    }
+
+    private static void Spin(double ms)
+    {
+        long until = Stopwatch.GetTimestamp() + (long)(ms * Stopwatch.Frequency / 1000d);
+        while (Stopwatch.GetTimestamp() < until) { }
+    }
+#endif
+
+    // Ticks spent in guards nested inside the one running now; they belong to their own owners, not to it.
+    private static long s_nestedTicks;
+
+    /// <summary>Runs an action in an owner's guard (its time and errors are that owner's), from inside another guard
+    /// too: the scheduler's jobs and the bus's handlers.</summary>
+    internal static void Guarded(Feature owner, string phase, Action action) => Guard(owner, phase, action);
+
+    // Each call is timed for the Diagnostics page unless the timers are off (dev, to measure their own cost). A guard
+    // inside another (a bus handler raised from GameState's update) counts on its own owner and is taken off the outer one.
     private static void Guard(Feature feature, string phase, Action action)
     {
         if (Diagnostics.TimersOff)
@@ -220,9 +304,13 @@ internal static class FeatureHost
             Run(feature, phase, action);
             return;
         }
+        long outerNested = s_nestedTicks;
+        s_nestedTicks = 0;
         long start = Stopwatch.GetTimestamp();
         Run(feature, phase, action);
-        feature.Frames.Current += Stopwatch.GetTimestamp() - start;
+        long elapsed = Stopwatch.GetTimestamp() - start;
+        feature.Frames.Current += elapsed - s_nestedTicks;
+        s_nestedTicks = outerNested + elapsed;
         Diagnostics.TimedCalls++;
     }
 
@@ -263,6 +351,8 @@ internal static class FeatureHost
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
+        Scheduler.RemoveOwner(feature);
+        Bus.RemoveOwner(feature);
         Commands.RemoveOwner(feature.Id);
     }
 
@@ -321,22 +411,67 @@ internal static class FeatureHost
         feature.HarmonyInstance ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
         foreach (var type in classes)
         {
-            if (feature.PatchGroups.TryGetValue(type, out string? group) && !feature.Has(group)) continue;
-            try
+            if (feature.PatchGroups.TryGetValue(type, out string? group) && (!feature.Has(group) || Array.IndexOf(feature.DemandGroups, group) >= 0)) continue;
+            PatchClass(feature, type);
+        }
+    }
+
+    private static bool PatchClass(Feature feature, Type type)
+    {
+        try
+        {
+            feature.HarmonyInstance!.CreateClassProcessor(type).Patch();
+            return true;
+        }
+        catch (Exception e)
+        {
+            string message = $"{type.Name}: {e.InnerException?.Message ?? e.Message}";
+            feature.PatchFailures.Add(message);
+            Log.Error($"{feature.Name} patch failed: {message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Patches or unpatches the classes of one of the feature's DemandGroups on its own Harmony instance, so a patch is
+    /// live only while something needs it. Ignored for a group that isn't one, is missing from the game, is already in
+    /// that state, or a feature that isn't running. Stop and fault unpatch everything as before.
+    /// </summary>
+    public static void SetPatchGroup(Feature feature, string group, bool on)
+    {
+        if (feature.State != FeatureState.Running || Array.IndexOf(feature.DemandGroups, group) < 0 || !feature.Has(group)) return;
+        if (feature.DemandGroupsOn.Contains(group) == on) return;
+        var classes = feature.PatchClasses.Where(t => feature.PatchGroups.TryGetValue(t, out string? g) && g == group).ToList();
+        if (on)
+        {
+            feature.HarmonyInstance ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
+            feature.DemandGroupsOn.Add(group);
+            foreach (var type in classes) PatchClass(feature, type);
+            return;
+        }
+        feature.DemandGroupsOn.Remove(group);
+        var harmony = feature.HarmonyInstance;
+        if (harmony == null) return;
+        foreach (var target in Compat.PatchTargets(feature))
+        {
+            if (target.Group != group) continue;
+            foreach (var original in target.Matches)
             {
-                feature.HarmonyInstance.CreateClassProcessor(type).Patch();
-            }
-            catch (Exception e)
-            {
-                string message = $"{type.Name}: {e.InnerException?.Message ?? e.Message}";
-                feature.PatchFailures.Add(message);
-                Log.Error($"{feature.Name} patch failed: {message}");
+                try
+                {
+                    harmony.Unpatch(original, HarmonyLib.HarmonyPatchType.All, harmony.Id);
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"{feature.Name} unpatch of {target.Name} failed: {e.Message}");
+                }
             }
         }
     }
 
     private static void Unpatch(Feature feature)
     {
+        feature.DemandGroupsOn.Clear();
         try
         {
             feature.HarmonyInstance?.UnpatchSelf();

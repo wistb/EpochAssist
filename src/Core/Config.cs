@@ -141,23 +141,20 @@ internal static class Config
     }
 
     private const float SaveDelaySeconds = 1f;
-    private static float s_dirtySince = -1f;
+    private static Job? s_save;
 
     public static void Save()
     {
-        s_dirtySince = -1f;
+        s_save?.Cancel();
+        s_save = null;
         MelonPreferences.Save();
     }
 
-    /// <summary>A setting changed; it is written shortly after, so changes made with the menu closed persist too.</summary>
+    /// <summary>A setting changed; it is written shortly after (a host job, so changes made with the menu closed, or
+    /// while features are stopped, persist too).</summary>
     public static void MarkDirty()
     {
-        if (s_dirtySince < 0f) s_dirtySince = UnityEngine.Time.unscaledTime;
-    }
-
-    public static void SaveIfDirty()
-    {
-        if (s_dirtySince >= 0f && UnityEngine.Time.unscaledTime - s_dirtySince >= SaveDelaySeconds) Save();
+        if (s_save is not { Pending: true }) s_save = Scheduler.HostAfter("config save", SaveDelaySeconds, Save);
     }
 
     // Get-or-create, so registering again (a restart or a reload) reuses what is already there.

@@ -118,7 +118,8 @@ internal static class World
 
     /// <summary>Active entries and entries this close are refreshed every frame (AutoCast's largest aim range).</summary>
     public const float NearRadius = 60f;
-    private const double BudgetMs = 0.5;
+    /// <summary>The refresh's time per frame: hot entries, then cold ones while it lasts (not Feature.BudgetMs).</summary>
+    private const double RefreshSliceMs = 0.5;
     private const float DiscoverySeconds = 1f;
     private const float StaleSeconds = 1f;
     // Cold entries are refreshed when they are about this old, so the budget isn't spent on fresh ones.
@@ -136,6 +137,12 @@ internal static class World
     private static int s_overrunsThis, s_overrunsLast;
     private static double s_discoveryMs, s_slowestMs;
     private static string s_slowestCause = string.Empty;
+    private static Job? s_discovery;
+    // This frame's refresh time so far (discovery, hot entries, cold steps), and whether the hot entries overran.
+    private static int s_spentFrame = -1, s_coldFrame = -1;
+    private static long s_spentTicks;
+    private static bool s_discoveredThisFrame, s_hotOverran;
+    private static int s_frameCollections, s_coldVisited;
 
     /// <summary>The active scene the index was built for.</summary>
     public static int SceneHandle => s_sceneHandle;
@@ -191,9 +198,9 @@ internal static class World
         Want(null);
         if (!Running) return;
         CheckScene();
-        if (Time.unscaledTime - BuiltAt > DiscoverySeconds)
+        if (s_discovery is { } discovery && Time.unscaledTime - BuiltAt > discovery.Interval)
         {
-            Discover();
+            discovery.RunNow();
             RefreshAll();
         }
     }
@@ -287,17 +294,23 @@ internal static class World
         s_slowestMs = 0d;
         s_slowestCause = string.Empty;
         Clear();
+        s_discovery = Scheduler.Every(feature, "discovery", DiscoverySeconds, DiscoverJob, startNow: true);
+        Scheduler.Spread(feature, "cold refresh", ColdSlice, ColdStep);
     }
 
     internal static void Stop()
     {
         Clear();
         s_feature = null;
+        s_discovery = null;
         s_awakeUntil = 0f;
     }
 
-    /// <summary>Empties the index; every entry is marked gone first, so a reader holding one sees it.</summary>
-    internal static void Clear()
+    /// <summary>Empties the index; every entry is marked gone first, so a reader holding one sees it. Discovery runs
+    /// again at the next job pass.</summary>
+    internal static void Clear() => Clear(discoverSoon: true);
+
+    private static void Clear(bool discoverSoon)
     {
         foreach (var entry in s_entries) entry.Drop();
         s_entries.Clear();
@@ -305,12 +318,14 @@ internal static class World
         s_cursor = 0;
         BuiltAt = 0f;
         s_sceneHandle = UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle;
+        if (discoverSoon) s_discovery?.Due();
     }
 
     // The active scene can change without a load event: a new handle empties the index before anything reads it.
-    private static void CheckScene()
+    // Inside the discovery job the index is rebuilt right after, so it isn't made due again.
+    private static void CheckScene(bool discoverSoon = true)
     {
-        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle != s_sceneHandle) Clear();
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle != s_sceneHandle) Clear(discoverSoon);
     }
 
     private static bool Awake
@@ -326,6 +341,28 @@ internal static class World
         }
     }
 
+    // The discovery job (every second, before the update): adds and drops entries.
+    private static void DiscoverJob()
+    {
+        if (!Awake) return;
+        CheckScene(discoverSoon: false);
+        if (!Player.Exists) return;
+        long start = Stopwatch.GetTimestamp();
+        BeginFrame();
+        s_discoveredThisFrame = true;
+        try
+        {
+            Discover();
+        }
+        finally
+        {
+            long spent = Stopwatch.GetTimestamp() - start;
+            s_discoveryMs = FrameTimes.Ms(spent);
+            Spend(spent);
+        }
+    }
+
+    // Hot entries every frame, even past the slice (counted as an overrun); the cold ones are the spread job's.
     internal static void Update()
     {
         if (!Awake) return;
@@ -336,28 +373,81 @@ internal static class World
             return;
         }
         long start = Stopwatch.GetTimestamp();
-        int collections = GC.CollectionCount(0);
-        bool discovered = false;
+        BeginFrame();
         try
         {
-            if (Time.unscaledTime - BuiltAt >= DiscoverySeconds)
-            {
-                discovered = true;
-                Discover();
-                s_discoveryMs = FrameTimes.Ms(Stopwatch.GetTimestamp() - start);
-            }
-            RefreshFrame(start);
+            RefreshHot();
         }
         finally
         {
-            long spent = Stopwatch.GetTimestamp() - start;
-            Refresh.Add(spent);
-            double ms = FrameTimes.Ms(spent);
-            if (ms > s_slowestMs)
+            Spend(Stopwatch.GetTimestamp() - start);
+            s_hotOverran = FrameTimes.Ms(s_spentTicks) > RefreshSliceMs;
+            if (s_hotOverran) CountOverrun();
+        }
+    }
+
+    private static void BeginFrame()
+    {
+        int frame = Time.frameCount;
+        if (frame == s_spentFrame) return;
+        s_spentFrame = frame;
+        s_spentTicks = 0;
+        s_discoveredThisFrame = false;
+        s_hotOverran = false;
+        s_frameCollections = GC.CollectionCount(0);
+    }
+
+    // The refresh cost window covers discovery, hot entries and cold steps, as one frame's total.
+    private static void Spend(long ticks)
+    {
+        Refresh.Add(ticks);
+        s_spentTicks += ticks;
+        double ms = FrameTimes.Ms(s_spentTicks);
+        if (ms > s_slowestMs)
+        {
+            s_slowestMs = ms;
+            s_slowestCause = (s_discoveredThisFrame ? "discovery" : "refresh") + (GC.CollectionCount(0) != s_frameCollections ? ", gc" : string.Empty);
+        }
+    }
+
+    // What the refresh slice has left after this frame's discovery and hot entries; nothing after an overrun, without
+    // a player, or while asleep.
+    private static double ColdSlice()
+    {
+        if (s_spentFrame != Time.frameCount || s_hotOverran || !Awake || !Player.Exists) return 0d;
+        return Math.Max(0d, RefreshSliceMs - FrameTimes.Ms(s_spentTicks));
+    }
+
+    // One cold entry that is due, in turn; false once every entry was looked at this frame.
+    private static bool ColdStep()
+    {
+        int frame = Time.frameCount;
+        if (frame != s_coldFrame)
+        {
+            s_coldFrame = frame;
+            s_coldVisited = 0;
+        }
+        long start = Stopwatch.GetTimestamp();
+        try
+        {
+            int count = s_entries.Count;
+            float due = Time.unscaledTime - ColdRefreshSeconds;
+            Vector3? player = null;
+            while (s_coldVisited < count)
             {
-                s_slowestMs = ms;
-                s_slowestCause = (discovered ? "discovery" : "refresh") + (GC.CollectionCount(0) != collections ? ", gc" : string.Empty);
+                s_coldVisited++;
+                if (s_cursor >= count) s_cursor = 0;
+                var entry = s_entries[s_cursor++];
+                if (entry.Hot || entry.Gone || entry.RefreshedTime > due) continue;
+                player ??= PlayerPosition();
+                RefreshEntry(entry, player);
+                return s_coldVisited < count;
             }
+            return false;
+        }
+        finally
+        {
+            Spend(Stopwatch.GetTimestamp() - start);
         }
     }
 
@@ -411,30 +501,12 @@ internal static class World
         return player != null ? player.position : null;
     }
 
-    // Hot entries every frame, even past the budget (counted as an overrun); then cold ones that are due, in turn, while
-    // the budget lasts.
-    private static void RefreshFrame(long start)
+    private static void RefreshHot()
     {
         Vector3? player = PlayerPosition();
         foreach (var entry in s_entries)
         {
             if (entry.Hot && !entry.Gone) RefreshEntry(entry, player);
-        }
-        long budget = (long)(BudgetMs * Stopwatch.Frequency / 1000d);
-        if (Stopwatch.GetTimestamp() - start > budget)
-        {
-            CountOverrun();
-            return;
-        }
-        int count = s_entries.Count;
-        float due = Time.unscaledTime - ColdRefreshSeconds;
-        for (int n = 0; n < count; n++)
-        {
-            if (s_cursor >= count) s_cursor = 0;
-            var entry = s_entries[s_cursor++];
-            if (entry.Hot || entry.Gone || entry.RefreshedTime > due) continue;
-            RefreshEntry(entry, player);
-            if (Stopwatch.GetTimestamp() - start > budget) break;
         }
     }
 
@@ -481,6 +553,8 @@ internal sealed class WorldModelFeature : Feature
     public override string Id => "world";
     public override string Name => "World model";
     public override string[] Needs => new[] { "game", "player" };
+    // The whole feature's, not its RefreshSliceMs: discovery and the refresh average about 0.4 ms in combat.
+    public override double BudgetMs => 1.0;
 
     // One group per part, or one per mode where the source differs.
     public override Requirement[] Requirements => WorldSources.Requirements;
