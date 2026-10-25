@@ -6,7 +6,7 @@ namespace EpochAssist.Dev;
 // model: prints the player and world models, looks up game data, and simulates a missing model part.
 internal static class ModelCommands
 {
-    public const string Usage = "model player [part] | world [count] [kind] | data <kind> <key> | miss <player|world|data|events> <group> | clear";
+    public const string Usage = "model player [part] | world [count] [kind] | data <kind> <key> | miss <player|world|data|events|visuals|gameui|dispatch> <group> | clear";
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
@@ -183,7 +183,7 @@ internal static class ModelCommands
         string modelId = call.Lower(2);
         string group = call.Rest(3).Trim().Trim('"');
         if (modelId.Length == 0 || group.Length == 0) return CommandResult.Error("model miss: usage model miss <model> <group> | clear");
-        if (FeatureHost.Find(modelId) is not { } model || modelId is not ("player" or "world" or "data" or "events"))
+        if (FeatureHost.Find(modelId) is not { } model || modelId is not ("player" or "world" or "data" or "events" or "visuals" or "gameui" or "dispatch"))
             return CommandResult.Error($"model miss: unknown model '{modelId}'");
         if (!Compat.DeclaresGroup(model, group)) return CommandResult.Error($"model miss: {modelId} has no group '{group}'");
         Compat.Simulated.Add($"{modelId}:{group}");
