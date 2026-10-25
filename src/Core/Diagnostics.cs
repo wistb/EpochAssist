@@ -21,8 +21,20 @@ internal sealed class FrameTimes
     /// <summary>Stopwatch ticks spent this frame so far.</summary>
     public long Current;
 
-    public void Close(int second)
+    /// <summary>The average of the last completed second, in milliseconds (for the budget check).</summary>
+    public double LastSecondMs { get; private set; }
+
+    /// <summary>Adds the frame to its second; true when that started a new second, so the one before is complete and
+    /// its average is LastSecondMs.</summary>
+    public bool Close(int second)
     {
+        bool completed = false;
+        if (_latest >= 0 && second != _latest)
+        {
+            int last = _latest % Buckets;
+            LastSecondMs = _frames[last] > 0 ? Ms(_sum[last]) / _frames[last] : 0d;
+            completed = true;
+        }
         int i = second % Buckets;
         if (_second[i] != second || _latest < 0)
         {
@@ -36,6 +48,7 @@ internal sealed class FrameTimes
         _worst[i] = Math.Max(_worst[i], Current);
         _latest = second;
         Current = 0;
+        return completed;
     }
 
     public void Reset()
@@ -43,6 +56,7 @@ internal sealed class FrameTimes
         Array.Clear(_frames);
         _latest = -1;
         Current = 0;
+        LastSecondMs = 0d;
     }
 
     /// <summary>Average over the kept seconds, in milliseconds.</summary>
@@ -85,6 +99,12 @@ internal sealed class FrameTimes
 internal sealed record FeatureDiagnostics(string Id, string Name, FeatureState State, FeatureStatus Status, string? LastError, DateTime? LastErrorAt,
     IReadOnlyList<string> PatchFailures, IReadOnlyList<string> MissingRequired, IReadOnlyList<string> MissingOptional, double AverageMs, double WorstMs)
 {
+    public double BudgetMs { get; init; }
+    public bool OverBudget { get; init; }
+    public DateTime? OverSince { get; init; }
+    public double LastSecondMs { get; init; }
+    public IReadOnlyList<string> Notes { get; init; } = Array.Empty<string>();
+
     /// <summary>The state as words: "running, paused (press any skill to resume)", "faulted at 14:01:50: ...".</summary>
     public string StateText => State switch
     {
@@ -94,17 +114,21 @@ internal sealed record FeatureDiagnostics(string Id, string Name, FeatureState S
         _ => LastError is { Length: > 0 } reason ? $"stopped: {reason}" : "stopped",
     };
 
-    public string FrameText => $"avg {AverageMs:F2} ms, worst {WorstMs:F2} ms";
+    public string FrameText => $"avg {AverageMs:F2} ms, worst {WorstMs:F2} ms, budget {BudgetMs:F2} ms";
 
-    /// <summary>Lines under the state: an error a running feature recovered from, patch failures, missing members.</summary>
+    /// <summary>Lines under the state: an error a running feature recovered from, a budget warning, patch failures,
+    /// missing members and the feature's own notes.</summary>
     public IEnumerable<string> Details
     {
         get
         {
             if (State == FeatureState.Running && LastError != null && LastErrorAt is { } at) yield return $"last error at {at:HH:mm:ss}: {LastError}";
+            if (State == FeatureState.Running && OverBudget && OverSince is { } since)
+                yield return $"over budget: avg {LastSecondMs:F2} ms in the last second, budget {BudgetMs:F2} ms, since {since:HH:mm:ss}";
             foreach (string failure in PatchFailures) yield return $"patch failed: {failure}";
             if (MissingRequired.Count > 0 && State != FeatureState.Unavailable) yield return $"missing: {string.Join(", ", MissingRequired)}";
             foreach (string optional in MissingOptional) yield return $"missing optional: {optional}";
+            foreach (string note in Notes) yield return note;
         }
     }
 }
@@ -204,7 +228,11 @@ internal static class Diagnostics
             return new FeatureDiagnostics(f.Id, f.Name, f.State, f.Status, f.LastError, f.LastErrorAt, f.PatchFailures.ToList(),
                 missing.Where(m => m.Group == null).Select(m => m.Text).ToList(),
                 missing.Where(m => m.Group != null).GroupBy(m => m.Group!).Select(g => $"{g.Key} ({string.Join(", ", g.Select(m => m.Text))})").ToList(),
-                f.Frames.AverageMs, f.Frames.WorstMs);
+                f.Frames.AverageMs, f.Frames.WorstMs)
+            {
+                BudgetMs = f.BudgetMs, OverBudget = f.OverBudget, OverSince = f.OverSince, LastSecondMs = f.Frames.LastSecondMs,
+                Notes = f.State == FeatureState.Running ? Lines(() => f.DiagnosticNotes).ToList() : Array.Empty<string>(),
+            };
         }).ToList();
         // Dev builds: the compat self-test, which is never started, shows how missing members are reported.
         if (CoreCommands.CompatSelfTest?.Invoke() is { } selfTest)
