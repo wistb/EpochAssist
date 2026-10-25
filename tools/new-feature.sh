@@ -110,6 +110,7 @@ internal sealed class __NAME__Feature : Feature
         Need(typeof(Il2Cpp.PlayerFinder), nameof(Il2Cpp.PlayerFinder.getPlayerActor)),
         Need<Il2Cpp.CameraManager>(nameof(Il2Cpp.CameraManager.targetZoom), Camera),
     };
+    // The default frame budget is 0.3 ms; override BudgetMs only with a measured reason.
 
 @@PATCH@@
     public override FeatureStatus Status => @STATUS@;
@@ -147,6 +148,10 @@ internal static class __NAME__
         var run = new Run { UseCamera = useCamera };
 @@CLIENT_REGISTER@@
         s_run = run;
+        // Timers are jobs the feature owns, run next to its Update and dropped with it (never "next at" fields):
+        //   Scheduler.Every(feature, "scan", 0.25f, () => { if (s_run == run) Scan(run); });
+        // Events come through the bus; the host removes the subscription, so Shutdown doesn't:
+        //   Bus.Subscribe<ZoneChange>(feature, change => { ... });
         // One action per control, so bindings, buttons and the bridge share one path.
         Actions.Register(feature.Id, "__ID__.toggle", "__NAME__", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
     }
