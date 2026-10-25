@@ -231,6 +231,10 @@ internal static class Diagnostics
         return missing;
     }
 
+    /// <summary>Called by the host with what a start found missing: a restart (a dev `model miss`, or a model part
+    /// coming back) can change it, so the cached list is replaced.</summary>
+    public static void Remember(Feature feature, List<MissingMember> missing) => s_missing[feature.Id] = missing;
+
     private static string ProfilesText()
     {
         if (ProfileStatus != null) return ProfileStatus();

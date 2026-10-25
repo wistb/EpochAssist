@@ -35,6 +35,11 @@ internal abstract class Feature
     /// only while all of them run, and stops it before any of them stops.</summary>
     public virtual string[] Needs => Array.Empty<string>();
 
+    /// <summary>Parts of the models (player, world, data) the feature reads, checked before it starts like requirements:
+    /// a missing required part makes it unavailable, a missing part with a group turns that group off. Each part's model
+    /// must be in Needs.</summary>
+    public virtual PartNeed[] Parts => Array.Empty<PartNeed>();
+
     /// <summary>The feature's menu page, or null for none. The body is drawn only while the feature is Running.</summary>
     public virtual FeaturePage? Page => null;
 
@@ -66,6 +71,7 @@ internal abstract class Feature
 
     protected static Requirement Need<T>(string member, string? group = null) => new(typeof(T), member, group);
     protected static Requirement Need(Type type, string member, string? group = null) => new(type, member, group);
+    protected static PartNeed Part(string model, string part, string? group = null) => new(model, part, group);
 
     /// <summary>Patch classes that belong to an optional requirement group; they are skipped when the group is missing.</summary>
     public virtual IReadOnlyDictionary<Type, string> PatchGroups => s_noPatchGroups;

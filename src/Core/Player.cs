@@ -19,12 +19,13 @@ internal static class Player
     /// <summary>True online, false offline, null until the player is found (the two modes spawn differently named objects).</summary>
     public static bool? Online { get; private set; }
 
+    // A cached object can be destroyed before the next lookup is due (a scene transition), so only live ones are handed out.
     public static Actor? Actor
     {
         get
         {
             Refresh();
-            return s_actor;
+            return Game.Alive(s_actor) ? s_actor : null;
         }
     }
 
@@ -33,7 +34,7 @@ internal static class Player
         get
         {
             Refresh();
-            return s_object;
+            return Game.Alive(s_object) ? s_object : null;
         }
     }
 
@@ -58,6 +59,8 @@ internal static class Player
         s_health = null;
         s_nextLookupAt = 0f;
         Online = null;
+        // Every scene change and character change comes through here, so the model never keeps the old player's values.
+        PlayerModel.Reset();
     }
 
     private static void Refresh()

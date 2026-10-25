@@ -30,6 +30,11 @@ internal static class FeatureHost
                 // An unknown need keeps the feature stopped; a late one starts it late and updates it before its need.
                 if (Find(need) == null) Log.Error($"{feature.Name} needs '{need}', which is unknown or registered after it; register needs first");
             }
+            foreach (var part in feature.Parts)
+            {
+                // The part then counts as missing, as the model may not run when the feature starts.
+                if (Array.IndexOf(feature.Needs, part.Model) < 0) Log.Error($"{feature.Name} reads the part '{part.Part}' of '{part.Model}', which isn't in its needs; add it to Needs");
+            }
             s_features.Add(feature);
         }
     }
@@ -88,6 +93,7 @@ internal static class FeatureHost
             }
             feature.BlockedBy = null;
             var missing = Compat.Missing(feature);
+            Diagnostics.Remember(feature, missing);
             var required = missing.Where(m => m.Group == null).Select(m => m.Text).ToList();
             if (required.Count > 0)
             {
