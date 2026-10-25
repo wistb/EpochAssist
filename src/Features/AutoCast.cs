@@ -32,9 +32,6 @@ internal static class AutoCast
     private static readonly Color s_rangeRingCastingColor = new(0.35f, 1f, 0.45f, 0.75f);
     private static readonly Color s_rangeRingHoldingColor = new(1f, 1f, 1f, 0.4f);
 
-    private const string HostileAlignmentName = "Evil";
-    private const string HostileNeutralAlignmentName = "HostileNeutral";
-
     private static readonly bool[] s_noToggles = new bool[SlotCount];
     private const string SlotsKey = "autocast.slots";
 
@@ -65,19 +62,13 @@ internal static class AutoCast
         public float NextStatusLogAt;
         public string LastLoggedStatus = string.Empty;
 
-        // Hostile actors near the player, refreshed a few times a second while the enemy gate is on.
+        // Enemies near the player from the world model, counted a few times a second while the enemy gate is on.
         public float NextEnemyScanAt;
         public int EnemiesInRange;
         public float EnemyWeightInRange;
         public bool EnemyGateOpen = true;
-        // Closest hostile within aim range as of the last scan; null when there is none.
-        public ActorVisuals? ClosestEnemy;
-
-        public Actor? PlayerActor;
-        public Transform? PlayerTransform;
-        public PlayerChargeManager? ChargeManager;
-        public UsingAbilityPlayer? AbilityState;
-        public LocalTreeData? TreeData;
+        // Closest enemy within aim range as of the last count; checked again (not gone, not dead) before aiming.
+        public WorldEntry? ClosestEnemy;
     }
 
     private static Run? s_run;
@@ -85,6 +76,10 @@ internal static class AutoCast
     public static int EnemiesInRange => s_run?.EnemiesInRange ?? 0;
     public static float EnemyWeightInRange => s_run?.EnemyWeightInRange ?? 0f;
     public static bool EnemyGateOpen => s_run?.EnemyGateOpen ?? true;
+
+    /// <summary>The closest enemy within aim range as of the last count and its distance, or null (for the dev gate verb).</summary>
+    internal static (string? Name, float Distance)? ClosestEnemy =>
+        s_run?.ClosestEnemy is { Gone: false } closest ? (closest.Name, closest.Distance) : null;
 
     public static string ModifierKeyName => S.ModifierKey.ValueLabel;
 
@@ -151,11 +146,10 @@ internal static class AutoCast
         }
 
         // Ability details only refine timing (cooldowns, channelling); casting works without them.
-        PlayerAbilityList? abilityList = ResolveRefs(run);
-        if (abilityList != null) CheckFormChange(run, abilityList);
+        CheckFormChange(run);
         if (Time.unscaledTime >= run.NextSlotRefreshAt)
         {
-            RefreshSlots(run, abilityList);
+            RefreshSlots(run);
         }
 
         // After a zone change or entering the game, wait for the player to press any skill themselves before resuming.
@@ -185,9 +179,9 @@ internal static class AutoCast
         var run = s_run;
         if (run == null || !run.Active || !S.RequireEnemies.Value || !S.ShowRangeRing.Value) return;
         if (Event.current == null || Event.current.type != EventType.Repaint) return;
-        if (run.PlayerTransform == null) return;
+        if (Player.Transform is not Transform player) return;
 
-        Vector3 center = run.PlayerTransform.position;
+        Vector3 center = player.position;
         float radius = S.EnemyRange.Value;
         Color color = run.EnemyGateOpen ? s_rangeRingCastingColor : s_rangeRingHoldingColor;
 
@@ -394,11 +388,6 @@ internal static class AutoCast
 
     private static void ClearRefs(Run run)
     {
-        run.PlayerActor = null;
-        run.PlayerTransform = null;
-        run.ChargeManager = null;
-        run.AbilityState = null;
-        run.TreeData = null;
         run.NextSlotRefreshAt = 0f;
         run.NextEnemyScanAt = 0f;
         run.EnemiesInRange = 0;
@@ -412,48 +401,16 @@ internal static class AutoCast
         }
     }
 
-    private static PlayerAbilityList? ResolveRefs(Run run)
-    {
-        try
-        {
-            if (run.PlayerActor == null)
-            {
-                run.PlayerActor = Player.Actor;
-                run.PlayerTransform = null;
-                run.ChargeManager = null;
-                run.AbilityState = null;
-            }
-
-            if (run.PlayerActor != null)
-            {
-                if (run.PlayerTransform == null) run.PlayerTransform = run.PlayerActor.transform;
-                if (run.ChargeManager == null) run.ChargeManager = run.PlayerActor.GetComponent<PlayerChargeManager>();
-                if (run.AbilityState == null) run.AbilityState = run.PlayerActor.GetComponent<UsingAbilityPlayer>();
-            }
-
-            if (run.PlayerTransform == null) run.PlayerTransform = Player.Transform;
-
-            if (run.TreeData == null) run.TreeData = Game.LocalTree;
-            if (run.TreeData == null) return null;
-
-            PlayerAbilityList? abilityList = run.TreeData.playerAbilityList;
-            return abilityList == null ? null : abilityList;
-        }
-        catch (Exception e)
-        {
-            Log.ErrorThrottled("autocast:refs", $"Autocast reference lookup failed: {e.Message}", 30);
-            return null;
-        }
-    }
-
-    private static void RefreshSlots(Run run, PlayerAbilityList? abilityList)
+    // The skill bar comes from the player model; a slot it can't read this frame is left empty until the next refresh.
+    private static void RefreshSlots(Run run)
     {
         run.NextSlotRefreshAt = Time.unscaledTime + SlotRefreshIntervalSeconds;
 
         for (int i = 0; i < SlotCount; i++)
         {
-            Ability? ability = FindSlotAbility(abilityList, i);
-            bool channelled = ability != null && ability.channelled;
+            Core.Slot? modelSlot = PlayerModel.Slot(i + 1);
+            Ability? ability = modelSlot?.Ability;
+            bool channelled = ability != null && modelSlot!.Channelled;
 
             // A slot that stops being a channel must not be left held.
             if (run.Client != null && run.Client.Holds(i) && run.Slots[i].Channelled && !channelled) Dispatcher.StopChannel(run.Client, i);
@@ -463,56 +420,12 @@ internal static class AutoCast
         }
     }
 
-    private static Ability? FindSlotAbility(PlayerAbilityList? abilityList, int slot)
+    // The form part names the transform form, or none in human form. A frame it can't be read keeps the current form.
+    private static void CheckFormChange(Run run)
     {
-        // The bar icon knows exactly which ability its slot shows, online and offline.
-        try
-        {
-            var icons = Game.BarIcons;
-            if (icons != null)
-            {
-                for (int i = 0; i < icons.Count; i++)
-                {
-                    AbilityBarIcon? barIcon = icons[i];
-                    if (barIcon == null || barIcon.abilityNumber - 1 != slot) continue;
-
-                    Ability? ability = barIcon.ability;
-                    if (ability != null) return ability;
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // Fall back to the ability list.
-        }
-
-        if (abilityList == null) return null;
-
-        try
-        {
-            Ability? ability = abilityList.getAbility(slot);
-            return ability == null ? null : ability;
-        }
-        catch (Exception)
-        {
-            // Slot lookup can throw while the bar is rebuilding; treat as unknown this pass.
-            return null;
-        }
-    }
-
-    private static void CheckFormChange(Run run, PlayerAbilityList abilityList)
-    {
-        int formKey = HumanFormKey;
-        try
-        {
-            var transformId = abilityList.TransformAbilityId;
-            if (transformId.HasValue) formKey = transformId.Value;
-        }
-        catch (Exception)
-        {
-            // Keep the human-form key if the transform id is unreadable.
-        }
-
+        var form = PlayerModel.Form;
+        if (form == null) return;
+        int formKey = form.TransformId ?? HumanFormKey;
         if (formKey == run.FormKey) return;
 
         if (run.Client != null) Dispatcher.Release(run.Client);
@@ -573,8 +486,8 @@ internal static class AutoCast
                 continue;
             }
 
-            bool channelling = slot.Channelled && run.AbilityState != null && run.AbilityState.channelling;
-            bool ready = !channelling && !IsOnCooldown(run, slot.Ability);
+            bool channelling = slot.Channelled && PlayerModel.Channelling == true;
+            bool ready = !channelling && !IsOnCooldown(i, slot.Ability);
             Dispatcher.Request(client, i, ready ? PressIntent.Press : PressIntent.Lift, targetPosition, hitTransform);
             if (channelling) Dispatcher.Retarget(client, i, targetPosition);
         }
@@ -611,103 +524,57 @@ internal static class AutoCast
         run.EnemyGateOpen = !gated || run.EnemyWeightInRange >= S.EnemyMinWeight.Value;
     }
 
+    // Alive, active enemies from the world model: the count and weight within the gate's range, and the closest within
+    // the aim range. Distances are straight-line from the player, as the world model measures them this frame.
     private static void ScanEnemies(Run run)
     {
         int count = 0;
         float weight = 0f;
-        ActorVisuals? closest = null;
+        WorldEntry? closest = null;
 
-        ActorManager? manager = Game.Actors;
-        if (manager != null && run.PlayerTransform != null)
+        if (S.RequireEnemies.Value)
         {
-            Vector3 playerPosition = run.PlayerTransform.position;
-            float rangeSquared = S.RequireEnemies.Value ? S.EnemyRange.Value * S.EnemyRange.Value : -1f;
-            float closestSquared = S.AimAtClosestEnemy.Value ? S.AimRange.Value * S.AimRange.Value : -1f;
-
-            foreach (var visual in manager.visuals)
-            {
-                string? alignmentName = visual.alignment?.name;
-                if (alignmentName != HostileAlignmentName && alignmentName != HostileNeutralAlignmentName) continue;
-
-                foreach (var actor in visual.visuals._list)
-                {
-                    if (actor == null || actor.dead) continue;
-
-                    GameObject actorObject = actor.gameObject;
-                    if (actorObject == null || !actorObject.activeInHierarchy) continue;
-
-                    float distanceSquared = (actor.transform.position - playerPosition).sqrMagnitude;
-                    if (distanceSquared <= closestSquared)
-                    {
-                        closestSquared = distanceSquared;
-                        closest = actor;
-                    }
-                    if (distanceSquared > rangeSquared) continue;
-
-                    count++;
-                    weight += EnemyWeight(actor.GetComponent<ActorDisplayInformation>());
-                }
-            }
+            var inRange = new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = S.EnemyRange.Value };
+            count = World.Count(inRange);
+            weight = World.Weight(inRange, s_enemyWeight);
         }
+        if (S.AimAtClosestEnemy.Value) closest = World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = S.AimRange.Value });
 
         run.EnemiesInRange = count;
         run.EnemyWeightInRange = weight;
         run.ClosestEnemy = closest;
     }
 
-    private static float EnemyWeight(ActorDisplayInformation? info)
+    private static readonly Func<Rarity, float> s_enemyWeight = EnemyWeight;
+
+    private static float EnemyWeight(Rarity rarity) => rarity switch
     {
-        if (info == null) return S.WeightNormal.Value;
+        Rarity.Boss => S.WeightBoss.Value,
+        Rarity.Rare => S.WeightRare.Value,
+        Rarity.Magic => S.WeightMagic.Value,
+        _ => S.WeightNormal.Value
+    };
 
-        return info.actorClass switch
-        {
-            DisplayActorClass.Boss => S.WeightBoss.Value,
-            DisplayActorClass.Rare => S.WeightRare.Value,
-            DisplayActorClass.Magic => S.WeightMagic.Value,
-            _ => S.WeightNormal.Value
-        };
-    }
-
-    private static bool IsOnCooldown(Run run, Ability? ability)
-    {
-        if (ability == null || run.ChargeManager == null) return false;
-
-        try
-        {
-            return run.ChargeManager.onCoooldown(ability);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
+    // The player model's ready flag is the game's own cooldown check; unknown counts as ready, as before.
+    private static bool IsOnCooldown(int slot, Ability? ability) =>
+        ability != null && PlayerModel.Slot(slot + 1)?.Ready == false;
 
     private static Vector3 GetTargetPosition(Run run, out Transform? hitTransform)
     {
         hitTransform = null;
-        if (run.PlayerTransform == null) return Vector3.zero;
+        if (Player.Transform is not Transform player) return Vector3.zero;
 
-        // The scan runs a few times a second, so make sure the target is still there and alive.
-        try
-        {
-            if (S.AimAtClosestEnemy.Value && run.ClosestEnemy != null && !run.ClosestEnemy.dead
-                && run.ClosestEnemy.gameObject.activeInHierarchy)
-            {
-                return run.ClosestEnemy.transform.position;
-            }
-        }
-        catch (Exception)
-        {
-            run.ClosestEnemy = null;
-        }
+        // The count runs a few times a second, so make sure the target is still there and alive; the world model keeps
+        // its position current while it is active.
+        if (S.AimAtClosestEnemy.Value && run.ClosestEnemy is { Gone: false, Dead: false, Active: true } closest) return closest.Position;
 
         try
         {
-            return MouseManager.AbilityUseMousePoint(out hitTransform, out _, false, run.PlayerTransform);
+            return MouseManager.AbilityUseMousePoint(out hitTransform, out _, false, player);
         }
         catch (Exception)
         {
-            return run.PlayerTransform.position;
+            return player.position;
         }
     }
 
