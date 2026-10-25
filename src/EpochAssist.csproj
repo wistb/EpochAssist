@@ -54,11 +54,17 @@
     <Reference Include="UnityEngine.ScreenCaptureModule" HintPath="$(Il2Cpp)\UnityEngine.ScreenCaptureModule.dll" />
     <Reference Include="UnityEngine.UI" HintPath="$(Il2Cpp)\UnityEngine.UI.dll" />
     <Reference Include="UnityEngine.UIModule" HintPath="$(Il2Cpp)\UnityEngine.UIModule.dll" />
+    <Reference Include="UnityEngine.ParticleSystemModule" HintPath="$(Il2Cpp)\UnityEngine.ParticleSystemModule.dll" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(Il2Cpp)\Unity.TextMeshPro.dll" />
+    <Reference Include="Unity.Mathematics" HintPath="$(Il2Cpp)\Unity.Mathematics.dll" />
+    <Reference Include="Unity.Postprocessing.Runtime" HintPath="$(Il2Cpp)\Unity.Postprocessing.Runtime.dll" />
   </ItemGroup>
 
   <!-- patchcheck (Dev/) decodes the game's native code with the Iced decoder MelonLoader already ships and loads. -->
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <Reference Include="Iced" HintPath="$(ML)\net6\Iced.dll" />
+    <!-- The dev test prompt is opened through the game's ConfirmAsync, which returns a UniTask. -->
+    <Reference Include="Il2CppUniTask" HintPath="$(Il2Cpp)\Il2CppUniTask.dll" />
   </ItemGroup>
 
   <!-- Release builds write dist/EpochAssist-v<version>.zip holding only Mods/EpochAssist.dll, so extracting it into the game
