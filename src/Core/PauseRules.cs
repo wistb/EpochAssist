@@ -80,11 +80,16 @@ internal static class PauseRules
     /// <summary>Rules a status shows as off rather than waiting.</summary>
     public static bool IsOff(PauseRule rule) => rule == Global[0];
 
-    /// <summary>The first active rule for the client, or null when it may act. skip leaves out one kind of the client's own.</summary>
-    public static PauseRule? FirstActive(DispatchClient client, RuleKind? skip = null)
+    /// <summary>
+    /// The first active rule for the client, or null when it may act. skip leaves out one kind of the client's own.
+    /// forUi is the UI action rule set: the global rules without "dead", "game menu open" and "game paused" (respawn
+    /// happens while dead; prompts open from the game menu, which stops time offline), then the client's own.
+    /// </summary>
+    public static PauseRule? FirstActive(DispatchClient client, RuleKind? skip = null, bool forUi = false)
     {
         foreach (var rule in Global)
         {
+            if (forUi && IsSkippedForUi(rule)) continue;
             if (rule.Active(client) == true) return rule;
         }
         foreach (var rule in client.Rules)
@@ -93,6 +98,8 @@ internal static class PauseRules
         }
         return null;
     }
+
+    private static bool IsSkippedForUi(PauseRule rule) => rule.Name is "dead" or "game-menu" or "time-stopped";
 
     /// <summary>Every rule with its state, for the bridge.</summary>
     public static IEnumerable<(PauseRule Rule, bool? Active)> States(DispatchClient client) =>
