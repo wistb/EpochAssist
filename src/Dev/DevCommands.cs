@@ -37,6 +37,7 @@ internal static class DevCommands
             Plain(PatchCheck.Rva(Arg(call, 1), Arg(call, 2))));
         Add("find", "find <text>", "Writes every game method whose name has the text to find.txt.", call => Plain(Find(Arg(call, 1))));
         Add("facts", "facts", "Reads the game values behind typing, pause, loading, arrival and death.", _ => CommandResult.Ok("facts: " + Facts()));
+        Add("keys", "keys [frames]", "Lists the keys and buttons Unity reports down or newly down, frame by frame (10 frames when not given).", KeysCommand);
         Add("move", "move <x> <y> [true|false]", "Feeds the game a keyboard movement direction, as a held key would.", Move);
         Add("stopmove", "stopmove", "Stops the player's movement.", call =>
         {
@@ -101,6 +102,26 @@ internal static class DevCommands
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
         Add("gate", "gate", "Shows autocast's enemy gate: open, enemies and weight in range, and the closest enemy within aim range.", _ => Gate());
         Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
+    }
+
+    // keys [frames]: Unity's own view of the keyboard each frame, to see what makes Input.anyKeyDown true.
+    private static CommandResult KeysCommand(CommandCall call)
+    {
+        int frames = int.TryParse(call.Lower(1), out int n) ? Math.Clamp(n, 1, 120) : 10;
+        var all = Enum.GetValues<KeyCode>().Distinct().Where(k => k != KeyCode.None).ToArray();
+        var lines = new List<string> { $"ok keys: {frames} frames, focused {Application.isFocused}" };
+        int seen = 0;
+        return new CommandResult(string.Empty)
+        {
+            Pending = () =>
+            {
+                var down = all.Where(Input.GetKeyDown).Select(k => k.ToString()).ToList();
+                var held = all.Where(Input.GetKey).Select(k => k.ToString()).ToList();
+                lines.Add($"frame {Time.frameCount}: anyKeyDown {Input.anyKeyDown}, anyKey {Input.anyKey}, down [{string.Join(", ", down)}], held [{string.Join(", ", held)}], "
+                    + $"inputString \"{Input.inputString}\"");
+                return ++seen < frames ? null : DevOutput.Reply("keys", lines);
+            },
+        };
     }
 
     // Harmony keeps listing a method after its last patch is removed, so only methods that still carry one count.
