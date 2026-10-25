@@ -95,6 +95,8 @@ internal static class DevCommands
             CommandResult.Ok($"profile: {Profiles.Describe()}"));
         Add("player", "player", "Shows how the player is found: the finder, the player objects, their components and actors.", _ =>
             CommandResult.Ok($"player: {PlayerFacts()}"));
+        Add("model", ModelCommands.Usage, "Shows the player and world models, looks up game data, or simulates a missing model part.", ModelCommands.Run);
+        Add("gate", "gate", "Shows autocast's enemy gate: open, enemies and weight in range, and the closest enemy within aim range.", _ => Gate());
         Add("perf", "perf [timers on|off]", "Shows the mod's frame time and what measuring it costs, or turns the timers off.", Perf);
     }
 
@@ -253,6 +255,16 @@ internal static class DevCommands
         }
         mpm!.ProcessKeyboardMovement(new Vector2(mx, my), call.Lower(3) != "false");
         return CommandResult.Ok(call.Line);
+    }
+
+    // gate: autocast's enemy gate as it decides, for comparing its gate transitions and aim across builds; the name is
+    // the one the nameplate shows.
+    private static CommandResult Gate()
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string closest = Features.AutoCast.ClosestEnemy is var (name, distance) ? $"\"{name ?? "?"}\" {distance.ToString("F1", inv)}m" : "none";
+        return CommandResult.Ok($"gate: open {Features.AutoCast.EnemyGateOpen}, count {Features.AutoCast.EnemiesInRange}, "
+            + $"weight {Features.AutoCast.EnemyWeightInRange.ToString("0.##", inv)}, closest {closest}, t {Time.unscaledTime.ToString("F2", inv)}");
     }
 
     // player: what the player lookup sees, for a mode where it finds the object but no actor (online).
