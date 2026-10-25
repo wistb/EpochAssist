@@ -102,7 +102,9 @@ internal sealed class __NAME__Feature : Feature
 
     private static readonly FeaturePage s_page = new("__NAME__", 20, __NAME__Page.Draw) { Switch = S.Enabled };
 
-    // Every game member it reads, checked before it starts. Replace these examples.
+    // Player, world and game data come from the models: add "player", "world" or "data" to Needs and declare each part
+    // it reads, e.g. public override PartNeed[] Parts => new[] { Part("player", "skill bar") };
+    // Every other game member it reads, checked before it starts. Replace these examples.
     public override Requirement[] Requirements => new[]
     {
         Need(typeof(Il2Cpp.PlayerFinder), nameof(Il2Cpp.PlayerFinder.getPlayerActor)),
