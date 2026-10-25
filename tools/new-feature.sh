@@ -238,6 +238,6 @@ internal static class __NAME__Page
 EOF
 
 echo "Created $feature, $logic, $settings, $page"
-echo "Next: register it in Runtime.Init (src/Core/Entry.cs), after the features it needs:"
+echo "Next: register it in Runtime.Init (src/Core/Host/Entry.cs), after the features it needs:"
 echo "    new ${name}Feature(),"
 echo "Then ./build.sh and ./build.sh dev."

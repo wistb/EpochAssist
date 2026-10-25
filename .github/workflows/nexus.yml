@@ -92,8 +92,11 @@ jobs:
           GAME: ${{ inputs.game_version }}
         run: |
           game="$GAME"
-          [ "$DRY" = true ] || game="$(sed -n 's/.*public const string TestedGameVersion = "\([^"]*\)";.*/\1/p' src/Core/Entry.cs)"
-          [[ "$game" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || { echo "::error::no tested game version in src/Core/Entry.cs at ${{ steps.mode.outputs.ref }}"; exit 1; }
+          # Tags from before the source restructure have Entry.cs at the Core root.
+          entry=src/Core/Host/Entry.cs
+          [ -f "$entry" ] || entry=src/Core/Entry.cs
+          [ "$DRY" = true ] || game="$(sed -n 's/.*public const string TestedGameVersion = "\([^"]*\)";.*/\1/p' "$entry")"
+          [[ "$game" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || { echo "::error::no tested game version in src/Core/Host/Entry.cs or src/Core/Entry.cs at ${{ steps.mode.outputs.ref }}"; exit 1; }
           echo "game=$game" >> "$GITHUB_OUTPUT"
 
       # The key goes to curl through a header file, never on a command line.

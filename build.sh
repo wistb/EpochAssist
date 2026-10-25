@@ -106,7 +106,7 @@ if [ "$mode" = dev ]; then
 fi
 
 if [ "$mode" = release ] || [ "$mode" = deploy-release ]; then
-    version="$(sed -n 's/.*string Version = "\([^"]*\)".*/\1/p' "$root/src/Core/Entry.cs")"
+    version="$(sed -n 's/.*string Version = "\([^"]*\)".*/\1/p' "$root/src/Core/Host/Entry.cs")"
     zip="$root/dist/EpochAssist-v$version.zip"
     dll="$root/src/bin/Release/net6.0/win-x64/EpochAssist.dll"
     failed=0

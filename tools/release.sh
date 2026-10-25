@@ -56,7 +56,7 @@ on_exit() {
     local rc=$?
     trap - EXIT INT TERM
     if [ "$restore" = 1 ] && { [ "$dry" = 1 ] || [ "$committed" = 0 ]; }; then
-        git checkout -- src/Core/Entry.cs CHANGELOG.md
+        git checkout -- src/Core/Host/Entry.cs CHANGELOG.md
         [ "$dry" = 1 ] && [ -n "${state[prepare]:-}" ] && state[prepare]="${state[prepare]} (restored)"
     fi
     if [ "$rc" = 0 ]; then
@@ -94,7 +94,7 @@ run_build() {
     return "$rc"
 }
 
-field() { sed -n "s/.*public const string $1 = \"\\([^\"]*\\)\";.*/\\1/p" "${2:-src/Core/Entry.cs}"; }
+field() { sed -n "s/.*public const string $1 = \"\\([^\"]*\\)\";.*/\\1/p" "${2:-src/Core/Host/Entry.cs}"; }
 newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
 # Leading and trailing blank lines dropped.
 trim() { sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba' -e '}'; }
@@ -205,9 +205,9 @@ write_notes() {
 if [ "$resume" = 0 ]; then
     current=prepare
     sed -i -E -e "s/(public const string Version = \")[^\"]*(\";)/\\1$version\\2/" \
-        -e "s/(public const string TestedGameVersion = \")[^\"]*(\";)/\\1$game\\2/" src/Core/Entry.cs
-    grep -qF "public const string Version = \"$version\";" src/Core/Entry.cs && grep -qF "public const string TestedGameVersion = \"$game\";" src/Core/Entry.cs \
-        || { echo "FAILED: could not set the version in src/Core/Entry.cs" >&2; exit 1; }
+        -e "s/(public const string TestedGameVersion = \")[^\"]*(\";)/\\1$game\\2/" src/Core/Host/Entry.cs
+    grep -qF "public const string Version = \"$version\";" src/Core/Host/Entry.cs && grep -qF "public const string TestedGameVersion = \"$game\";" src/Core/Host/Entry.cs \
+        || { echo "FAILED: could not set the version in src/Core/Host/Entry.cs" >&2; exit 1; }
 
     entry_file="$(mktemp)"
     printf '%s\n' "$entry" > "$entry_file"
@@ -249,7 +249,7 @@ if [ "$resume" = 0 ]; then
 
     current=commit
     changed="$(git diff --name-only | sort | tr '\n' ' ')"
-    [ "$changed" = "CHANGELOG.md src/Core/Entry.cs " ] || { echo "FAILED: unexpected changes: $changed" >&2; exit 1; }
+    [ "$changed" = "CHANGELOG.md src/Core/Host/Entry.cs " ] || { echo "FAILED: unexpected changes: $changed" >&2; exit 1; }
     commit_body="$(tail -n +3 <<< "$entry")"
     if [ "$dry" = 1 ]; then
         mark commit "would: chore(release): $tag"

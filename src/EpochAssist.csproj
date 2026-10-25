@@ -13,8 +13,8 @@
     <Il2Cpp>$(ML)\Il2CppAssemblies</Il2Cpp>
     <!-- A fresh id per compile, shown in the menu and the log so a report names the exact build. -->
     <BuildId>$([System.Guid]::NewGuid().ToString("N").Substring(0, 6))</BuildId>
-    <!-- Read from BuildInfo.Version in Core/Entry.cs. -->
-    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Core\Entry.cs')), 'string Version = "([^"]+)"').Groups[1].Value)</Version>
+    <!-- Read from BuildInfo.Version in Core/Host/Entry.cs. -->
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Core\Host\Entry.cs')), 'string Version = "([^"]+)"').Groups[1].Value)</Version>
   </PropertyGroup>
 
   <!-- Dev-only code lives in Dev/ (namespace EpochAssist.Dev). Release builds don't compile it, and release code names it
@@ -76,7 +76,7 @@
       <DistDir>$(RepoDir)dist\</DistDir>
       <ReleaseZip>$(DistDir)$(AssemblyName)-v$(Version).zip</ReleaseZip>
     </PropertyGroup>
-    <Error Condition="'$(Version)' == ''" Text="Could not read BuildInfo.Version from Core/Entry.cs." />
+    <Error Condition="'$(Version)' == ''" Text="Could not read BuildInfo.Version from Core/Host/Entry.cs." />
     <Delete Files="$(ReleaseZip)" />
     <RemoveDir Directories="$(StagingDir)" />
     <MakeDir Directories="$(StagingDir)Mods;$(DistDir)" />
