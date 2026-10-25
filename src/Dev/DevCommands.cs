@@ -78,14 +78,14 @@ internal static class DevCommands
         Add("resources", "resources", "Counts the mod's textures, every texture in the game and every Harmony-patched method.", _ =>
             CommandResult.Ok($"resources: theme textures {Theme.TextureCount}, draw textures {Draw.ResourceCount}, "
                 + $"unity textures {Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Texture2D>()).Length}, "
-                + $"harmony patched methods {HarmonyLib.Harmony.GetAllPatchedMethods().Count()}"));
+                + $"harmony patched methods {PatchedMethods()}"));
         Add("reload", "reload", "Reloads the mod through the dev loader (after the bridge batch).", Reload);
         Add("diag", "diag", "Shows the diagnostics text, as Copy diagnostics puts it on the clipboard.", _ =>
         {
             string text = Diagnostics.Build().ToText();
             return CommandResult.Ok($"diag: {text.Split('\n').Length} lines\n{text}");
         });
-        Add("crash", "crash fault|start|throw <n>", "Makes the crash test feature fault, fail its start, or fault n times with different errors.", Crash);
+        Add("crash", "crash fault|start|throw <n>|handler <n>", "Makes the crash test feature fault, fail its start, fault n times with different errors, or throw in its next n event handler calls.", Crash);
         Add("reports", "reports", "Lists the saved crash reports, newest first.", _ =>
         {
             var reports = Reports.List();
@@ -96,14 +96,21 @@ internal static class DevCommands
         Add("player", "player", "Shows how the player is found: the finder, the player objects, their components and actors.", _ =>
             CommandResult.Ok($"player: {PlayerFacts()}"));
         Add("model", ModelCommands.Usage, "Shows the player and world models, looks up game data, or simulates a missing model part.", ModelCommands.Run);
+        Add("events", EventCommands.EventsUsage, "Lists the last events on the bus, or the subscriptions and producers.", EventCommands.Events);
+        Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
         Add("gate", "gate", "Shows autocast's enemy gate: open, enemies and weight in range, and the closest enemy within aim range.", _ => Gate());
-        Add("perf", "perf [timers on|off]", "Shows the mod's frame time and what measuring it costs, or turns the timers off.", Perf);
+        Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
     }
+
+    // Harmony keeps listing a method after its last patch is removed, so only methods that still carry one count.
+    private static int PatchedMethods() => HarmonyLib.Harmony.GetAllPatchedMethods().Count(m =>
+        HarmonyLib.Harmony.GetPatchInfo(m) is { } info && info.Prefixes.Count + info.Postfixes.Count + info.Transpilers.Count + info.Finalizers.Count > 0);
 
     public static void Reset()
     {
         s_drawTest = false;
         Watch.Stop("bridge stopped");
+        EventCommands.StopWatch("bridge stopped");
         Hovered.Reset();
     }
 
@@ -167,8 +174,12 @@ internal static class DevCommands
                         return ++done < count ? null : $"ok crash throw {count}: {count} faults";
                     },
                 };
+            case "handler" when int.TryParse(call.Lower(2), out int calls) && calls > 0:
+                if (feature.State != FeatureState.Running) FeatureHost.Restart(feature);
+                CrashTestFeature.ArmHandler(calls);
+                return CommandResult.Ok($"crash handler armed: its next {calls} ZoneChange handler calls throw");
             default:
-                return CommandResult.Error("crash: usage crash fault|start|throw <n>");
+                return CommandResult.Error("crash: usage crash fault|start|throw <n>|handler <n>");
         }
     }
 
@@ -180,7 +191,21 @@ internal static class DevCommands
             Diagnostics.TimersOff = call.Lower(2) == "off";
             return CommandResult.Ok($"perf timers {call.Lower(2)}");
         }
-        if (call.Args.Length > 0) return CommandResult.Error("perf: usage perf [timers on|off]");
+        // perf waste <feature-id> <ms> | off: the host spins that long in the feature's update guard (budget check).
+        if (call.Lower(1) == "waste")
+        {
+            if (call.Lower(2) == "off")
+            {
+                FeatureHost.SetWaste(null, 0d);
+                return CommandResult.Ok("perf waste off");
+            }
+            if (FeatureHost.Find(call.Lower(2)) is not { } target) return CommandResult.Error($"perf waste: unknown feature '{call.Lower(2)}'");
+            if (!double.TryParse(call.Lower(3), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double ms) || ms < 0.1 || ms > 20)
+                return CommandResult.Error("perf waste: usage perf waste <feature-id> <ms 0.1-20> | perf waste off");
+            FeatureHost.SetWaste(target, ms);
+            return CommandResult.Ok($"perf waste {target.Id} {ms.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}ms");
+        }
+        if (call.Args.Length > 0) return CommandResult.Error("perf: usage perf [timers on|off] | perf waste <feature-id> <ms>|off");
 
         const int pairs = 10000;
         long start = System.Diagnostics.Stopwatch.GetTimestamp();
