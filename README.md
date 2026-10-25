@@ -2,7 +2,7 @@
 
 A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoch.
 
-> Using mods online is against Last Epoch's terms of service. Use at your own risk.
+> Using mods online is against Last Epoch's terms of service.
 
 ## Install
 
