@@ -205,7 +205,7 @@ internal static class Hotkeys
         bool modifierWentDown = false;
         foreach (KeyCode key in Chord.ModifierKeys) modifierWentDown |= Input.GetKeyDown(key);
         // Any other key or a mouse button while modifiers are held makes it a chord, not a modifier press.
-        if (s_peakModifiers != 0 && Input.anyKeyDown && !modifierWentDown) s_modifierPressSpent = true;
+        if (s_peakModifiers != 0 && !modifierWentDown && !s_modifierPressSpent && OtherKeyWentDown()) s_modifierPressSpent = true;
         // Typing doesn't count as a modifier press either.
         if (GameState.Typing) s_modifierPressSpent = true;
 
@@ -220,6 +220,18 @@ internal static class Hotkeys
             s_peakModifiers = 0;
             s_modifierPressSpent = false;
         }
+    }
+
+    // Input.anyKeyDown reads true on every frame in this game, so the keys are checked one by one (only while a
+    // modifier is held).
+    private static bool OtherKeyWentDown()
+    {
+        if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)) return true;
+        foreach (KeyCode key in AllKeys)
+        {
+            if (Chord.ModifierBit(key) == null && Input.GetKeyDown(key)) return true;
+        }
+        return false;
     }
 
     private static void IgnoreKeysDown()
