@@ -5,80 +5,6 @@ using Feature = EpochAssist.Core.Feature;
 
 namespace EpochAssist.Core;
 
-// Survival clients (potions) get the frame's press before skills.
-internal enum PriorityClass { Survival, Skills }
-
-/// <summary>A press of the game's own UI that a client asks the dispatcher for.</summary>
-internal abstract record UiAction
-{
-    /// <summary>Yes on the open prompt, only when its kind is known, confirmable and one of these PromptKinds ids.</summary>
-    public sealed record Confirm(IReadOnlyCollection<string> Kinds) : UiAction;
-    /// <summary>No on the open prompt, whatever it is.</summary>
-    public sealed record Decline : UiAction;
-    /// <summary>The death screen's normal Respawn button.</summary>
-    public sealed record Respawn : UiAction;
-    /// <summary>The container UI's own quick move (as a Ctrl-click) of the item at a slot; the game picks where it goes.
-    /// Container is a ContainerID name ("INVENTORY", "STASH").</summary>
-    public sealed record QuickMove(string Container, Vector2Int Position) : UiAction;
-}
-
-/// <summary>How a UI request ended: pressed, or refused with the reason.</summary>
-internal readonly record struct UiResult(bool Pressed, string? Refused)
-{
-    public static UiResult Done => new(true, null);
-    public static UiResult No(string reason) => new(false, reason);
-    public override string ToString() => Pressed ? "pressed" : $"refused: {Refused}";
-}
-
-// Per slot, per frame. Press: a new key-down if allowed; Lift: the key-up (not ready yet); None: the slot isn't wanted,
-// so a slot the dispatcher holds for the client is let go.
-internal enum PressIntent { None, Press, Lift }
-
-/// <summary>
-/// An automation feature registered with the dispatcher: its pause rules, its master switch, and the slots the
-/// dispatcher holds down for it. Made in the feature's Start, removed in its Shutdown.
-/// </summary>
-internal sealed class DispatchClient
-{
-    public DispatchClient(Feature feature, PriorityClass priority, Toggle masterToggle, PauseRule[] rules)
-    {
-        Feature = feature;
-        Priority = priority;
-        MasterToggle = masterToggle;
-        Rules = rules;
-    }
-
-    public Feature Feature { get; }
-    public PriorityClass Priority { get; }
-    public Toggle MasterToggle { get; }
-    public PauseRule[] Rules { get; }
-
-    /// <summary>Toggled slots for the status pips; null for a client without slots.</summary>
-    public Func<bool[]?>? Slots { get; init; }
-    /// <summary>Whether a slot holds a channelled skill, so letting go of it also ends the channel.</summary>
-    public Func<int, bool>? Channelled { get; init; }
-    /// <summary>Asked for each real bar command (slot, key down); true swallows it. A slot toggle chord uses it.</summary>
-    public Func<int, bool, bool>? SwallowRealPress { get; set; }
-    /// <summary>True while the slot's key toggles instead of casting, so holding it isn't a manual cast.</summary>
-    public Func<int, bool>? SlotChordHeld { get; set; }
-
-    /// <summary>The rule that stopped the client at the last check, or null.</summary>
-    public PauseRule? Blocking { get; internal set; }
-
-    internal readonly bool[] Held = new bool[Dispatcher.SlotCount];
-    internal readonly PressIntent[] Intents = new PressIntent[Dispatcher.SlotCount];
-    internal readonly bool[] StopRequested = new bool[Dispatcher.SlotCount];
-    internal Vector3 Target;
-    internal Transform? Hit;
-    internal Vector3? RetargetTo;
-    internal int RetargetSlot;
-    internal UiAction? PendingUi;
-    internal float PendingUiAt;
-    internal UiResult? LastUi;
-
-    public bool Holds(int slot) => Held[slot];
-}
-
 /// <summary>
 /// The one place automated game input is sent from. Each frame it checks every client's pause rules (in Update, before
 /// the clients run), takes their slot requests (in their Update), then arbitrates and sends (in LateUpdate): at most
@@ -86,7 +12,7 @@ internal sealed class DispatchClient
 /// skill the player is holding, and never more than MaxPressesPerSecond in any one second. A client that may not act has its held slots let go in the same frame.
 /// It also owns the bar command patch, so the player's own skill presses are seen here.
 /// </summary>
-internal static class Dispatcher
+internal static partial class Dispatcher
 {
     public const int SlotCount = 5;
     private const float PressSpacingSeconds = 0.1f;
@@ -181,26 +107,6 @@ internal static class Dispatcher
         if (!s_clients.Remove(client)) return;
         Release(client);
     }
-
-    private const float UiWaitSeconds = 1f;
-    // What last kept a frame from UI presses, for the capped reason.
-    private static string s_uiHeldBy = "none";
-
-    /// <summary>
-    /// Asks for a press of the game's UI; it replaces the client's pending one. It runs in a later LateUpdate under the
-    /// UI rule set (the global pause rules without dead, game menu open and game paused, plus the client's own), at most
-    /// one per frame, never in a frame with an automated key-down or the player's own key or click, and within the send
-    /// rate; it counts as a press. Refused at once while a rule holds, and after 1 s without a free frame ("capped").
-    /// </summary>
-    public static void RequestUi(DispatchClient client, UiAction action)
-    {
-        client.PendingUi = action;
-        client.PendingUiAt = Clock.Now;
-        client.LastUi = null;
-    }
-
-    /// <summary>The client's last UI request's result; null while it is pending or none was asked for.</summary>
-    public static UiResult? LastUiResult(DispatchClient client) => client.LastUi;
 
     public static bool Allowed(DispatchClient client) => client.Blocking == null;
 
@@ -309,123 +215,6 @@ internal static class Dispatcher
         RunUi(pressed);
     }
 
-    // After the skill presses: the first pending UI request that may run, survival clients first.
-    private static void RunUi(bool keyDownSent)
-    {
-        string? held = keyDownSent ? "automated key-down" : ManualInputThisFrame() ? "manual input" : PressesLastSecond >= MaxPressesPerSecond ? "send rate" : null;
-        if (held != null) s_uiHeldBy = held;
-        bool free = held == null;
-        bool ran = false;
-        foreach (var client in s_clients)
-        {
-            if (client.PendingUi is not { } action) continue;
-            if (PauseRules.FirstActive(client, forUi: true) is { } rule)
-            {
-                EndUi(client, action, UiResult.No(rule.Reason));
-                continue;
-            }
-            if (!free || ran)
-            {
-                if (Clock.Now - client.PendingUiAt > UiWaitSeconds) EndUi(client, action, UiResult.No($"capped ({(ran ? "another UI press" : s_uiHeldBy)})"));
-                continue;
-            }
-            ran = true;
-            UiResult result;
-            try
-            {
-                result = Press(client, action);
-            }
-            catch (Exception e)
-            {
-                Log.ErrorThrottled("dispatch:ui", $"Dispatcher UI press failed: {e.Message}", 30);
-                result = UiResult.No("failed");
-            }
-            EndUi(client, action, result);
-        }
-    }
-
-    private static void EndUi(DispatchClient client, UiAction action, UiResult result)
-    {
-        client.PendingUi = null;
-        client.LastUi = result;
-        Log.Debug($"dispatch: {client.Feature.Id} {action.GetType().Name.ToLowerInvariant()} {result}");
-    }
-
-    // A key or mouse button the player holds this frame: their input goes first. Input.anyKeyDown reads true on every
-    // frame in this game, so it can't be used; anyKey covers keys pressed this frame too.
-    private static bool ManualInputThisFrame()
-    {
-        try
-        {
-            return Input.anyKey || Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    private static UiResult Press(DispatchClient client, UiAction action)
-    {
-        var feature = FeatureHost.Find("dispatch");
-        switch (action)
-        {
-            case UiAction.Confirm confirm:
-            {
-                if (feature?.Has(DispatcherFeature.Prompts) != true) return UiResult.No("unavailable");
-                if (PromptKinds.OpenModal() is not { } modal) return UiResult.No("no prompt");
-                var kind = PromptKinds.KindOf(modal);
-                // Never the background shadow or the close button: only Yes, on a kind the client may confirm.
-                if (!kind.Confirmable || !confirm.Kinds.Contains(kind.Id)) return UiResult.No("kind not allowed");
-                return PressButton(modal._yesButton);
-            }
-            case UiAction.Decline:
-            {
-                if (feature?.Has(DispatcherFeature.Prompts) != true) return UiResult.No("unavailable");
-                return PromptKinds.OpenModal() is { } modal ? PressButton(modal._noButton) : UiResult.No("no prompt");
-            }
-            case UiAction.Respawn:
-            {
-                if (feature?.Has(DispatcherFeature.RespawnGroup) != true) return UiResult.No("unavailable");
-                var screen = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.Of<DeathScreen>())?.TryCast<DeathScreen>();
-                if (!Game.Alive(screen) || !screen!.gameObject.activeInHierarchy) return UiResult.No("no death screen");
-                return PressButton(screen.normalRespawnButton);
-            }
-            case UiAction.QuickMove move:
-            {
-                if (feature?.Has(DispatcherFeature.QuickMoveGroup) != true) return UiResult.No("unavailable");
-                if (!Enum.TryParse(move.Container, true, out ContainerID id)) return UiResult.No($"unknown container {move.Container}");
-                var container = ContainerUi(id);
-                if (container == null) return UiResult.No("container not open");
-                if (!container.TryQuickMove(move.Position, out bool _)) return UiResult.No("not moved");
-                CountPress();
-                return UiResult.Done;
-            }
-            default:
-                return UiResult.No("unknown action");
-        }
-    }
-
-    // What a click does: the button's own onClick, only while it is there, shown and interactable.
-    private static UiResult PressButton(UnityEngine.UI.Button? button)
-    {
-        if (!Game.Alive(button)) return UiResult.No("button missing");
-        if (!button!.isActiveAndEnabled || !button.interactable) return UiResult.No("not interactable");
-        button.onClick.Invoke();
-        CountPress();
-        return UiResult.Done;
-    }
-
-    private static ItemContainerUI? ContainerUi(ContainerID id)
-    {
-        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppInterop.Runtime.Il2CppType.Of<ItemContainerUI>()))
-        {
-            var ui = obj.TryCast<ItemContainerUI>();
-            if (Game.Alive(ui) && ui!.gameObject.activeInHierarchy && ui.identifier == id) return ui;
-        }
-        return null;
-    }
-
     private static void ClearRequests(DispatchClient client)
     {
         Array.Clear(client.Intents);
@@ -466,122 +255,6 @@ internal static class Dispatcher
         s_rewiredPlayer = null;
     }
 
-    private static UsingAbilityPlayer? AbilityState()
-    {
-        if (Game.Alive(s_abilityState)) return s_abilityState;
-        var actor = Player.Actor;
-        s_abilityState = actor != null ? actor.GetComponent<UsingAbilityPlayer>() : null;
-        return s_abilityState;
-    }
-
-    // The first slot whose skill button the player is holding right now, or SlotCount if none.
-    // Asked of the input system each frame, so a missed key-up can't leave a slot looking held.
-    private static int FirstManuallyHeldSlot()
-    {
-        if (!CanReadManualHolds) return SlotCount;
-        try
-        {
-            if (!Game.Alive(s_rewiredPlayer)) s_rewiredPlayer = Il2CppRewired.ReInput.isReady ? Il2CppRewired.ReInput.players.GetPlayer(0) : null;
-            if (s_rewiredPlayer == null) return SlotCount;
-            for (int i = 0; i < SlotCount; i++)
-            {
-                // With a toggle chord held, the skill key toggles instead of casting.
-                if (ChordHeld(i)) continue;
-                if (s_rewiredPlayer.GetButton(s_slotActionIds[i])) return i;
-            }
-        }
-        catch (Exception e)
-        {
-            Log.ErrorThrottled("dispatch:held", $"Dispatcher held-skill check failed: {e.Message}", 30);
-        }
-        return SlotCount;
-    }
-
-    private static bool ChordHeld(int slot)
-    {
-        foreach (var client in s_clients)
-        {
-            if (client.SlotChordHeld?.Invoke(slot) == true) return true;
-        }
-        return false;
-    }
-
-    private static void SendBarCommand(int slot, bool keyDown, Vector3 target, Transform? hit)
-    {
-        var processor = Game.AbilityProcessor;
-        if (processor == null) return;
-        s_sending = true;
-        try
-        {
-            processor.UseBarAbilityCommand(keyDown, slot + 1, -1, target, hit, false);
-            if (keyDown) CountPress();
-        }
-        catch (Exception e)
-        {
-            Log.ErrorThrottled("dispatch:send", $"Dispatcher bar command failed: {e.Message}", 30);
-        }
-        finally
-        {
-            s_sending = false;
-        }
-    }
-
-    private static void SendStopChannel(int slot)
-    {
-        try
-        {
-            var clientState = Game.AbilityProcessor?.PlayerAbilityState?.TryCast<ClientUsingAbilityState>();
-            if (clientState != null)
-            {
-                clientState.AttemptToStopAbility(slot + 1, true);
-                return;
-            }
-        }
-        catch (Exception)
-        {
-            // Fall through to the player state fallback.
-        }
-
-        try
-        {
-            AbilityState()?.stopUsingAbility(true);
-        }
-        catch (Exception)
-        {
-            // Nothing else to try; the channel ends on its own when the key state settles.
-        }
-    }
-
-    private static void SendRetarget(Vector3 target)
-    {
-        try
-        {
-            AbilityState()?.TryUpdateTargetLocationIfChannelling(target);
-        }
-        catch (Exception)
-        {
-            // Target refresh is best-effort.
-        }
-    }
-
-    // Every skill key press reaches the game through this method (__0 = keyDown, __1 = ability number).
-    private static bool OnRealBarCommand(bool keyDown, int abilityNumber)
-    {
-        int slot = abilityNumber - 1;
-        if (slot < 0 || slot >= SlotCount) return true;
-
-        foreach (var client in s_clients)
-        {
-            if (client.SwallowRealPress?.Invoke(slot, keyDown) == true) return false;
-        }
-        if (keyDown)
-        {
-            LastManualPressAt[slot] = Time.unscaledTime;
-            PlainPressThisFrame = true;
-        }
-        return true;
-    }
-
     [HarmonyPatch(typeof(UseAbilityProcessor), nameof(UseAbilityProcessor.UseBarAbilityCommand))]
     private static class UseBarAbilityCommand_Patch
     {
@@ -607,45 +280,4 @@ internal static class Dispatcher
         private static bool Prefix(PlayerVoiceEventManager.VoiceLineEvent __1) =>
             !s_sending || __1 != PlayerVoiceEventManager.VoiceLineEvent.CannotUseSkill;
     }
-}
-
-internal sealed class DispatcherFeature : Feature
-{
-    public override string Id => "dispatch";
-    public override string Name => "Dispatcher";
-    // Without it a skill the player holds no longer stops automation on that slot and later ones.
-    private const string ManualHolds = "manual holds";
-    public const string Prompts = "dispatch: prompts";
-    public const string RespawnGroup = "dispatch: respawn";
-    public const string QuickMoveGroup = "dispatch: quick move";
-
-    public override string[] Needs => new[] { "game", "input" };
-    public override Type[] PatchClasses => NestedPatches(typeof(Dispatcher));
-    public override Requirement[] Requirements => new[]
-    {
-        Need<EpochInputManager>(nameof(EpochInputManager.useAbilityProcessor)),
-        Need<UseAbilityProcessor>(nameof(UseAbilityProcessor.UseBarAbilityCommand)),
-        Need<UseAbilityProcessor>(nameof(UseAbilityProcessor.PlayerAbilityState)),
-        Need<ClientUsingAbilityState>(nameof(ClientUsingAbilityState.AttemptToStopAbility)),
-        Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.TryUpdateTargetLocationIfChannelling)),
-        Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.stopUsingAbility)),
-        Need(typeof(Il2CppRewired.ReInput), nameof(Il2CppRewired.ReInput.isReady), ManualHolds),
-        Need(typeof(Il2CppRewired.ReInput), nameof(Il2CppRewired.ReInput.players), ManualHolds),
-        Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButton), ManualHolds),
-        Need<Il2CppLE.UI.PanelSystem.ModalTemplate>("_yesButton", Prompts),
-        Need<Il2CppLE.UI.PanelSystem.ModalTemplate>("_noButton", Prompts),
-        Need<Il2CppLE.UI.PanelSystem.ModalTemplate>("_title", Prompts),
-        Need<DeathScreen>(nameof(DeathScreen.normalRespawnButton), RespawnGroup),
-        Need<ItemContainerUI>(nameof(ItemContainerUI.TryQuickMove), QuickMoveGroup),
-        Need<ItemContainerUI>(nameof(ItemContainerUI.identifier), QuickMoveGroup),
-    };
-
-    public override void Start()
-    {
-        Dispatcher.CanReadManualHolds = Has(ManualHolds);
-    }
-    public override void Update() => Dispatcher.Update();
-    public override void LateUpdate() => Dispatcher.LateUpdate();
-    public override void OnSceneChanged() => Dispatcher.OnSceneChanged();
-    public override void Shutdown() => Dispatcher.Shutdown();
 }
