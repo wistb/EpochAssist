@@ -58,13 +58,17 @@ internal sealed class DispatchClient
 /// The one place automated game input is sent from. Each frame it checks every client's pause rules (in Update, before
 /// the clients run), takes their slot requests (in their Update), then arbitrates and sends (in LateUpdate): at most
 /// one new press per frame, survival before skills, no press for a slot pressed less than 0.1 s ago or at or after a
-/// skill the player is holding. A client that may not act has its held slots let go in the same frame.
+/// skill the player is holding, and never more than MaxPressesPerSecond in any one second. A client that may not act has its held slots let go in the same frame.
 /// It also owns the bar command patch, so the player's own skill presses are seen here.
 /// </summary>
 internal static class Dispatcher
 {
     public const int SlotCount = 5;
     private const float PressSpacingSeconds = 0.1f;
+
+    /// <summary>The most automated presses in any one second: AutoCast's highest second measured on
+    /// five slots (43) plus 25%, so it never holds AutoCast back; it bounds every client together.</summary>
+    public const int MaxPressesPerSecond = 54;
 
     // The game's input action for each bar slot (Ability1..5), for the manual hold check.
     private static readonly int[] s_slotActionIds =
@@ -94,6 +98,47 @@ internal static class Dispatcher
     public static readonly float[] LastManualPressAt = new float[SlotCount];
 
     public static IReadOnlyList<DispatchClient> Clients => s_clients;
+
+    // The times of the last key-downs sent, for the send rate; more than any second can hold (one per slot per 0.1 s).
+    private const int PressRing = 64;
+    private static readonly float[] s_pressTimes = new float[PressRing];
+    private static int s_pressNext, s_pressStored;
+
+    /// <summary>Key-downs sent in the last second (key-ups, channel stops, retargets and manual presses aren't counted).</summary>
+    public static int PressesLastSecond => PressesSince(Clock.Now - 1f);
+
+    /// <summary>The most key-downs sent within any one second since ResetPressCounts.</summary>
+    public static int PeakPressesPerSecond { get; private set; }
+
+    /// <summary>Key-downs sent since ResetPressCounts.</summary>
+    public static int PressesSinceReset { get; private set; }
+
+    /// <summary>Clears the peak and the total (dev `jobs reset`, for a baseline run).</summary>
+    public static void ResetPressCounts()
+    {
+        PeakPressesPerSecond = 0;
+        PressesSinceReset = 0;
+    }
+
+    private static int PressesSince(float since)
+    {
+        int count = 0;
+        for (int i = 0; i < s_pressStored; i++)
+        {
+            if (s_pressTimes[i] > since) count++;
+        }
+        return count;
+    }
+
+    private static void CountPress()
+    {
+        float now = Clock.Now;
+        s_pressTimes[s_pressNext] = now;
+        s_pressNext = (s_pressNext + 1) % PressRing;
+        if (s_pressStored < PressRing) s_pressStored++;
+        PressesSinceReset++;
+        PeakPressesPerSecond = Math.Max(PeakPressesPerSecond, PressesSince(now - 1f));
+    }
 
     public static DispatchClient Register(DispatchClient client)
     {
@@ -168,6 +213,8 @@ internal static class Dispatcher
     {
         int manualHold = FirstManuallyHeldSlot();
         bool pressed = false;
+        // At the cap a press is held back like one inside the slot spacing; clients are in survival-first order.
+        bool capped = PressesLastSecond >= MaxPressesPerSecond;
         float now = Time.unscaledTime;
 
         foreach (var client in s_clients)
@@ -192,9 +239,9 @@ internal static class Dispatcher
                         SendBarCommand(i, keyDown: false, client.Target, client.Hit);
                         break;
                     case PressIntent.Press when i < manualHold:
-                        if (now - LastPressAt[i] < PressSpacingSeconds)
+                        if (capped || now - LastPressAt[i] < PressSpacingSeconds)
                         {
-                            // Too soon for this slot: the key-up, as a slot that isn't ready gets.
+                            // Too soon for this slot, or the cap: the key-up, as a slot that isn't ready gets.
                             SendBarCommand(i, keyDown: false, client.Target, client.Hit);
                         }
                         else if (!pressed)
@@ -303,6 +350,7 @@ internal static class Dispatcher
         try
         {
             processor.UseBarAbilityCommand(keyDown, slot + 1, -1, target, hit, false);
+            if (keyDown) CountPress();
         }
         catch (Exception e)
         {
