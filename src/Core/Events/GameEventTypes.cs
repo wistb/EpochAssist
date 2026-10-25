@@ -1,0 +1,44 @@
+using System.Text;
+
+namespace EpochAssist.Core;
+
+internal enum HitKind { Hit, DamageOverTime, Critical, Block, Dodge, Parry }
+
+/// <summary>
+/// A hit the player took. Without detail it is one health drop in a frame (Amount only); with detail it is one call of
+/// the game's own damage method (offline only), with the ward lost, the attacker, ability and damage types. Unknown
+/// fields are null; Kind is null until a game source gives it.
+/// </summary>
+internal readonly record struct HitTaken(float Amount, float? Ward, string? Source, string? Ability, string[]? Types, HitKind? Kind, bool Detail)
+{
+    private bool PrintMembers(StringBuilder text)
+    {
+        text.Append($"Amount = {Amount:0.#}, Ward = {Ward:0.#}, Source = {Source}, Ability = {Ability}, Types = {GameEvents.List(Types)}, Kind = {Kind}, Detail = {Detail}");
+        return true;
+    }
+}
+
+/// <summary>XP the player gained, and the tracker's value after it.</summary>
+internal readonly record struct XpGained(long Amount, long Total);
+
+/// <summary>A change of the player's gold (a spend is negative), and the total after it.</summary>
+internal readonly record struct GoldChanged(int Amount, int Total);
+
+/// <summary>An item that dropped in this scene (gold piles, potions, tomes and bones aren't items).</summary>
+internal readonly record struct ItemDropped(string? Name, string? BaseName, int Rarity, string RarityName, uint Id);
+
+/// <summary>What killed the player, from the death screen's text, after a PlayerDied; all null when it didn't say.</summary>
+internal readonly record struct DeathCause(string? Killer, string[]? Types, string? Text)
+{
+    private bool PrintMembers(StringBuilder text)
+    {
+        text.Append($"Killer = {Killer}, Types = {GameEvents.List(Types)}, Text = {Text?.Replace("\n", " / ")}");
+        return true;
+    }
+}
+
+/// <summary>The echo's objective was completed.</summary>
+internal readonly record struct EchoCompleted(string Scene);
+
+/// <summary>The player entered an echo chosen on the monolith.</summary>
+internal readonly record struct MonolithPick(string? Modifier, int StabilityReward, int HexIndex);
