@@ -29,7 +29,7 @@ internal static class Widgets
         {
             var knob = new Rect(row.xMax - 36f, row.y + (row.height - 20f) / 2f, 36f, 20f);
             GUI.DrawTexture(knob, next ? (hover ? Theme.SwitchOnHover : Theme.SwitchOn) : (hover ? Theme.SwitchOffHover : Theme.SwitchOff));
-            GUI.Label(new Rect(row.x, row.y, row.width - 44f, row.height), label, Theme.RowLabel);
+            Paint(new Rect(row.x, row.y, row.width - 44f, row.height), label, Theme.RowLabel);
         }
         return next;
     }
@@ -157,6 +157,15 @@ internal static class Widgets
     public static void EndCard() => GUILayout.EndVertical();
 
     public static void Hint(string text) => GUILayout.Label(text, Style(() => Theme.Hint, GUI.skin.label));
+
+    /// <summary>
+    /// Draws text or a frame in the repaint pass without taking a control id. GUI.Label and GUI.Box take one, so drawn
+    /// only while repainting they shift the ids of every control after them: a text field then looks unfocused and
+    /// loses its keys.
+    /// </summary>
+    public static void Paint(Rect r, GUIContent content, GUIStyle style) => style.Draw(r, content, false, false, false, false);
+
+    public static void Paint(Rect r, string text, GUIStyle style) => Paint(r, new GUIContent(text), style);
 
     public static string Colored(string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 }

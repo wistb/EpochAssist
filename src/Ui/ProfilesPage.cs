@@ -295,9 +295,9 @@ internal static class ProfilesPage
             Color previous = GUI.contentColor;
             // Brighter under the cursor: the name opens and closes the part.
             if (Themed) GUI.contentColor = name.Contains(Event.current.mousePosition) ? Theme.AccentText : previous;
-            GUI.Label(name, label, style);
+            Widgets.Paint(name, label, style);
             GUI.contentColor = previous;
-            if (partial) GUI.Label(new Rect(knob.x - 70f, row.y, 64f, row.height), $"{count} of {total}", ValueStyle());
+            if (partial) Widgets.Paint(new Rect(knob.x - 70f, row.y, 64f, row.height), $"{count} of {total}", ValueStyle());
             if (Themed)
             {
                 Color color = GUI.color;
@@ -326,8 +326,8 @@ internal static class ProfilesPage
             float valueWidth = Mathf.Min(valueStyle.CalcSize(new GUIContent(valueText)).x, 110f);
             var valueRect = new Rect(knob.x - 8f - valueWidth, row.y, valueWidth, row.height);
             float textX = TextX(row, 1);
-            GUI.Label(new Rect(textX, row.y, valueRect.x - textX - 6f, row.height), label, LeafStyle());
-            GUI.Label(valueRect, Menu.Fit(valueText, valueStyle, 110f), valueStyle);
+            Widgets.Paint(new Rect(textX, row.y, valueRect.x - textX - 6f, row.height), label, LeafStyle());
+            Widgets.Paint(valueRect, Menu.Fit(valueText, valueStyle, 110f), valueStyle);
             if (Themed)
             {
                 bool hover = row.Contains(Event.current.mousePosition);

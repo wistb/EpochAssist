@@ -59,14 +59,14 @@ internal static class AutoCastPage
 
             if (!Themed)
             {
-                GUI.Box(chip, $"{i + 1}\n{(toggled ? "ON" : "off")}");
+                Widgets.Paint(chip, $"{i + 1}\n{(toggled ? "ON" : "off")}", GUI.skin.box);
                 continue;
             }
             Theme.DrawSliced(chip, live ? Theme.ChipOn : toggled ? Theme.ChipPaused : Theme.ChipOff, Theme.ChipRadius);
             Theme.ChipNumber.normal.textColor = live ? Theme.AccentText : toggled ? Theme.Pause : Theme.Dim;
             Theme.ChipName.normal.textColor = toggled ? Theme.Text : Theme.Dim;
-            GUI.Label(new Rect(chip.x, chip.y + 6f, chip.width, 22f), (i + 1).ToString(), Theme.ChipNumber);
-            GUI.Label(new Rect(chip.x + 3f, chip.y + 28f, chip.width - 6f, 16f), Menu.Fit(name, Theme.ChipName, chip.width - 8f), Theme.ChipName);
+            Widgets.Paint(new Rect(chip.x, chip.y + 6f, chip.width, 22f), (i + 1).ToString(), Theme.ChipNumber);
+            Widgets.Paint(new Rect(chip.x + 3f, chip.y + 28f, chip.width - 6f, 16f), Menu.Fit(name, Theme.ChipName, chip.width - 8f), Theme.ChipName);
         }
     }
 }

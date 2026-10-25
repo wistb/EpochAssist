@@ -108,7 +108,7 @@ internal static class ColorPicker
         }
         // Custom with no colour yet: a control-coloured swatch with a plus.
         Tint(r, Theme.Swatch, Theme.Values.Control, Theme.ChipRadius);
-        GUI.Label(r, "+", Theme.FieldClear);
+        Widgets.Paint(r, "+", Theme.FieldClear);
     }
 
     private static void Picker(ColorSetting setting)

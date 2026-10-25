@@ -89,7 +89,7 @@ internal sealed class ToastFeature : Feature
             GUI.color = new Color(1f, 1f, 1f, Toasts.Alpha(toast, now) * Mathf.Clamp(Config.HudOpacity.Value, 0.2f, 1f));
             Theme.DrawSliced(rect, Theme.Panel.normal.background, Theme.PanelRadius);
             Menu.DrawDot(new Rect(rect.x + 12f, rect.center.y - 4f, 8f, 8f), toast.Kind == ToastKind.Warning ? Theme.Pause : Theme.AccentText);
-            GUI.Label(rect, content, style);
+            Widgets.Paint(rect, content, style);
             top += size.y + Gap;
         }
     }

@@ -171,7 +171,7 @@ internal static class Hud
             Menu.DrawState(new Rect(x, centerY - 4f, 8f, 8f), status.State, Theme.StateColor(status.State));
             x += 8f + 8f;
             Theme.PillLabel.normal.textColor = status.State != StatusState.Off ? Theme.Text : Theme.Dim;
-            GUI.Label(new Rect(x, centerY - PillRow / 2f, section.LabelWidth, PillRow), section.Label, Theme.PillLabel);
+            Widgets.Paint(new Rect(x, centerY - PillRow / 2f, section.LabelWidth, PillRow), section.Label, Theme.PillLabel);
             x += section.LabelWidth + 8f;
 
             int count = status.Slots?.Length ?? 0;
@@ -182,7 +182,7 @@ internal static class Hud
                 bool live = toggled && status.State == StatusState.Active;
                 Theme.DrawSliced(pip, live ? Theme.PipOn : toggled ? Theme.PipPaused : Theme.PipOff, Theme.PipRadius);
                 Theme.Pip.normal.textColor = live ? Theme.OnAccent : toggled ? Theme.Pause : Theme.Dim;
-                GUI.Label(pip, (i + 1).ToString(), Theme.Pip);
+                Widgets.Paint(pip, (i + 1).ToString(), Theme.Pip);
             }
             GUI.color = previous;
         }

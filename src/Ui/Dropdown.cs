@@ -115,7 +115,7 @@ internal static class Dropdown
         if (Event.current.type != EventType.Repaint) return;
         Rect list = ListRect();
         if (Themed) Theme.DrawSliced(list, Theme.Panel.normal.background, Theme.PanelRadius);
-        else GUI.Box(list, GUIContent.none);
+        else Widgets.Paint(list, GUIContent.none, GUI.skin.box);
         GUIStyle style = ItemStyle();
         Color previous = GUI.contentColor;
         for (int i = 0; i < s_options.Count; i++)
@@ -124,7 +124,7 @@ internal static class Dropdown
             bool hover = item.Contains(Event.current.mousePosition);
             if (hover && Themed) Theme.DrawSliced(item, Theme.Segment.hover.background, Theme.PanelRadius / 2);
             GUI.contentColor = i == s_selected && Themed ? Theme.AccentText : previous;
-            GUI.Label(item, s_options[i], style);
+            Widgets.Paint(item, s_options[i], style);
         }
         GUI.contentColor = previous;
     }

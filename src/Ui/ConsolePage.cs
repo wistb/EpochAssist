@@ -112,7 +112,7 @@ internal static class ConsolePage
             Menu.FocusConsoleField = false;
             GUI.FocusControl(FieldControl);
         }
-        if (Themed && e.type == EventType.Repaint && run.Input.Length == 0) GUI.Label(field, "Type a command, or help", Theme.Placeholder);
+        if (Themed && e.type == EventType.Repaint && run.Input.Length == 0) Widgets.Paint(field, "Type a command, or help", Theme.Placeholder);
         // Room for the field's focus outline.
         GUILayout.Space(8f);
         if (Pressed(GUILayout.Button("Run", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)), "console.run")) run.Submit = true;

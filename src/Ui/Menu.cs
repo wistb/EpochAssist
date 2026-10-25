@@ -515,7 +515,7 @@ internal static class Menu
             GUI.matrix = matrix * AboutSeparator(1f - e);
             GUI.color = new Color(color.r, color.g, color.b, color.a * (1f - e) * (tab.Running ? 1f : 0.45f));
             if (tab.Selected) Selected(tab.Item);
-            GUI.Label(tab.Item, tab.Title, FeatureNavStyle());
+            Widgets.Paint(tab.Item, tab.Title, FeatureNavStyle());
             if (tab.Selected) SelectedBar(tab.Item);
             if (Themed) DrawState(new Rect(tab.Item.x + 10f, tab.Item.center.y - 4f, 8f, 8f), tab.State, Theme.StateColor(tab.State));
         }
@@ -579,7 +579,7 @@ internal static class Menu
                 float height = Mathf.Max(frame.height * PanelGrow(), PanelStyle().border.vertical);
                 frame = new Rect(frame.x, frame.yMax - height, frame.width, height);
             }
-            GUI.Box(frame, GUIContent.none, PanelStyle());
+            Widgets.Paint(frame, GUIContent.none, PanelStyle());
         }
         GUILayout.BeginVertical(PanelLayoutStyle());
         GUI.matrix = panelMatrix;
@@ -592,7 +592,7 @@ internal static class Menu
         if (Event.current.type == EventType.Repaint)
         {
             if (Themed) DrawTinted(new Rect(heading.x + 4f, Mathf.Round(heading.center.y - 7f), 14f, 14f), Theme.Gear, Theme.AccentText);
-            GUI.Label(new Rect(heading.x + 24f, heading.y, heading.width - 24f, heading.height), Themed ? Colored("SETTINGS", Theme.AccentText) : "SETTINGS", NavHeadingStyle());
+            Widgets.Paint(new Rect(heading.x + 24f, heading.y, heading.width - 24f, heading.height), Themed ? Colored("SETTINGS", Theme.AccentText) : "SETTINGS", NavHeadingStyle());
         }
         GrowEnd();
         GUILayout.Space(4f);
@@ -999,8 +999,8 @@ internal static class Menu
             GUIUtility.keyboardControl = 0;
         }
         if (Event.current.type != EventType.Repaint) return;
-        if (s_search.Length == 0) GUI.Label(field, "Search", Theme.Placeholder);
-        else GUI.Label(clear, "×", Theme.FieldClear);
+        if (s_search.Length == 0) Widgets.Paint(field, "Search", Theme.Placeholder);
+        else Widgets.Paint(clear, "×", Theme.FieldClear);
     }
 
     /// <summary>Opens the menu on the Settings tab of a General section.</summary>
