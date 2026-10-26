@@ -6,7 +6,8 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 
 ## Install
 
-1. Install MelonLoader 0.7.x into the game folder and start the game once.
+1. Install the [latest MelonLoader](https://github.com/LavaGang/MelonLoader/releases/latest) into the game folder and
+   start the game once.
 2. Extract the [release](https://github.com/wistb/EpochAssist/releases) zip into your Last Epoch folder (where
    `Last Epoch.exe` is).
 3. In game, press **F2** to open the menu.
