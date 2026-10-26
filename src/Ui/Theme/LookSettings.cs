@@ -6,7 +6,7 @@ namespace EpochAssist.Ui;
 internal static class LookSettings
 {
     private static readonly Section Look = Config.Group.Section("appearance", "Appearance");
-    public static readonly Pick Theme = new(Look, "Theme", "Theme", "Slate")
+    public static readonly Pick Theme = new(Look, "Theme", "Theme", "Carbonfox")
     {
         Help = "Built-in looks, plus your own from UserData/EpochAssist/themes.",
     };

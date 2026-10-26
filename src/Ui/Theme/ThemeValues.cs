@@ -20,6 +20,9 @@ internal sealed class ThemeValues
     public Color StateActive, StateWaiting, StateHolding, StatePaused, StateOff;
     public Color BadgeActive, BadgeWaiting, BadgeHolding, BadgePaused, BadgeOff;
     public Color ChipOn, ChipPaused;
+    public Color Secondary, Faint, Divider, Button, Selection, Error;
+    // The secondary accent ("where you are": selection, list highlight, search matches, chips on).
+    public Color Highlight;
     public float Opacity = 1f;
     public int RadiusWindow, RadiusCard, RadiusControl, RadiusChip;
     public int CardPad, CardGap;
@@ -64,6 +67,13 @@ internal sealed class ThemeValues
         Colour("badge.off", v => v.BadgeOff, (v, c) => v.BadgeOff = c),
         Colour("chip.on", v => v.ChipOn, (v, c) => v.ChipOn = c),
         Colour("chip.paused", v => v.ChipPaused, (v, c) => v.ChipPaused = c),
+        Colour("secondary", v => v.Secondary, (v, c) => v.Secondary = c),
+        Colour("faint", v => v.Faint, (v, c) => v.Faint = c),
+        Colour("divider", v => v.Divider, (v, c) => v.Divider = c),
+        Colour("button", v => v.Button, (v, c) => v.Button = c),
+        Colour("selection", v => v.Selection, (v, c) => v.Selection = c),
+        Colour("error", v => v.Error, (v, c) => v.Error = c),
+        Colour("highlight", v => v.Highlight, (v, c) => v.Highlight = c),
         new ThemeValueSpec("opacity", ThemeValueKind.Opacity, 0.2f, 1f, v => v.Opacity, (v, x) => v.Opacity = (float)x),
         Whole("radius.window", ThemeValueKind.Radius, 16, v => v.RadiusWindow, (v, n) => v.RadiusWindow = n),
         Whole("radius.card", ThemeValueKind.Radius, 16, v => v.RadiusCard, (v, n) => v.RadiusCard = n),
@@ -97,11 +107,42 @@ internal sealed class ThemeValues
 
     private static Color Hex(string text) => TryParseColour(text, out var color) ? color : throw new ArgumentException(text);
 
-    /// <summary>The built-in themes, Slate first (the default and the fallback).</summary>
+    /// <summary>The built-in themes, Carbonfox first (the default for a missing or unknown name).</summary>
     public static readonly IReadOnlyList<(string Name, ThemeValues Values)> Presets = new[]
     {
-        ("Slate", Slate()), ("Ember", Ember()), ("Epoch", Epoch()), ("Glass", Glass()),
+        ("Carbonfox", Carbonfox()), ("Slate", Slate()), ("Ember", Ember()), ("Epoch", Epoch()), ("Glass", Glass()),
     };
+
+    // Carbonfox from nvim-nightfox, the locked design: near-black surfaces, small corners, the editor's green as the
+    // accent (its cursor and text selection) and its teal as the highlight (the selected row, lists, chips). Two values
+    // differ from the design so theme check passes: Active is darker than #25be6a (so it stands apart in lightness from
+    // the other states, as in Slate) and muted text is a step lighter than #7b7c7e (4.5:1 on cards).
+    private static ThemeValues Carbonfox()
+    {
+        var v = Designed(new ThemeValues
+        {
+            Window = Hex("#161616"), WindowEdge = Hex("#101010"), Sidebar = Hex("#0C0C0C"), Card = Hex("#1C1C1C"), CardEdge = Hex("#353535"),
+            Control = Hex("#1E1E1E"), Text = Hex("#F2F4F8"), Dim = Hex("#848587"), Accent = Hex("#25BE6A"), AccentText = Hex("#25BE6A"),
+            OnAccent = Hex("#0C0C0C"), Track = Hex("#2A2A2A"), Thumb = Hex("#F2F4F8"), InputBg = Hex("#0C0C0C"), InputEdge = Hex("#353535"),
+            ChipOn = Hex("#163030"), StatePaused = Hex("#BE95FF"), StateActive = Hex("#1A8F4E"), StateOff = Hex("#535353"),
+            Opacity = 1f, RadiusWindow = 4, RadiusCard = 3, RadiusControl = 2, RadiusChip = 3, CardPad = 12, CardGap = 8,
+            FontBody = 12, FontSmall = 11, FontCaption = 10, FontTitle = 15, FontNav = 12,
+        });
+        v.ControlHover = Hex("#262626");
+        v.ControlActive = Hex("#2E2E2E");
+        v.NavHover = Hex("#1A1A1A");
+        v.StateWaiting = Hex("#78A9FF");
+        v.StateHolding = v.StatePaused;
+        v.ChipPaused = Color.Lerp(v.Window, v.StatePaused, 0.15f);
+        v.Secondary = Hex("#B6B8BB");
+        v.Faint = Hex("#535353");
+        v.Divider = Hex("#252525");
+        v.Button = Hex("#2A2A2A");
+        v.Selection = Hex("#225151");
+        v.Highlight = Hex("#3DDBD9");
+        v.Error = Hex("#EE5396");
+        return Badges(v);
+    }
 
     // The menu as built before themes, except the Active and Off colours (darker, so Active stands apart in lightness).
     private static ThemeValues Slate() => new()
@@ -114,6 +155,7 @@ internal sealed class ThemeValues
         StateActive = Hex("#259361"), StateWaiting = Hex("#7DAAFF"), StateHolding = Hex("#F2B84B"), StatePaused = Hex("#F2B84B"), StateOff = Hex("#545B68"),
         BadgeActive = Hex("#12301F"), BadgeWaiting = Hex("#16264A"), BadgeHolding = Hex("#3A2E14"), BadgePaused = Hex("#3A2E14"), BadgeOff = Hex("#232935"),
         ChipOn = Hex("#16264A"), ChipPaused = Hex("#2B2414"),
+        Secondary = Hex("#B9BEC8"), Faint = Hex("#555A64"), Divider = Hex("#222833"), Button = Hex("#2B3240"), Selection = Hex("#263F6B"), Error = Hex("#E5534B"), Highlight = Hex("#4C8DFF"),
         Opacity = 1f, RadiusWindow = 14, RadiusCard = 10, RadiusControl = 8, RadiusChip = 9, CardPad = 14, CardGap = 10,
     };
 
@@ -162,6 +204,19 @@ internal sealed class ThemeValues
         v.Focus = v.Accent;
         v.StateWaiting = v.AccentText;
         v.StateHolding = v.StatePaused;
+        v.Secondary = Color.Lerp(v.Text, v.Dim, 0.5f);
+        v.Faint = Color.Lerp(v.Dim, v.Window, 0.45f);
+        v.Divider = v.CardEdge;
+        v.Button = v.ControlHover;
+        v.Selection = Color.Lerp(v.Sidebar, v.Accent, 0.35f);
+        v.Highlight = v.Accent;
+        v.Error = Hex("#E5534B");
+        return Badges(v);
+    }
+
+    // Badge fills: the card tinted with each state's colour.
+    private static ThemeValues Badges(ThemeValues v)
+    {
         v.BadgeActive = Color.Lerp(v.Card, v.StateActive, 0.2f);
         v.BadgeWaiting = Color.Lerp(v.Card, v.StateWaiting, 0.2f);
         v.BadgeHolding = Color.Lerp(v.Card, v.StateHolding, 0.2f);

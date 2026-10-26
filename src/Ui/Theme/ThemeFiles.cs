@@ -20,7 +20,10 @@ internal readonly record struct ResolvedTheme(string Name, ThemeValues Values, s
 internal static class Themes
 {
     public const int FormatVersion = 1;
-    private const string DefaultName = "Slate";
+    // A stored name that matches nothing uses Carbonfox, the default. A file without a usable base builds on Slate, so
+    // files written before Carbonfox keep their look.
+    private const string DefaultName = "Carbonfox";
+    private const string BaseFallback = "Slate";
 
     private static List<ThemeEntry>? s_all;
     private static readonly List<string> s_problems = new();
@@ -57,7 +60,7 @@ internal static class Themes
 
     public static ThemeEntry? Find(string name) => All.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The theme for a stored name. A name that no longer exists uses Slate (or a skipped file's base) and is kept.</summary>
+    /// <summary>The theme for a stored name. A name that no longer exists uses Carbonfox (or a skipped file's base) and is kept.</summary>
     public static ResolvedTheme Resolve(string name)
     {
         if (Find(name) is { } entry) return new ResolvedTheme(entry.Name, entry.Values, entry.Identity, false);
@@ -114,7 +117,7 @@ internal static class Themes
         }
         catch (Exception e)
         {
-            Skip(fallbackName, DefaultName, $"can't be read ({e.Message})");
+            Skip(fallbackName, BaseFallback, $"can't be read ({e.Message})");
             return null;
         }
         logKey = $"{file}:{text.GetHashCode()}";
@@ -137,7 +140,7 @@ internal static class Themes
         }
         catch (JsonException e)
         {
-            Skip(fallbackName, DefaultName, $"unreadable JSON (line {(e.LineNumber ?? 0) + 1}, position {(e.BytePositionInLine ?? 0) + 1})");
+            Skip(fallbackName, BaseFallback, $"unreadable JSON (line {(e.LineNumber ?? 0) + 1}, position {(e.BytePositionInLine ?? 0) + 1})");
             return null;
         }
         using (document)
@@ -145,7 +148,7 @@ internal static class Themes
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
-                Skip(fallbackName, DefaultName, "unreadable: not a JSON object");
+                Skip(fallbackName, BaseFallback, "unreadable: not a JSON object");
                 return null;
             }
 
@@ -157,12 +160,12 @@ internal static class Themes
             int version = FormatVersion;
             if (root.TryGetProperty("version", out var v) && !(v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out version)))
             {
-                Skip(name, basePreset.Name ?? DefaultName, "version is not a whole number");
+                Skip(name, basePreset.Name ?? BaseFallback, "version is not a whole number");
                 return null;
             }
             if (version > FormatVersion)
             {
-                Skip(name, basePreset.Name ?? DefaultName, $"made for a newer Epoch Assist (version {version})");
+                Skip(name, basePreset.Name ?? BaseFallback, $"made for a newer Epoch Assist (version {version})");
                 return null;
             }
             if (known.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
@@ -174,7 +177,7 @@ internal static class Themes
             if (basePreset.Values == null)
             {
                 Problem(baseText == null ? "no base, so Slate is used" : $"unknown base {baseText}, so Slate is used");
-                basePreset = ThemeValues.Presets[0];
+                basePreset = ThemeValues.Presets.First(p => p.Name == BaseFallback);
             }
             var values = basePreset.Values.Clone();
             if (root.TryGetProperty("values", out var map) && map.ValueKind == JsonValueKind.Object)
