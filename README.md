@@ -22,12 +22,22 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![The Autocast page](nexus/media/autocast.png)
 
   </details>
+- **Session**: the tab next to Combat shows this session's XP and gold per hour, drops by rarity, the drops your loot
+  filter shows, deaths and echoes, and your past sessions. They are kept in `UserData/EpochAssist/sessions/` within
+  limits you set; **Export CSV** writes them as two spreadsheet files. Switch it off under History.
 
 ## Settings
 
-Open the Settings tab at the top of the menu. The search box there finds any setting.
+Open the Settings tab at the top of the menu. The search box above the tree on the left finds any setting.
 
-- **Mini HUD**: shows autocast's state and slots while the menu is closed. Click it for quick toggles.
+- **Profiles**: one setup per character. Export and import to share.
+  <details><summary>Screenshot</summary>
+
+  ![Settings: Profiles](nexus/media/profiles.png)
+
+  </details>
+- **Mini HUD**: shows autocast's state and slots while the menu is closed. Click it for quick toggles. Its
+  notifications have their own position, duration, how many show at once, which kinds and order.
   <details><summary>Screenshots</summary>
 
   ![The mini HUD with its quick toggles](nexus/media/hud.png)
@@ -35,7 +45,8 @@ Open the Settings tab at the top of the menu. The search box there finds any set
   ![Settings: Mini HUD](nexus/media/settings-hud.png)
 
   </details>
-- **Appearance**: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations.
+- **Appearance**: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations. **Colour vision** picks
+  rarity and danger colours that stay apart for deuteranopia, protanopia or tritanopia in the mod's own overlays.
   <details><summary>Screenshot</summary>
 
   ![Settings: Appearance](nexus/media/appearance.png)
@@ -48,16 +59,10 @@ Open the Settings tab at the top of the menu. The search box there finds any set
 
   </details>
 - **Diagnostics**: **Copy diagnostics** puts the mod's state on the clipboard for a bug report, without names or folder
-  paths. Nothing is sent anywhere.
+  paths. **Mods** lists the other mods loaded and where they patch the same game code. Nothing is sent anywhere.
   <details><summary>Screenshot</summary>
 
   ![Settings: Diagnostics](nexus/media/diagnostics.png)
-
-  </details>
-- **Profiles**: one setup per character. Export and import to share.
-  <details><summary>Screenshot</summary>
-
-  ![Settings: Profiles](nexus/media/profiles.png)
 
   </details>
 
