@@ -11,7 +11,7 @@ internal static partial class DevCommands
     private const float ShotTimeoutSeconds = 5f;
     private const int SettleFrames = 2;
 
-    private static bool s_drawTest, s_drawMinimap, s_drawArrows, s_drawBars;
+    private static bool s_drawTest, s_drawMinimap, s_drawArrows, s_drawBars, s_drawRoles;
     private static readonly List<WorldEntry> s_drawList = new();
 
     private static string ShotDir => Path.Combine(DevBridge.Dir, "shots");
@@ -51,7 +51,7 @@ internal static partial class DevCommands
             CommandResult.Ok(call.Line) with { Settle = int.TryParse(call.Lower(1), out int frames) ? frames : 30 });
         Add("shot", "shot full|menu|hud [name] [matte]", "Saves a screenshot of the screen, the menu or the HUD to shots/; matte gives the menu or HUD a transparent background, trimmed to what is drawn.",
             call => StartCapture(call.Lower(1), call.Args.Length > 1 ? call.Args[1] : call.Lower(1), call.Lower(3) == "matte"));
-        Add("draw", "draw test|minimap|arrows|bars on|off", "Draws a test pattern around the player, markers on the minimap, edge arrows for the 10 nearest rares, or bars over enemies.", DrawCommand);
+        Add("draw", "draw test|minimap|arrows|bars|roles on|off", "Draws a test pattern around the player, markers on the minimap, edge arrows for the 10 nearest rares, bars over enemies, or the colour role swatch.", DrawCommand);
         Add("focus", "focus [key]", "Shows the menu control that has keyboard focus, or moves it to a control by its full key.", call =>
         {
             if (call.Args.Length > 0) Focus.TakeFull(call.Rest(1));
@@ -104,6 +104,20 @@ internal static partial class DevCommands
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
         Add("gate", "gate", "Shows autocast's enemy gate: open, enemies and weight in range, and the closest enemy within aim range.", _ => Gate());
         Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
+        Commands.AddDevVerb("mods", "simulate", owner, ModsSimulate);
+        SessionCommands.Register(owner);
+    }
+
+    // mods simulate <name>|off: a pretend loaded mod (kind mod, file <name>.dll) until off or a reload, then the start
+    // toast rule again.
+    private static CommandResult ModsSimulate(CommandCall call)
+    {
+        string name = call.Rest(2).Trim();
+        if (name.Length == 0) return CommandResult.Error("usage: mods simulate <name>|off");
+        if (name.Equals("off", StringComparison.OrdinalIgnoreCase)) ModOverlap.Simulated.Clear();
+        else if (!ModOverlap.Simulated.Contains(name, StringComparer.OrdinalIgnoreCase)) ModOverlap.Simulated.Add(name);
+        ModOverlap.CheckNow();
+        return CommandResult.Ok($"mods simulate: {(ModOverlap.Simulated.Count == 0 ? "none" : string.Join(", ", ModOverlap.Simulated))}") with { Settle = SettleFrames };
     }
 
     // Harmony keeps listing a method after its last patch is removed, so only methods that still carry one count.
@@ -112,7 +126,7 @@ internal static partial class DevCommands
 
     public static void Reset()
     {
-        s_drawTest = s_drawMinimap = s_drawArrows = s_drawBars = false;
+        s_drawTest = s_drawMinimap = s_drawArrows = s_drawBars = s_drawRoles = false;
         Watch.Stop("bridge stopped");
         EventCommands.StopWatch("bridge stopped");
         Hovered.Reset();

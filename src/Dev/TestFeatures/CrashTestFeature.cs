@@ -5,7 +5,8 @@ namespace EpochAssist.Dev;
 /// <summary>
 /// Dev only: throws when armed by the crash command, so faults, failed starts and crash reports can be checked in game.
 /// Fault: its next five updates throw the same error (the host faults it). Start: its next start throws. Handler: its
-/// next n ZoneChange handler calls throw, so a subscriber's error can be seen to land on its owner.
+/// next n ZoneChange handler calls throw, so a subscriber's error can be seen to land on its owner. It also reads session
+/// history and the colour roles through their APIs alone, as a later feature would, for the reload and fault checks.
 /// </summary>
 internal sealed class CrashTestFeature : Feature
 {
@@ -88,6 +89,16 @@ internal sealed class CrashTestFeature : Feature
                         : ($"fail (entry {s_verdict.FirstFailing + 1})", StatusState.Holding)),
                 },
             },
+            new MenuPage("Sessions and roles")
+            {
+                Rows =
+                {
+                    new HintRow(() => "Read through the session and colour role APIs only, as a later feature would."),
+                    new LiveText("Session", SessionReadout),
+                    new LiveText("Records seen", () => ($"{s_kept} since this feature started", null)),
+                    new LiveText("Rare enemy", () => (Swatch(), null)),
+                },
+            },
             new MenuPage("List row")
             {
                 Rows =
@@ -107,6 +118,28 @@ internal sealed class CrashTestFeature : Feature
             },
         },
     };
+
+    // Records kept in the current session since this feature started (SessionRecordKept).
+    private static int s_kept;
+    // The swatch text, made again only when the roles change.
+    private static int s_swatchVersion = -1;
+    private static string s_swatch = string.Empty;
+
+    private static (string, StatusState?) SessionReadout()
+    {
+        if (Sessions.Current is not { } session) return ("no session", StatusState.Off);
+        var t = session.Totals;
+        return ($"{Sessions.FormatDuration(t.Duration)}, {session.Records.Count} records, xp {t.Xp}, gold +{t.GoldGained}, drops {t.DropCount}, deaths {t.Deaths}", StatusState.Active);
+    }
+
+    private static string Swatch()
+    {
+        var rare = ColourRoles.Enemy(Rarity.Rare);
+        if (ColourRoles.Version == s_swatchVersion && s_swatch.Length > 0) return s_swatch;
+        s_swatchVersion = ColourRoles.Version;
+        s_swatch = $"<color={ColorSetting.Format(rare)}>■■■■■■</color> roles version {s_swatchVersion}";
+        return s_swatch;
+    }
 
     public static void ArmFault() => s_updateThrows = 5;
 
@@ -132,6 +165,8 @@ internal sealed class CrashTestFeature : Feature
         // An empty repeat job, so `jobs` can show a fault dropping it.
         Scheduler.Every(this, "tick", 1f, () => { });
         s_uiClient = Dispatcher.Register(new DispatchClient(this, PriorityClass.Skills, s_uiOn, Array.Empty<PauseRule>()));
+        s_kept = 0;
+        Bus.Subscribe<SessionRecordKept>(this, _ => s_kept++);
         Bus.Subscribe<ZoneChange>(this, _ =>
         {
             if (s_handlerThrows <= 0) return;

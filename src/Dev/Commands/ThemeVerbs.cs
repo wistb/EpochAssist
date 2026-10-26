@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace EpochAssist.Dev;
 
-// The theme command's dev verbs: set <name> and check (registered by the dev bridge feature).
+// The theme command's dev verbs: set <name> and check, with the colour role lines (registered by the dev bridge feature).
 internal static class ThemeVerbs
 {
     private const int SettleFrames = 2;
@@ -18,8 +18,12 @@ internal static class ThemeVerbs
             LookSettings.Theme.Value = theme.Name;
             return new CommandResult($"ok theme {theme.Name}") { Settle = SettleFrames };
         });
+        // The colour roles of every preset (no simulation) and every palette (simulated for its vision type) after the
+        // menu checks.
         Commands.AddDevVerb("theme", "check", owner, _ =>
-            new CommandResult("ok theme check: " + string.Join(" | ", ThemeValues.Presets.Select(p => ThemeCheck(p.Name, p.Values)))) { Settle = SettleFrames });
+            new CommandResult("ok theme check: " + string.Join(" | ", ThemeValues.Presets.Select(p => ThemeCheck(p.Name, p.Values))
+                .Concat(ThemeValues.Presets.Select(p => ColourChecks.RoleLine(p.Name, p.Values.Roles, null)))
+                .Concat(Palettes.All.Select(p => ColourChecks.RoleLine(p.Name, p.Roles, p.Simulation))))) { Settle = SettleFrames });
     }
 
     // For one theme: each state colour's lightness (CIE L*), Active's smallest distance to the others (>= 15),

@@ -10,7 +10,7 @@ internal static partial class DevCommands
     private static CommandResult DrawCommand(CommandCall call)
     {
         bool on = call.Lower(2) == "on";
-        if (call.Lower(2) is not ("on" or "off")) return CommandResult.Error("draw: usage draw test|minimap|arrows|bars on|off");
+        if (call.Lower(2) is not ("on" or "off")) return CommandResult.Error("draw: usage draw test|minimap|arrows|bars|roles on|off");
         switch (call.Lower(1))
         {
             case "test":
@@ -25,6 +25,10 @@ internal static partial class DevCommands
                 break;
             case "bars":
                 s_drawBars = on;
+                break;
+            case "roles":
+                s_drawRoles = on;
+                if (on) return CommandResult.Ok($"draw roles on: theme {Themes.Resolve(LookSettings.Theme.Value).Name}, colour vision {LookSettings.ColourVision.ValueLabel}, roles version {ColourRoles.Version}") with { Settle = SettleFrames };
                 break;
             default:
                 return CommandResult.Error($"unknown command: {call.Line}");
@@ -88,11 +92,33 @@ internal static partial class DevCommands
         }
     }
 
+    // The colour role swatch: a panel with each role's colour and name (the current theme and palette), and a marker in
+    // each enemy rarity's colour around the player.
+    private static void DrawRoles()
+    {
+        const float row = 18f, width = 190f;
+        var panel = new Rect(16f, 120f, width, ColourRoles.Count * row + 12f);
+        Draw.FillRect(panel, new Color(0f, 0f, 0f, 0.75f));
+        for (int i = 0; i < ColourRoles.Count; i++)
+        {
+            var swatch = new Rect(panel.x + 6f, panel.y + 6f + i * row + 2f, 22f, row - 4f);
+            Draw.FillRect(swatch, ColourRoles.Get(ColourRoles.Names[i]));
+            GUI.Label(new Rect(swatch.xMax + 6f, swatch.y - 2f, width - 40f, row), ColourRoles.Names[i]);
+        }
+        if (Player.Transform is not Transform me) return;
+        foreach (Rarity rarity in Enum.GetValues(typeof(Rarity)))
+        {
+            float angle = (int)rarity * Mathf.PI / 2f;
+            Draw.WorldMarker(me.position + new Vector3(Mathf.Cos(angle) * 2.5f, 1f, Mathf.Sin(angle) * 2.5f), ColourRoles.Enemy(rarity), 16f);
+        }
+    }
+
     /// <summary>The draw test pattern around the player (a circle, a line, a label and a marker), and the other draw tests.</summary>
     public static void OnGUI()
     {
         if (Event.current.type != EventType.Repaint) return;
         DrawWorldTests();
+        if (s_drawRoles) DrawRoles();
         if (!s_drawTest || Player.Transform is not Transform t) return;
         Vector3 p = t.position;
         Draw.WorldCircle(p, 3f, Theme.Accent, 2f);
