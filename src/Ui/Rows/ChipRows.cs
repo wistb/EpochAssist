@@ -63,17 +63,16 @@ internal static class ChipRows
 
         protected override void Draw(NumberGroup row, Rect rect, RowContext ctx)
         {
-            GUIStyle label = Widgets.Style(() => Theme.Hint, GUI.skin.label);
+            // Measured and drawn in the same style, so a label is never cut.
+            GUIStyle label = Widgets.Style(() => Theme.FieldDim, GUI.skin.label);
             float x = rect.x;
             foreach (var number in Shown(row))
             {
-                float w = TextCache.Width(number.Label, label);
-                var labelRect = new Rect(x, rect.y, w, RowLayout.ControlHeight);
+                float w = Mathf.Ceil(TextCache.Width(number.Label, label));
                 if (Event.current.type == EventType.Repaint)
                 {
-                    GUIStyle style = Widgets.Style(() => Theme.FieldDim, GUI.skin.label);
-                    Widgets.Paint(new Rect(labelRect.x - 7f, labelRect.y, w + 14f, labelRect.height),
-                        ctx.Highlight != null ? MenuSearchText.Mark(number.Label, ctx.Highlight) : number.Label, style);
+                    var labelRect = new Rect(x - label.padding.left, rect.y, w + label.padding.horizontal, RowLayout.ControlHeight);
+                    Widgets.Paint(labelRect, ctx.Highlight != null ? MenuSearchText.Mark(number.Label, ctx.Highlight) : number.Label, label);
                 }
                 x += w + LabelGap;
                 string key = SettingRows.KeyOf(number);
