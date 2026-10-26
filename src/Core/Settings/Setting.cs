@@ -46,6 +46,9 @@ internal abstract class Setting
     /// <summary>A stored value as the menu shows it ("Top", "85%", "Left Ctrl + F2"); null when it doesn't fit.</summary>
     public abstract string? Describe(JsonNode? node);
 
+    /// <summary>The HUD quick toggles this setting offers, in order (a Toggle with a QuickLabel offers itself).</summary>
+    internal virtual IEnumerable<IQuickSwitch> QuickSwitches => Array.Empty<IQuickSwitch>();
+
     /// <summary>Binds the stored entry; false when one of another type already holds the id in this game session.</summary>
     internal abstract bool Register(MelonPreferences_Category category);
     /// <summary>Puts a hand-edited or outdated stored value back in range.</summary>
@@ -106,7 +109,7 @@ internal abstract class Setting<T> : Setting
     internal override bool TryApplyOverride(JsonNode? node)
     {
         if (Section.Group.Shared) return false;
-        if (node is not JsonValue json || !TryRead(json, out T value)) return false;
+        if (!TryReadNode(node, out T value)) return false;
         _override = value;
         _hasOverride = true;
         return true;
@@ -114,14 +117,14 @@ internal abstract class Setting<T> : Setting
 
     internal override JsonNode? ToJson(bool global) => Write(global || !_hasOverride ? GlobalValue : _override);
 
-    public override string? Describe(JsonNode? node) => node is JsonValue json && TryRead(json, out T value) ? Show(value) : null;
+    public override string? Describe(JsonNode? node) => TryReadNode(node, out T value) ? Show(value) : null;
 
     /// <summary>A value as the menu shows it.</summary>
     protected virtual string Show(T value) => value?.ToString() ?? string.Empty;
 
     internal override bool TrySet(JsonNode? node)
     {
-        if (node is not JsonValue json || !TryRead(json, out T value)) return false;
+        if (!TryReadNode(node, out T value)) return false;
         Value = value;
         return true;
     }
@@ -131,6 +134,13 @@ internal abstract class Setting<T> : Setting
 
     /// <summary>A profile's stored value as this kind of setting, when it fits.</summary>
     protected abstract bool TryRead(JsonValue json, out T value);
+
+    /// <summary>A stored node as this kind of setting, when it fits; a kind stored as an object or array overrides it.</summary>
+    protected virtual bool TryReadNode(JsonNode? node, out T value)
+    {
+        value = default!;
+        return node is JsonValue json && TryRead(json, out value);
+    }
 
     // MelonPreferences keeps an entry's type for the whole game session, so after a retype only a restart can rebind it.
     internal override bool Register(MelonPreferences_Category category)

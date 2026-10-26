@@ -136,17 +136,31 @@ internal static partial class Profiles
             return;
         }
 
+        bool migrated = false;
         foreach (var group in SettingsRegistry.Groups)
         {
             if (group.Shared || s_profile["groups"]?[group.Id] is not JsonObject stored) continue;
             int version = stored["version"] is JsonValue v && v.TryGetValue(out int n) ? n : group.Version;
-            // Written by a newer build: its values may mean something else here. Older ones would migrate (none yet).
+            // Written by a newer build: its values may mean something else here.
             if (version > group.Version)
             {
                 s_newerGroups.Add(group.Id);
                 continue;
             }
             if (stored["values"] is not JsonObject values) continue;
+            // Written by an older build: its values are brought up to date in place, and the profile is saved at the new
+            // version (ids no longer used stay in the file). A failed step leaves the group as a newer one is left.
+            if (version < group.Version)
+            {
+                if (group.RunStoredMigrations(version, values) < group.Version)
+                {
+                    Log.Warn($"Profile '{info.Name}': {group.Name} settings couldn't be updated from version {version}, so they use Default's");
+                    s_newerGroups.Add(group.Id);
+                    continue;
+                }
+                Log.Info($"Profile '{info.Name}': {group.Name} settings migrated from version {version} to {group.Version}");
+                migrated = true;
+            }
             foreach (var setting in group.All)
             {
                 if (values.TryGetPropertyValue(setting.Id, out var value) && !setting.TryApplyOverride(value)) s_rejected.Add((group.Id, setting.Id));
@@ -155,6 +169,7 @@ internal static partial class Profiles
         if (s_rejected.Count > 0) Log.Warn($"Profile '{info.Name}': {s_rejected.Count} stored values don't fit their settings and use Default's");
         s_active = info;
         InProfile = true;
+        if (migrated) MarkDirtyNow();
     }
 
     internal static void Reset()

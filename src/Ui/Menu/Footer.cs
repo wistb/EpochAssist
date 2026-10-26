@@ -19,12 +19,12 @@ internal static class Footer
         float x = bar.x + 12f, limit = bar.xMax - hintWidth - 24f;
         foreach (var toggle in SettingsRegistry.QuickToggles)
         {
-            string text = toggle.QuickLabel!;
+            string text = toggle.Label;
             float w = Controls.SwitchWidth + 6f + TextCache.Width(text, label);
             if (x + w > limit) break;
             var r = new Rect(x, bar.y + 5f, w, bar.height - 10f);
             // The whole item flips, label and switch.
-            if (Controls.Switch(r, toggle.Value, SettingsRegistry.ToggleAction(toggle), toggle.Help ?? toggle.Label) != toggle.Value) SettingRows.Flip(toggle, "menu footer");
+            if (Controls.Switch(r, toggle.Value, toggle.ActionId, toggle.Tip) != toggle.Value) SettingRows.Flip(toggle, "menu footer");
             if (Event.current.type == EventType.Repaint)
                 Widgets.Paint(new Rect(x + Controls.SwitchWidth + 6f, r.y, w - Controls.SwitchWidth - 6f, r.height), text, label);
             x += w + 16f;

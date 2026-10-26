@@ -135,7 +135,9 @@ internal static class CoreCommands
                     Profiles.Use(imported.Id, out _);
                 }
                 var (set, skipped) = ProfileTransfer.Apply(export, ProfileTransfer.KeysOf(export.Segments));
-                return CommandResult.Ok($"profiles import: {set} set, {skipped} skipped, into {Profiles.Active.Name}") with { Settle = SettleFrames };
+                string migrated = (export.Migrated.Count > 0 ? $"; migrated {string.Join(", ", export.MigratedNames)}" : string.Empty)
+                    + (export.Unreadable.Count > 0 ? $"; kept conditions this version can't read: {string.Join(", ", export.Unreadable)}" : string.Empty);
+                return CommandResult.Ok($"profiles import: {set} set, {skipped} skipped, into {Profiles.Active.Name}{migrated}") with { Settle = SettleFrames };
             default:
                 return CommandResult.Error("profiles: usage profiles [use|new|copy|delete <name>] [rename <name> to <new name>]");
         }

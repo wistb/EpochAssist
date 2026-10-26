@@ -13,11 +13,28 @@ internal sealed record ProfileSegment(SettingsGroup Group, Section Section)
 /// <summary>An export read back: its profile name, when it was made, the segments it holds, and its stored values.</summary>
 internal sealed record ProfileExport(string Name, string Exported, JsonObject Root, IReadOnlyList<string> Segments)
 {
-    /// <summary>The stored value for a setting, or null when the export doesn't hold it.</summary>
-    public JsonNode? ValueOf(Setting setting) =>
-        Root["groups"]?[setting.Section.Group.Id]?["sections"]?[setting.Section.Id] is JsonObject values && values.TryGetPropertyValue(setting.Id, out var value)
-            ? value ?? JsonValue.Create(string.Empty)
-            : null;
+    /// <summary>Groups made by an older version, brought up to date when read: group id → the version they were made at
+    /// and their values from every section, migrated.</summary>
+    public Dictionary<string, (int From, JsonObject Values)> Migrated { get; } = new();
+    /// <summary>Groups made by an older version whose update failed; their values are skipped.</summary>
+    public HashSet<string> Failed { get; } = new();
+
+    /// <summary>The stored value for a setting (migrated when the export is older), or null when the export doesn't hold it.</summary>
+    public JsonNode? ValueOf(Setting setting)
+    {
+        string group = setting.Section.Group.Id;
+        if (Failed.Contains(group)) return null;
+        var values = Migrated.TryGetValue(group, out var migrated) ? migrated.Values
+            : Root["groups"]?[group]?["sections"]?[setting.Section.Id] as JsonObject;
+        return values != null && values.TryGetPropertyValue(setting.Id, out var value) ? value ?? JsonValue.Create(string.Empty) : null;
+    }
+
+    /// <summary>After Apply: condition lists that kept entries this version can't read ("Every slot: 1").</summary>
+    public List<string> Unreadable { get; } = new();
+
+    /// <summary>"Autocast (from version 2)" for each migrated group, for the import result.</summary>
+    public IEnumerable<string> MigratedNames =>
+        SettingsRegistry.Groups.Where(g => Migrated.ContainsKey(g.Id)).Select(g => $"{g.Name} (from version {Migrated[g.Id].From})");
 }
 
 /// <summary>
@@ -152,7 +169,22 @@ internal static class ProfileTransfer
             return null;
         }
         var segments = Segments.Where(s => root["groups"]?[s.Group.Id]?["sections"]?[s.Section.Id] is JsonObject).Select(s => s.Id).ToList();
-        return new ProfileExport(root["name"]?.GetValue<string>() ?? "Imported", root["exported"]?.GetValue<string>() ?? "?", root, segments);
+        var export = new ProfileExport(root["name"]?.GetValue<string>() ?? "Imported", root["exported"]?.GetValue<string>() ?? "?", root, segments);
+        foreach (var group in SettingsRegistry.Groups.Where(g => !g.Shared))
+        {
+            if (root["groups"]?[group.Id] is not JsonObject stored || stored["sections"] is not JsonObject sections) continue;
+            if (stored["version"] is not JsonValue sv || !sv.TryGetValue(out int from) || from >= group.Version) continue;
+            // The steps work on values by setting id, as profiles store them, so the sections are put together first.
+            var values = new JsonObject();
+            foreach (var (_, section) in sections)
+            {
+                if (section is not JsonObject sectionValues) continue;
+                foreach (var (id, value) in sectionValues) values[id] = value == null ? null : JsonNode.Parse(value.ToJsonString());
+            }
+            if (group.RunStoredMigrations(from, values) < group.Version) export.Failed.Add(group.Id);
+            else export.Migrated[group.Id] = (from, values);
+        }
+        return export;
     }
 
     /// <summary>
@@ -163,15 +195,27 @@ internal static class ProfileTransfer
     {
         var chosen = new HashSet<string>(settings);
         int set = 0, skipped = 0;
+        export.Unreadable.Clear();
         foreach (var segment in Segments.Where(s => export.Segments.Contains(s.Id)))
         {
             var group = export.Root["groups"]![segment.Group.Id]!;
-            var values = group["sections"]![segment.Section.Id]!.AsObject();
             bool newer = group["version"] is JsonValue v && v.TryGetValue(out int version) && version > segment.Group.Version;
+            bool failed = export.Failed.Contains(segment.Group.Id);
             foreach (var setting in segment.Section.Settings.Where(x => chosen.Contains(Key(x))))
             {
-                if (!values.TryGetPropertyValue(setting.Id, out var value)) continue;
-                if (!newer && setting.TrySet(value)) set++;
+                // An older export's values come migrated; a failed group's are all skipped.
+                var value = failed ? group["sections"]?[segment.Section.Id]?[setting.Id] : export.ValueOf(setting);
+                if (value == null) continue;
+                if (!newer && !failed && setting.TrySet(value))
+                {
+                    set++;
+                    // Entries a newer version made are kept; the result says how many.
+                    if (setting is ConditionSetting conditions)
+                    {
+                        int unreadable = conditions.Doc.InvalidCounts().Sum(c => c.Count);
+                        if (unreadable > 0) export.Unreadable.Add($"{setting.Label}: {unreadable}");
+                    }
+                }
                 else skipped++;
             }
         }

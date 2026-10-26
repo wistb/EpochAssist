@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using MelonLoader;
 
 namespace EpochAssist.Core;
@@ -33,6 +34,7 @@ internal sealed class SettingsGroup
     private const string VersionKey = "_SettingsVersion";
 
     private readonly List<(int Version, Action<MelonPreferences_Category> Step)> _migrations = new();
+    private readonly List<(int Version, Action<JsonObject> Step)> _storedMigrations = new();
     private MelonPreferences_Category? _category;
 
     public SettingsGroup(string id, string name, int version = 1)
@@ -74,6 +76,37 @@ internal sealed class SettingsGroup
     /// before they are clamped, so it can read and write the typed settings (and the raw category).
     /// </summary>
     public void Migration(int toVersion, Action<MelonPreferences_Category> step) => _migrations.Add((toVersion, step));
+
+    /// <summary>
+    /// The same step for values stored outside the preferences file: a profile's values (when it is put in use) and an
+    /// export's (when it is imported). It gets the stored values by setting id and changes them in place; ids it no
+    /// longer needs can stay.
+    /// </summary>
+    public void StoredMigration(int toVersion, Action<JsonObject> step) => _storedMigrations.Add((toVersion, step));
+
+    /// <summary>
+    /// Runs the stored steps above fromVersion, up to Version, in order, on values. Returns the version reached: Version,
+    /// or the last good one when a step threw (logged once; the caller skips the group).
+    /// </summary>
+    public int RunStoredMigrations(int fromVersion, JsonObject values)
+    {
+        int reached = fromVersion;
+        foreach (var (version, step) in _storedMigrations.OrderBy(m => m.Version))
+        {
+            if (version <= fromVersion || version > Version) continue;
+            try
+            {
+                step(values);
+                reached = version;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"{Name} stored settings migration to version {version} failed: {e.Message}");
+                return reached;
+            }
+        }
+        return Version;
+    }
 
     public void Register()
     {

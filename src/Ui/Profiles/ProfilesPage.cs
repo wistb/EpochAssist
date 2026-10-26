@@ -410,8 +410,11 @@ internal static class ProfilesPage
         }
         var (set, skipped) = ProfileTransfer.Apply(export, settings);
         s_import = null;
+        // Groups from an older version were updated on the way in; the player is told which.
+        string migrated = (export.Migrated.Count > 0 ? $" Updated from an older version: {string.Join(", ", export.MigratedNames)}." : string.Empty)
+            + (export.Unreadable.Count > 0 ? $" Kept conditions made by a newer version: {string.Join(", ", export.Unreadable)}." : string.Empty);
         Toasts.Show("profiles", $"Imported {set} setting{(set == 1 ? string.Empty : "s")} into {Profiles.Active.Name}"
-            + (skipped > 0 ? $"; {skipped} didn't fit and were skipped." : "."), skipped > 0 ? ToastKind.Warning : ToastKind.Info);
+            + (skipped > 0 ? $"; {skipped} didn't fit and were skipped." : ".") + migrated, skipped > 0 ? ToastKind.Warning : ToastKind.Info);
     }
 
     // A value as the tree shows it: on/off, a name, a number; "none" for an empty one.

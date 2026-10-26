@@ -196,7 +196,7 @@ internal static class Hud
         GUILayout.Label("QUICK TOGGLES", Theme.CardTitle);
         foreach (var toggle in SettingsRegistry.QuickToggles)
         {
-            if (Switch(toggle.QuickLabel!, toggle.Value) != toggle.Value) Actions.Run(SettingsRegistry.ToggleAction(toggle), "HUD quick toggle");
+            if (Switch(toggle.Label, toggle.Value) != toggle.Value) Actions.Run(toggle.ActionId, "HUD quick toggle");
         }
         GUILayout.Space(6f);
         if (GUILayout.Button($"Open full menu  ·  {KeySettings.MenuKey.Display}", Theme.SmallButton))

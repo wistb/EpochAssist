@@ -3,9 +3,15 @@ using UnityEngine;
 
 namespace EpochAssist.Core;
 
-internal sealed class Toggle : Setting<bool>
+internal sealed class Toggle : Setting<bool>, IQuickSwitch
 {
     public Toggle(Section section, string id, string label, bool defaultValue) : base(section, id, label, defaultValue) { }
+
+    string IQuickSwitch.Label => QuickLabel ?? Label;
+    string? IQuickSwitch.Tip => Help ?? Label;
+    void IQuickSwitch.Set(bool on) => Value = on;
+    string IQuickSwitch.ActionId => SettingsRegistry.ToggleAction(this);
+    internal override IEnumerable<IQuickSwitch> QuickSwitches => QuickLabel != null ? new IQuickSwitch[] { this } : Array.Empty<IQuickSwitch>();
     internal override void Clamp() { }
     protected override bool TryRead(JsonValue json, out bool value) => json.TryGetValue(out value);
     protected override string Show(bool value) => value ? "on" : "off";
