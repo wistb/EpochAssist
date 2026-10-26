@@ -14,7 +14,7 @@ internal static class AutoCastSettings
     private static readonly Section Main = Group.Section("main", "Macros");
     public static readonly Toggle Enabled = new(Main, "Enabled", "Run macros", false) { QuickLabel = "Macros" };
 
-    public static readonly Section Controls = Group.Section("controls", "Controls");
+    public static readonly Section Controls = Group.Section("controls", "Keys");
     public static readonly Choice<KeyCode> ModifierKey = new(Controls, "ModifierKey", "Modifier", KeyCode.LeftControl,
         (KeyCode.LeftControl, "Left Ctrl"), (KeyCode.LeftAlt, "Left Alt"), (KeyCode.LeftShift, "Left Shift"),
         (KeyCode.RightControl, "Right Ctrl"), (KeyCode.RightAlt, "Right Alt"), (KeyCode.RightShift, "Right Shift"))
@@ -26,14 +26,14 @@ internal static class AutoCastSettings
         Clearable = true, Help = "While held, macros stop.",
     };
 
-    public static readonly Section Pausing = Group.Section("pausing", "Pause");
+    public static readonly Section Pausing = Group.Section("pausing", "Pausing");
     public static readonly Toggle PauseOnZoneChange = new(Pausing, "PauseOnZoneChange", "Pause on zone change", true)
     {
         Help = "Press any skill yourself to resume.",
     };
     public static readonly Toggle PauseInNonCombatZones = new(Pausing, "PauseInNonCombatZones", "Pause in non-combat zones", false);
 
-    public static readonly Section Targeting = Group.Section("targeting", "Target");
+    public static readonly Section Targeting = Group.Section("targeting", "Aiming");
     public static readonly Toggle AimAtClosestEnemy = new(Targeting, "AimAtClosestEnemy", "Aim at closest enemy", false)
     {
         QuickLabel = "Aim at closest enemy", Help = "Uses the cursor when nothing is in range.",
