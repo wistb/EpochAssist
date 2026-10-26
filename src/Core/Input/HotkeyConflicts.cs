@@ -11,6 +11,12 @@ namespace EpochAssist.Core;
 internal static class HotkeyConflicts
 {
     private static readonly Dictionary<Hotkey, (string Signature, List<string> Warnings)> s_cache = new();
+
+    /// <summary>Further keys in use besides condition keys (macro triggers), set by their owner; null for none.</summary>
+    public static Func<IEnumerable<ConditionKeys.KeyUse>>? MoreKeys { get; set; }
+
+    private static IEnumerable<ConditionKeys.KeyUse> KeysInUse() =>
+        MoreKeys != null ? ConditionKeys.All.Concat(MoreKeys()) : ConditionKeys.All;
     private static int s_generation;
 
     /// <summary>Forget every result, so the game's bindings are looked up again (call when the menu opens).</summary>
@@ -23,7 +29,7 @@ internal static class HotkeyConflicts
     public static IReadOnlyList<string> For(Hotkey hotkey)
     {
         // Any binding's change can make or end a conflict with this one.
-        string signature = $"{s_generation}|{Hotkeys.SlotModifier}|{string.Join("|", Hotkeys.Bindings.Select(b => b.Value))}|{string.Join("|", ConditionKeys.All.Select(k => k.Chord))}";
+        string signature = $"{s_generation}|{Hotkeys.SlotModifier}|{string.Join("|", Hotkeys.Bindings.Select(b => b.Value))}|{string.Join("|", KeysInUse().Select(k => k.Chord))}";
         if (s_cache.TryGetValue(hotkey, out var cached) && cached.Signature == signature) return cached.Warnings;
 
         List<string> warnings;
@@ -93,7 +99,7 @@ internal static class HotkeyConflicts
         {
             if (Overlaps(hotkey.Kind, chord, HotkeyKind.Press, slotChord)) warnings.Add($"Also toggles slot {slot + 1} ({slotChord.Display})");
         }
-        foreach (var use in ConditionKeys.All)
+        foreach (var use in KeysInUse())
         {
             Chord used = ConditionKinds.ChordOf(use.Chord);
             if (Overlaps(hotkey.Kind, chord, use.Toggle ? HotkeyKind.Press : HotkeyKind.Hold, used)) warnings.Add($"Also a {use.Label} ({used.Display})");

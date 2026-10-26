@@ -58,6 +58,9 @@ internal sealed class PauseRule
 /// </summary>
 internal static class PauseRules
 {
+    /// <summary>The menu-open rule's name (a survival client may act through it).</summary>
+    public const string MenuOpen = "ui";
+
     /// <summary>A key capture is open (set by the hotkey layer).</summary>
     public static Func<bool> CaptureActive = () => false;
 
@@ -70,7 +73,7 @@ internal static class PauseRules
         new("dead", "dead", RuleKind.Global, _ => !GameState.PlayerAlive),
         new("game-menu", "game menu open", RuleKind.Global, _ => GameState.CanReadPauseMenu ? GameState.GamePaused : null),
         new("time-stopped", "game paused", RuleKind.Global, _ => Time.timeScale == 0f),
-        new("ui", "menu open", RuleKind.Global, _ => InputGate.Menu || InputGate.Hud),
+        new(MenuOpen, "menu open", RuleKind.Global, _ => InputGate.Menu || InputGate.Hud),
         // Without the chat flag, typing in a game field or ours is still seen; only "not typing" is unsure.
         new("typing", "typing", RuleKind.Global, _ => GameState.Typing ? true : GameState.CanReadChat ? false : null),
         new("capture", "setting a key", RuleKind.Global, _ => CaptureActive()),
@@ -90,6 +93,7 @@ internal static class PauseRules
         foreach (var rule in Global)
         {
             if (forUi && IsSkippedForUi(rule)) continue;
+            if (Array.IndexOf(client.Ignores, rule.Name) >= 0) continue;
             if (rule.Active(client) == true) return rule;
         }
         foreach (var rule in client.Rules)

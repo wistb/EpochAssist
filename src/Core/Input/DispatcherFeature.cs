@@ -12,6 +12,10 @@ internal sealed class DispatcherFeature : Feature
     public const string Prompts = "dispatch: prompts";
     public const string RespawnGroup = "dispatch: respawn";
     public const string QuickMoveGroup = "dispatch: quick move";
+    public const string PotionOnline = "dispatch: potion (online)";
+    public const string PotionOffline = "dispatch: potion (offline)";
+    public const string PortalOnline = "dispatch: portal (online)";
+    public const string PortalOffline = "dispatch: portal (offline)";
 
     public override string[] Needs => new[] { "game", "input" };
     // Its pause rules read each client's switch, after the character's values are in place.
@@ -34,11 +38,21 @@ internal sealed class DispatcherFeature : Feature
         Need<DeathScreen>(nameof(DeathScreen.normalRespawnButton), RespawnGroup),
         Need<ItemContainerUI>(nameof(ItemContainerUI.TryQuickMove), QuickMoveGroup),
         Need<ItemContainerUI>(nameof(ItemContainerUI.identifier), QuickMoveGroup),
+        Need(typeof(LocalPlayer), nameof(LocalPlayer.instance), PotionOnline),
+        Need<LocalPlayer>(nameof(LocalPlayer.PotionKeyPressed), PotionOnline),
+        Need<EpochInputManager>(nameof(EpochInputManager.potion), PotionOffline),
+        Need<HealthPotion>(nameof(HealthPotion.UsePotion), PotionOffline),
+        Need<ClientUsingAbilityState>(nameof(ClientUsingAbilityState.UsePortalCommand), PortalOnline),
+        Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.UsePortalCommand), PortalOffline),
     };
 
     public override void Start()
     {
         Dispatcher.CanReadManualHolds = Has(ManualHolds);
+        Dispatcher.CanDrinkOnline = Has(PotionOnline);
+        Dispatcher.CanDrinkOffline = Has(PotionOffline);
+        Dispatcher.CanPortalOnline = Has(PortalOnline);
+        Dispatcher.CanPortalOffline = Has(PortalOffline);
     }
     public override void Update() => Dispatcher.Update();
     public override void LateUpdate() => Dispatcher.LateUpdate();

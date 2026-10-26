@@ -159,6 +159,12 @@ internal static class Hotkeys
         }
     }
 
+    /// <summary>
+    /// Whether a chord was pressed this frame, with a press binding's gates (for macro key triggers). Nothing is
+    /// swallowed: the key also reaches the game.
+    /// </summary>
+    public static bool PressedNow(Chord chord, HotkeyScope scope) => Open(scope) && Pressed(chord);
+
     /// <summary>Whether a hold binding is held: every key of its chord down (extra keys allowed), and its gates open.</summary>
     public static bool Held(Hotkey hotkey) => Held(hotkey.Chord, hotkey.Scope);
 
