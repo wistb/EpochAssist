@@ -25,6 +25,26 @@ internal static class TopBar
         Focus.Scope = "top";
         GUIStyle version = Widgets.Style(() => Theme.Version, GUI.skin.label);
         float x = bar.x + 10f;
+        // A narrow window (a small screen at a large UI scale) leaves the logo and version out, so the tabs and the
+        // search never overlap; the version is on Diagnostics too.
+        if (Roomy(bar, version)) x = Brand(bar, x, version);
+        x = Tabs(bar, x);
+        Right(bar, x);
+    }
+
+    // Logo, version, tabs, search, profile and close all fit across the bar.
+    private static bool Roomy(Rect bar, GUIStyle version)
+    {
+        GUIStyle brand = Widgets.Style(() => Theme.Brand, GUI.skin.label), tab = Widgets.Style(() => Theme.Tab, GUI.skin.button);
+        float brandWidth = Theme.Logo != null && Widgets.Themed ? 145f : TextCache.Width(BuildInfo.Name, brand);
+        float tabs = MenuTree.Tabs.Sum(t => TextCache.Width(t.Title, tab) + 29f);
+        // Close, profile and the narrow search with their gaps.
+        const float rightSide = 8f + 22f + 6f + 150f + 6f + 130f + 8f;
+        return 10f + brandWidth + 10f + TextCache.Width("v" + BuildInfo.Version, version) + 14f + tabs + rightSide <= bar.width;
+    }
+
+    private static float Brand(Rect bar, float x, GUIStyle version)
+    {
         // Beside the logo, the version sits on the wordmark's baseline (the logo's foot), not the bar's middle.
         float versionShift = 0f;
         if (Theme.Logo is { } logo && Widgets.Themed)
@@ -44,7 +64,11 @@ internal static class TopBar
         string v = "v" + BuildInfo.Version;
         float vw = TextCache.Width(v, version);
         if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, bar.y + versionShift, vw, bar.height), v, version);
-        x += vw + 14f;
+        return x + vw + 14f;
+    }
+
+    private static float Tabs(Rect bar, float x)
+    {
 
         // Tab edges, dividers and the bar's bottom line sit on whole screen pixels, one screen pixel wide, so the selected
         // tab's fill meets its dividers and opens into the page with no seam at any UI scale.
@@ -75,8 +99,11 @@ internal static class TopBar
             }
             x = edge + px;
         }
-        float tabsEnd = x;
+        return x;
+    }
 
+    private static void Right(Rect bar, float tabsEnd)
+    {
         // From the right: close, profile, search.
         float right = bar.xMax - 8f;
         var close = new Rect(right - 22f, Mathf.Round(bar.center.y - 11f), 22f, 22f);
