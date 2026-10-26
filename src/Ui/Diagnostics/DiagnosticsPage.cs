@@ -6,7 +6,8 @@ namespace EpochAssist.Ui;
 
 /// <summary>
 /// Diagnostics, Settings › Diagnostics in the menu: the mod's build and mode with the log level (Overview), each feature's
-/// state with its switch (Features), crash reports (Reports), and a copy of it all as scrubbed text for a bug report.
+/// state with its switch (Features), other mods and where they overlap ours (Mods), crash reports (Reports), and a copy of
+/// it all as scrubbed text for a bug report.
 /// The feature owns the copy and open actions; the pages are the menu's blocks.
 /// </summary>
 internal sealed class DiagnosticsFeature : Feature
@@ -29,6 +30,8 @@ internal static class DiagnosticsPage
 
     private static DiagnosticsSnapshot? s_snapshot;
     private static float s_builtAt = float.MinValue;
+    private static OverlapReport? s_overlap;
+    private static float s_overlapAt = float.MinValue;
     private static bool s_clearing;
     private static Action? s_pending;
 
@@ -36,6 +39,8 @@ internal static class DiagnosticsPage
     {
         s_snapshot = null;
         s_builtAt = float.MinValue;
+        s_overlap = null;
+        s_overlapAt = float.MinValue;
         s_clearing = false;
         s_pending = null;
     }
@@ -60,6 +65,7 @@ internal static class DiagnosticsPage
         MenuBlocks.Register("diagnostics.overview", (rect, _) => Overview(rect), _ => OverviewLines(Snapshot()).Select(Plain), (_, width) => OverviewHeight(width));
         MenuBlocks.Register("diagnostics.features", (rect, _) => Page(rect, Features), _ => Snapshot().Features.Select(f => $"feature {f.Id} {RowText.Quote(f.StateText)}"));
         MenuBlocks.Register("diagnostics.reports", (rect, _) => Page(rect, ReportsCard), _ => Reports.List().Select(r => $"report {RowText.Quote(r.File)}"));
+        MenuBlocks.Register("diagnostics.mods", (rect, _) => Page(rect, ModsCard), _ => ModsLines(Overlap()).Where(l => !l.Note).Select(l => $"{l.Kind} {RowText.Quote(l.Text)}"));
     }
 
     /// <summary>Opens the console's page.</summary>
@@ -74,6 +80,17 @@ internal static class DiagnosticsPage
             s_builtAt = Time.unscaledTime;
         }
         return s_snapshot;
+    }
+
+    // Like the snapshot: rebuilt in a layout pass at most twice a second.
+    private static OverlapReport Overlap()
+    {
+        if (s_overlap == null || (Event.current?.type == EventType.Layout && Time.unscaledTime - s_overlapAt >= RebuildSeconds))
+        {
+            s_overlap = ModOverlap.Check();
+            s_overlapAt = Time.unscaledTime;
+        }
+        return s_overlap;
     }
 
     private static string Plain(string line) => RowText.StripTags(line);
@@ -187,6 +204,53 @@ internal static class DiagnosticsPage
         // Centred on the buttons' row.
         float width = right - line.x - 8f, height = Controls.HintHeight(text, width);
         Widgets.Paint(new Rect(line.x, Mathf.Round(line.center.y - height / 2f), width, height), text, Style(() => Theme.Hint, GUI.skin.label));
+    }
+
+    // ---- Mods: loaded mods, shared patch targets and known overlaps; overlaps change nothing ----
+
+    private static void ModsCard()
+    {
+        string kind = string.Empty;
+        foreach (var (lineKind, text, note) in ModsLines(Overlap()))
+        {
+            if (lineKind != kind)
+            {
+                kind = lineKind;
+                ProfilesPage.Heading(kind switch { "mod" => "Loaded mods", "overlap" => "Overlaps", _ => "Known overlaps" });
+            }
+            if (note) Note(text);
+            else Line(text);
+        }
+        GUILayout.Space(6f);
+        Note(Colored("Overlaps change nothing: every feature keeps running. They point at what to check when something acts twice or looks odd.", Theme.Dim));
+    }
+
+    // The page's lines by kind (mod, overlap, known), each kind at least one line; notes (a known mod's explanation)
+    // are drawn muted and left out of the bridge's lines.
+    private static IEnumerable<(string Kind, string Text, bool Note)> ModsLines(OverlapReport report)
+    {
+        foreach (string line in report.ModLines) yield return ("mod", line, false);
+        if (!report.Mods.Any(m => !m.Ours)) yield return ("mod", "No other mods.", false);
+        if (report.Overlaps.Count == 0) yield return ("overlap", "None.", false);
+        foreach (var overlap in report.Overlaps)
+        {
+            string ours = overlap.OursApplied ? overlap.Feature : $"{overlap.Feature}, applied when {overlap.Feature} needs it";
+            yield return ("overlap", $"{overlap.Method} ({ours}): {overlap.OthersText}", false);
+        }
+        if (report.Known.Count == 0) yield return ("known", "None.", false);
+        foreach (var known in report.Known)
+        {
+            yield return ("known", known.Line, false);
+            yield return ("known", known.Text, true);
+        }
+    }
+
+    // Text across the block in the label colour, wrapped.
+    private static void Line(string text)
+    {
+        float width = PageView.BlockWidth;
+        Rect r = GUILayoutUtility.GetRect(width, Controls.HintHeight(text, width) + 4f, GUILayout.ExpandWidth(true));
+        if (Event.current.type == EventType.Repaint) Widgets.Paint(r, text, Style(() => Theme.Label, GUI.skin.label));
     }
 
     // Muted text across the block, not indented (Hint indents a feature's details under its name).

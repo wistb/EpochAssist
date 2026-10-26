@@ -48,6 +48,7 @@ internal static partial class FeatureHost
             feature.Record.Harmony ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
             feature.Record.DemandGroupsOn.Add(group);
             foreach (var type in classes) PatchClass(feature, type);
+            ModOverlap.CheckMethod(feature, group);
             return;
         }
         feature.Record.DemandGroupsOn.Remove(group);

@@ -96,7 +96,8 @@ internal static class ProfilesPage
         return pressed;
     }
 
-    private static void Heading(string text)
+    /// <summary>A small-caps heading with a divider, for blocks laid out with GUILayout (also the Diagnostics pages).</summary>
+    internal static void Heading(string text)
     {
         Rect r = GUILayoutUtility.GetRect(10f, 26f, GUILayout.ExpandWidth(true));
         if (Event.current.type != EventType.Repaint) return;

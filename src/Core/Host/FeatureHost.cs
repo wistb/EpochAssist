@@ -66,6 +66,8 @@ internal static partial class FeatureHost
             Toasts.Show("host", $"{JoinNames(s_unavailable)} {verb} unavailable after a game update.", ToastKind.Warning);
             s_unavailable.Clear();
         }
+        // Other mods on our patch targets, or another autocaster: one toast per load. Nothing is turned off.
+        ModOverlap.CheckAfterStart();
     }
 
     public static void StopAll()

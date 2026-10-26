@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace EpochAssist.Core;
 
-// The release commands that need only the core: help, actions, run, set, compat and log (owner host).
+// The release commands that need only the core: help, actions, run, set, compat, log, profiles and mods (owner host).
 internal static class CoreCommands
 {
     private const int SettleFrames = 2;
@@ -25,6 +25,10 @@ internal static class CoreCommands
         Add("log", "log [error|warning|info|debug] [count]", "Shows the newest log lines at a level or more severe.", LogLines);
         Add("profiles", "profiles [use|new|copy|delete <name>] [rename <name> to <new name>] [export [segment ...]] [import <file> [new]]",
             "Lists the profiles, or picks, makes, copies, renames, deletes, exports or imports one.", ProfilesCommand);
+        Commands.Register(new Command("mods", "mods", "Lists the loaded mods, other mods' patches on Epoch Assist's targets, and known overlaps.", CommandMark.Release, "host", Mods)
+        {
+            DevVerbs = new[] { "simulate" },
+        });
     }
 
     private static void Add(string name, string usage, string help, Func<CommandCall, CommandResult> run) =>
@@ -141,6 +145,19 @@ internal static class CoreCommands
             default:
                 return CommandResult.Error("profiles: usage profiles [use|new|copy|delete <name>] [rename <name> to <new name>]");
         }
+    }
+
+    // The Diagnostics snapshot's three sections, "none" when empty.
+    private static CommandResult Mods(CommandCall call)
+    {
+        var report = ModOverlap.Check();
+        var text = new System.Text.StringBuilder($"ok mods: {report.Mods.Count} loaded, {report.Overlaps.Count} overlaps");
+        foreach (var (title, lines) in new[] { ("mods", report.ModLines.ToList()), ("overlaps", report.OverlapLines.ToList()), ("known overlaps", report.KnownLines.ToList()) })
+        {
+            text.Append('\n').Append(title).Append(lines.Count == 0 ? ": none" : ":");
+            foreach (string line in lines) text.Append("\n  ").Append(line);
+        }
+        return new CommandResult(Diagnostics.Scrub(text.ToString()));
     }
 
     // log [level] [count], in either order; the level defaults to the setting's.

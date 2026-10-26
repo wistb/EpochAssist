@@ -73,12 +73,16 @@ internal static class Diagnostics
         string mode = !GameState.InGame ? "not in game" : online == true ? "online" : online == false ? "offline" : "unknown";
         string kind = GameState.Kind switch { SceneKind.NonCombat => "non-combat", SceneKind.Combat => "combat", SceneKind.Menu => "menu", _ => "none" };
         var settings = SettingsRegistry.Groups.Where(g => g.Failures.Count > 0).Select(g => $"{g.Name} settings not updated: {string.Join("; ", g.Failures)}").ToList();
+        var overlap = ModOverlap.Check();
         return new DiagnosticsSnapshot(DateTime.Now, mode, GameState.Scene, kind, features, ModFrames.AverageMs, ModFrames.WorstMs, settings,
             ProfilesText(), Lines(ThemeProblems).Concat(ReportProblems()).ToList(), Reports.List().Select(r => $"{r.File} ({r.Feature}, count {r.Count})").ToList())
         {
             Edits = Core.Edits.Lines().ToList(),
             PatchedMethods = FeatureHost.All.Sum(f => PatchedBy(f)),
             Textures = Draw.ResourceCount + (UiTextures?.Invoke() ?? 0),
+            Mods = overlap.ModLines.ToList(),
+            Overlaps = overlap.OverlapLines.ToList(),
+            KnownOverlaps = overlap.KnownLines.ToList(),
         };
     }
 

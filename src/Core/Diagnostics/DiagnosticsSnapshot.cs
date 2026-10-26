@@ -52,6 +52,10 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
     /// <summary>Methods our features have patched now, and the textures the mod holds.</summary>
     public int PatchedMethods { get; init; }
     public int Textures { get; init; }
+    /// <summary>Loaded mods, other owners' patches on our targets, and loaded mods on the known-overlap list, one line each.</summary>
+    public IReadOnlyList<string> Mods { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> Overlaps { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> KnownOverlaps { get; init; } = Array.Empty<string>();
 
     public string ChangesText => $"edits {Edits.Count}, patched methods {PatchedMethods}, textures {Textures}";
 
@@ -83,6 +87,9 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
         text.Append("profiles: ").Append(Profiles).Append('\n');
         text.Append($"Edits: {Edits.Count}\n");
         foreach (string line in Edits) text.Append("  ").Append(line).Append('\n');
+        Section(text, "mods", Mods);
+        Section(text, "overlaps", Overlaps);
+        Section(text, "known overlaps", KnownOverlaps);
         Section(text, "problem files", ProblemFiles);
         Section(text, "reports", Reports);
         return Diagnostics.Scrub(text.ToString().TrimEnd('\n'));
