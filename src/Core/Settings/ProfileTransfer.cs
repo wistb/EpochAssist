@@ -29,7 +29,7 @@ internal sealed record ProfileExport(string Name, string Exported, JsonObject Ro
         return values != null && values.TryGetPropertyValue(setting.Id, out var value) ? value ?? JsonValue.Create(string.Empty) : null;
     }
 
-    /// <summary>After Apply: condition lists that kept entries this version can't read ("Every slot: 1").</summary>
+    /// <summary>After Apply: condition lists that kept entries this version can't read ("Shared Conditions: 1").</summary>
     public List<string> Unreadable { get; } = new();
 
     /// <summary>"Autocast (from version 2)" for each migrated group, for the import result.</summary>
@@ -214,6 +214,10 @@ internal static class ProfileTransfer
                     {
                         int unreadable = conditions.Doc.InvalidCounts().Sum(c => c.Count);
                         if (unreadable > 0) export.Unreadable.Add($"{setting.Label}: {unreadable}");
+                    }
+                    else if (setting is MacroLibrarySetting library && library.UnreadableParts is int parts and > 0)
+                    {
+                        export.Unreadable.Add($"{setting.Label}: {parts}");
                     }
                 }
                 else skipped++;

@@ -6,7 +6,7 @@ namespace EpochAssist.Core;
 /// Every declared condition kind, by id (contracts/condition-kinds.md). Ids and arg names are permanent. A later
 /// feature adds its own with Add; a list entry whose kind isn't here reads as invalid and is kept.
 /// </summary>
-internal static class ConditionKinds
+internal static partial class ConditionKinds
 {
     private static readonly List<ConditionKind> s_kinds = new();
     private static readonly Dictionary<string, ConditionKind> s_byId = new();
@@ -14,7 +14,8 @@ internal static class ConditionKinds
     /// <summary>Subjects in the order "+ Add condition" groups them, with their headings.</summary>
     public static readonly (string Subject, string Heading)[] Subjects =
     {
-        ("player", "Player"), ("buff", "Buffs"), ("slot", "Skills"), ("enemies", "Enemies"), ("input", "Keys"),
+        ("player", "Player"), ("buff", "Buffs"), ("potions", "Potions"), ("skill", "Skills"), ("slot", "Slots"), ("macro", "Macros"),
+        ("enemies", "Enemies"), ("enemy", "Enemy"), ("cursor", "Cursor"), ("players", "Players"), ("zone", "Zone"), ("input", "Keys"),
     };
 
     public static IReadOnlyList<ConditionKind> All => s_kinds;
@@ -26,6 +27,7 @@ internal static class ConditionKinds
         AddSlotKinds();
         AddEnemyKinds();
         AddInputKinds();
+        AddMacroKinds();
     }
 
     public static void Add(ConditionKind kind)
@@ -133,47 +135,85 @@ internal static class ConditionKinds
     {
         Add(Vital("player.health", "Health", "health", v => (v.Health, v.MaxHealth)));
         Add(Vital("player.mana", "Mana", "mana", v => (v.Mana, v.MaxMana)));
+        Add(new ConditionKind("player.healthMissing", "player", "Health missing")
+        {
+            Args = { ArgSpec.Choice("atLeast", "potion", "potion", "value"), ArgSpec.OptionalNumber("value", 1, 100000, 10) },
+            Parts = { new PartNeed("player", "vitals") },
+            Check = (_, a) =>
+            {
+                var vitals = FrameVitals();
+                if (vitals == null) return ConditionResult.Unknown(PlayerReason("vitals"));
+                float missing = Math.Max(0f, vitals.MaxHealth - vitals.Health);
+                if (a.Text("atLeast") == "value") return ConditionResult.Of(missing >= a.Number("value"), missing);
+                if (PlayerModel.PotionHeal is not float heal) return ConditionResult.Unknown(Missing(PlayerModel.LevelGroup));
+                return ConditionResult.Of(missing >= heal, missing, $"potion {N(heal)}");
+            },
+            Words = a => a.Text("atLeast") == "value" ? $"Health missing at least {N(a.Number("value"))}" : "Health missing at least a potion's heal",
+            FailText = a => a.Text("atLeast") == "value" ? $"health missing under {N(a.Number("value"))}" : "health missing under a potion's heal",
+            ValueText = r => r.Note is { } note ? $"{N(r.Number)} of {note[7..]}" : N(r.Number),
+        });
         Add(new ConditionKind("player.ward", "player", "Ward")
         {
-            Args = { ArgSpec.Choice("compare", "below", "below", "above"), ArgSpec.Number("percent", 50, 0, 300, 5, "%") },
+            Args = { ArgSpec.Compare("below", "below", "above"), ArgSpec.Number("percent", 50, 0, 300, 5, "%"), As(), ValueArg(), To() },
             Parts = { new PartNeed("player", "vitals") },
             Check = (_, a) =>
             {
                 var vitals = FrameVitals();
                 if (vitals == null) return ConditionResult.Unknown(PlayerReason("vitals"));
                 if (vitals.Ward is not float ward) return ConditionResult.Unknown(Missing("player: ward"));
+                if (IsValue(a)) return ConditionResult.Of(a.Compare(ward, "value"), ward, ValueNote);
                 if (vitals.MaxHealth <= 0f) return ConditionResult.Unknown("max health is 0");
-                return Compare(ward / vitals.MaxHealth * 100f, a);
+                float percent = ward / vitals.MaxHealth * 100f;
+                return ConditionResult.Of(a.Compare(percent, "percent"), percent);
             },
-            Words = a => $"Ward {a.Text("compare")} {N(a.Number("percent"))}% of health",
-            FailText = a => $"ward not {a.Text("compare")} {N(a.Number("percent"))}% of health",
-            ValueText = r => Pct(r.Number),
+            Validate = ValidateVital,
+            Words = a => IsValue(a) ? $"Ward {CompareText(a, "value", string.Empty)}" : $"Ward {CompareText(a, "percent", "%")} of health",
+            FailText = a => IsValue(a) ? $"ward not {CompareText(a, "value", string.Empty)}" : $"ward not {CompareText(a, "percent", "%")} of health",
+            ValueText = VitalText,
         });
     }
 
+    // Optional args vitals gained (absent: percent, as before).
+    private static ArgSpec As() => ArgSpec.Choice("as", "percent", "percent", "value").AsOptional();
+    private static ArgSpec ValueArg() => ArgSpec.OptionalNumber("value", 0, 1000000, 1);
+    private static ArgSpec To() => ArgSpec.OptionalNumber("to", 0, 1000000, 0.1f);
+
+    private static bool IsValue(ArgValues a) => a.Text("as") == "value";
+
+    private static string? ValidateVital(ArgValues a)
+    {
+        if (IsValue(a) && !a.Has("value")) return "set a value";
+        return a.BetweenInvalid(IsValue(a) ? "value" : "percent");
+    }
+
+    /// <summary>"below 50%", "between 30% and 60%": the entry's comparison against its limit arg.</summary>
+    private static string CompareText(ArgValues a, string limit, string unit) =>
+        ArgSpec.CompareWords(a.Text("compare"), a.Number(limit), a.Number("to"), unit);
+
     private static ConditionKind Vital(string id, string label, string word, Func<Vitals, (float Value, float Max)> read) => new(id, "player", label)
     {
-        Args = { ArgSpec.Choice("compare", "below", "below", "above"), ArgSpec.Number("percent", 50, 1, 100, 1, "%") },
+        Args = { ArgSpec.Compare("below", "below", "above"), ArgSpec.Number("percent", 50, 1, 100, 1, "%"), As(), ValueArg(), To() },
         Parts = { new PartNeed("player", "vitals") },
         Check = (_, a) =>
         {
             var vitals = FrameVitals();
             if (vitals == null) return ConditionResult.Unknown(PlayerReason("vitals"));
             var (value, max) = read(vitals);
+            if (IsValue(a)) return ConditionResult.Of(a.Compare(value, "value"), value, ValueNote);
             if (max <= 0f) return ConditionResult.Unknown($"max {word} is 0");
-            return Compare(value / max * 100f, a);
+            float percent = value / max * 100f;
+            return ConditionResult.Of(a.Compare(percent, "percent"), percent);
         },
-        Words = a => $"{label} {a.Text("compare")} {N(a.Number("percent"))}%",
-        FailText = a => $"{word} not {a.Text("compare")} {N(a.Number("percent"))}%",
-        ValueText = r => Pct(r.Number),
+        Validate = ValidateVital,
+        Words = a => IsValue(a) ? $"{label} {CompareText(a, "value", string.Empty)}" : $"{label} {CompareText(a, "percent", "%")}",
+        FailText = a => IsValue(a) ? $"{word} not {CompareText(a, "value", string.Empty)}" : $"{word} not {CompareText(a, "percent", "%")}",
+        ValueText = VitalText,
     };
 
-    private static ConditionResult Compare(float percent, ArgValues a)
-    {
-        float limit = a.Number("percent");
-        bool pass = a.Text("compare") == "above" ? percent > limit : percent < limit;
-        return ConditionResult.Of(pass, percent);
-    }
+    // Marks a vital read as a value rather than a percent, for the readout.
+    private const string ValueNote = "value";
+
+    private static string VitalText(ConditionResult r) => r.Note == ValueNote ? N(r.Number) : Pct(r.Number);
 
     // ---- buffs ----
 
@@ -213,20 +253,24 @@ internal static class ConditionKinds
         });
         Add(new ConditionKind("buff.ending", "buff", "Buff ending")
         {
-            Args = { ArgSpec.Buff("buff"), ArgSpec.Number("seconds", 2, 0.5f, 60, 0.5f, " s") },
+            Args = { ArgSpec.Buff("buff"), ArgSpec.Number("seconds", 2, 0.5f, 60, 0.5f, " s"), ArgSpec.Compare("below").AsOptional(), To() },
             Parts = { new PartNeed("player", "buffs") },
             Check = (_, a) =>
             {
                 var buffs = FrameBuffs();
                 if (buffs == null) return ConditionResult.Unknown(PlayerReason("buffs"));
                 var buff = FindBuff(buffs, a.Int("buff"));
-                if (buff == null) return ConditionResult.Pass(note: BuffMissingNote);
+                // A missing buff has run out: under any time left, never at least some.
+                if (buff == null) return ConditionResult.Of(a.Text("compare") is "below" or "atMost", note: BuffMissingNote);
                 // A buff with no timer never ends by itself, so it doesn't pass.
                 if (buff.TimeLeft is not float left) return ConditionResult.Fail(note: NoTimerNote);
-                return ConditionResult.Of(left < a.Number("seconds"), left);
+                return ConditionResult.Of(a.Compare(left, "seconds"), left);
             },
-            Words = a => $"{BuffName(a.Int("buff"))} under {N(a.Number("seconds"))} s",
-            FailText = a => $"{BuffName(a.Int("buff"))} has {N(a.Number("seconds"))} s or more",
+            Validate = a => a.BetweenInvalid("seconds"),
+            Words = a => a.Text("compare") == "below" ? $"{BuffName(a.Int("buff"))} under {N(a.Number("seconds"))} s"
+                : $"{BuffName(a.Int("buff"))} time {CompareText(a, "seconds", " s")}",
+            FailText = a => a.Text("compare") == "below" ? $"{BuffName(a.Int("buff"))} has {N(a.Number("seconds"))} s or more"
+                : $"{BuffName(a.Int("buff"))} time not {CompareText(a, "seconds", " s")}",
             ValueText = r => Seconds(r.Number),
         });
     }
@@ -281,8 +325,19 @@ internal static class ConditionKinds
 
     private static readonly Func<ArgValues, float> s_range = a => a.Number("range");
 
-    // The tally's numbers for the entry's range; unknown when it hasn't counted it.
-    private static bool Tallied(ConditionContext ctx, ArgValues a, out int count, out float weight, out Rarity? max, out ConditionResult unknown)
+    // Optional args enemy kinds gained (absent: around the hero, with the owner's weights, as before).
+    private static ArgSpec Centre() => ArgSpec.Choice("centre", "hero", "hero", "cursor").AsOptional();
+    private static ArgSpec OwnWeight(string name) => ArgSpec.OptionalNumber(name, 0, 100, 1);
+
+    private static readonly Func<ArgValues, TallyKey> s_key = a => new TallyKey(a.Number("range"), a.Text("centre") == "cursor");
+
+    private static readonly Func<ArgValues, TallyKey> s_weightKey = a => new TallyKey(a.Number("range"), a.Text("centre") == "cursor",
+        a.Number("wNormal"), a.Number("wMagic"), a.Number("wRare"), a.Number("wBoss"));
+
+    private static string Around(ArgValues a) => a.Text("centre") == "cursor" ? " around cursor" : string.Empty;
+
+    // The tally's numbers for the entry's key; unknown when it hasn't counted it.
+    private static bool Tallied(ConditionContext ctx, ArgValues a, TallyKey key, out int count, out float weight, out Rarity? max, out ConditionResult unknown)
     {
         count = 0;
         weight = 0f;
@@ -299,9 +354,9 @@ internal static class ConditionKinds
             unknown = ConditionResult.Unknown(tally.Failed);
             return false;
         }
-        if (!tally.TryGet(a.Number("range"), out count, out weight, out max))
+        if (!tally.TryGet(key, out count, out weight, out max))
         {
-            unknown = ConditionResult.Unknown(NotCounted);
+            unknown = ConditionResult.Unknown(key.Cursor && tally.CursorPoint == null ? "no cursor point" : NotCounted);
             return false;
         }
         return true;
@@ -315,43 +370,63 @@ internal static class ConditionKinds
     {
         Add(new ConditionKind("enemies.weight", "enemies", "Enemy weight")
         {
-            Args = { ArgSpec.Number("range", 15, 2, 60, 1, " m"), ArgSpec.Number("weight", 1, 1, 50, 1) },
+            Args =
+            {
+                ArgSpec.Number("range", 15, 2, 60, 1, " m"), ArgSpec.Number("weight", 1, 1, 500, 1),
+                ArgSpec.Compare("atLeast", "atLeast", "atMost", "below", "above").AsOptional(), To(), Centre(),
+                OwnWeight("wNormal"), OwnWeight("wMagic"), OwnWeight("wRare"), OwnWeight("wBoss"),
+            },
             Parts = { new PartNeed("world", "enemies") },
             Scanned = true,
             Range = s_range,
-            Check = (ctx, a) => Tallied(ctx, a, out _, out float weight, out _, out var unknown)
-                ? ConditionResult.Of(weight >= a.Number("weight") - 1e-4f, weight) : unknown,
-            Words = a => $"Enemy weight {N(a.Number("weight"))} within {N(a.Number("range"))} m",
-            LabelledWords = a => $"weight {N(a.Number("weight"))} within {N(a.Number("range"))} m",
+            TallyKey = s_weightKey,
+            Check = (ctx, a) => Tallied(ctx, a, s_weightKey(a), out _, out float weight, out _, out var unknown)
+                ? ConditionResult.Of(a.Compare(weight, "weight"), weight) : unknown,
+            Validate = a => a.BetweenInvalid("weight"),
+            Words = a => a.Text("compare") == "atLeast" ? $"Enemy weight {N(a.Number("weight"))} within {N(a.Number("range"))} m{Around(a)}"
+                : $"Enemy weight {CompareText(a, "weight", string.Empty)} within {N(a.Number("range"))} m{Around(a)}",
+            LabelledWords = a => a.Text("compare") == "atLeast" ? $"weight {N(a.Number("weight"))} within {N(a.Number("range"))} m{Around(a)}"
+                : $"weight {CompareText(a, "weight", string.Empty)} within {N(a.Number("range"))} m{Around(a)}",
             // The old enemy gate's reason, word for word.
             FailText = _ => "not enough enemies in range",
             ValueText = r => $"weight {N(r.Number)}",
         });
         Add(new ConditionKind("enemies.rarity", "enemies", "Enemy rarity")
         {
-            Args = { ArgSpec.Number("range", 12, 2, 60, 1, " m"), ArgSpec.Rarity("rarity", "rare") },
+            Args = { ArgSpec.Number("range", 12, 2, 60, 1, " m"), ArgSpec.Rarity("rarity", "rare"), Centre() },
             Parts = { new PartNeed("world", "enemies") },
             Scanned = true,
             Range = s_range,
+            TallyKey = s_key,
             Check = (ctx, a) =>
             {
-                if (!Tallied(ctx, a, out _, out _, out var max, out var unknown)) return unknown;
+                if (!Tallied(ctx, a, s_key(a), out _, out _, out var max, out var unknown)) return unknown;
                 bool pass = max is Rarity rarity && (int)rarity >= RarityRank(a.Text("rarity"));
                 return ConditionResult.Of(pass, note: RarityNote(max));
             },
-            Words = a => $"A {RarityWords(a.Text("rarity"))} within {N(a.Number("range"))} m",
-            FailText = a => $"no {RarityWords(a.Text("rarity"))} within {N(a.Number("range"))} m",
+            Words = a => $"A {RarityWords(a.Text("rarity"))} within {N(a.Number("range"))} m{Around(a)}",
+            FailText = a => $"no {RarityWords(a.Text("rarity"))} within {N(a.Number("range"))} m{Around(a)}",
         });
         Add(new ConditionKind("enemies.count", "enemies", "Enemy count")
         {
-            Args = { ArgSpec.Number("range", 10, 2, 60, 1, " m"), ArgSpec.Number("count", 3, 1, 50, 1) },
+            Args =
+            {
+                ArgSpec.Number("range", 10, 2, 60, 1, " m"), ArgSpec.Number("count", 3, 1, 50, 1),
+                ArgSpec.Compare("atLeast", "atLeast", "atMost", "below", "above").AsOptional(), To(), Centre(),
+            },
             Parts = { new PartNeed("world", "enemies") },
             Scanned = true,
             Range = s_range,
-            Check = (ctx, a) => Tallied(ctx, a, out int count, out _, out _, out var unknown)
-                ? ConditionResult.Of(count >= a.Number("count"), count) : unknown,
-            Words = a => $"{N(a.Number("count"))} enem{(a.Int("count") == 1 ? "y" : "ies")} within {N(a.Number("range"))} m",
-            FailText = a => $"fewer than {N(a.Number("count"))} enem{(a.Int("count") == 1 ? "y" : "ies")} within {N(a.Number("range"))} m",
+            TallyKey = s_key,
+            Check = (ctx, a) => Tallied(ctx, a, s_key(a), out int count, out _, out _, out var unknown)
+                ? ConditionResult.Of(a.Compare(count, "count"), count) : unknown,
+            Validate = a => a.BetweenInvalid("count"),
+            Words = a => a.Text("compare") == "atLeast"
+                ? $"{N(a.Number("count"))} enem{(a.Int("count") == 1 ? "y" : "ies")} within {N(a.Number("range"))} m{Around(a)}"
+                : $"Enemies {CompareText(a, "count", string.Empty)} within {N(a.Number("range"))} m{Around(a)}",
+            FailText = a => a.Text("compare") == "atLeast"
+                ? $"fewer than {N(a.Number("count"))} enem{(a.Int("count") == 1 ? "y" : "ies")} within {N(a.Number("range"))} m{Around(a)}"
+                : $"enemies not {CompareText(a, "count", string.Empty)} within {N(a.Number("range"))} m{Around(a)}",
             ValueText = r => $"{N(r.Number)} enem{(r.Number == 1f ? "y" : "ies")}",
         });
     }

@@ -8,6 +8,53 @@ internal readonly record struct ListVerdict(bool Passed, int FirstFailing)
     public static readonly ListVerdict Pass = new(true, -1);
 }
 
+/// <summary>A tree's verdict: whether it passes, and the node that made it fail (-1 when none): for an "all" its first
+/// failing item (followed into a failing group), for an "any" its first switched-on item (followed), for a "none" the
+/// first item that passes.</summary>
+internal readonly record struct TreeVerdict(bool Passed, int FirstFailing)
+{
+    public static readonly TreeVerdict Pass = new(true, -1);
+}
+
+/// <summary>
+/// A caller's state for checking one tree: each node's last result and whether it counted, and since when each
+/// condition has counted (for "for"). Bound to one list; binding another (a new stored text) resets it. Dropped with its
+/// owner (a run, the feature's run holder). Sized once per bound list, so checks allocate nothing.
+/// </summary>
+internal sealed class TreeState
+{
+    public ConditionList? List { get; private set; }
+    public ConditionResult[] Results = Array.Empty<ConditionResult>();
+    /// <summary>Whether each node counted as passing at the last check (after "for").</summary>
+    public bool[] Counted = Array.Empty<bool>();
+    /// <summary>When each condition began to pass without a break, before "for" (NaN while it doesn't).</summary>
+    public float[] PassingSince = Array.Empty<float>();
+    public TreeVerdict Verdict { get; internal set; } = TreeVerdict.Pass;
+    /// <summary>The owner's note of the frame it was last checked (an editor checks once a frame).</summary>
+    public int Frame = -1;
+
+    /// <summary>Binds the state to a list; a different list resets results and timers.</summary>
+    public void Bind(ConditionList list)
+    {
+        if (ReferenceEquals(list, List)) return;
+        List = list;
+        int n = Math.Max(1, list.NodeCount);
+        if (Results.Length < n)
+        {
+            Results = new ConditionResult[n];
+            Counted = new bool[n];
+            PassingSince = new float[n];
+        }
+        Array.Clear(Results);
+        Array.Clear(Counted);
+        Array.Fill(PassingSince, float.NaN);
+        Verdict = TreeVerdict.Pass;
+    }
+
+    /// <summary>Forgets the bound list (results and timers start again on the next check).</summary>
+    public void Reset() => List = null;
+}
+
 /// <summary>
 /// Checks condition lists. Every switched-on entry is checked (no short cut, so readouts and the dev verbs show every
 /// value); pass counts as pass, fail and invalid as fail, unknown by the entry's "true when unresolvable" switch. A kind
@@ -15,23 +62,115 @@ internal readonly record struct ListVerdict(bool Passed, int FirstFailing)
 /// </summary>
 internal static class Conditions
 {
-    /// <summary>Checks a list into results (one per entry, caller-owned and big enough; switched-off entries are left as
-    /// they were) and gives its verdict. An invalid list fails. Allocates nothing.</summary>
+    /// <summary>Checks a list's root items into results (one per root item, caller-owned and big enough; switched-off
+    /// items are left as they were) and gives its verdict. Groups are checked through their items; "for" isn't timed
+    /// here (it needs a TreeState). An invalid list fails. Allocates nothing.</summary>
     public static ListVerdict Check(ConditionList list, ConditionContext ctx, ConditionResult[] results)
     {
         if (list.Invalid != null) return new ListVerdict(false, -1);
         int first = -1;
-        var entries = list.Entries;
-        for (int i = 0; i < entries.Count && i < results.Length; i++)
+        var nodes = list.Nodes;
+        int item = 0;
+        for (int i = 0; i < nodes.Length; i = list.End(i), item++)
         {
-            var entry = entries[i];
-            if (!entry.On) continue;
-            var result = Check(entry, ctx);
-            results[i] = result;
-            if (!Counts(entry, result) && first < 0) first = i;
+            var entry = nodes[i];
+            if (!entry.On || item >= results.Length) continue;
+            bool counts = CheckNode(list, i, ctx, null, out var result);
+            results[item] = result;
+            if (!counts && first < 0) first = item;
         }
         return new ListVerdict(first < 0, first);
     }
+
+    /// <summary>Checks a whole tree into the state (bound to the list first) and gives its verdict; "for" timers run on
+    /// ctx.Now. Every switched-on node is checked. An invalid list fails. Allocates nothing.</summary>
+    public static TreeVerdict Check(ConditionList list, ConditionContext ctx, TreeState state)
+    {
+        state.Bind(list);
+        if (list.Invalid != null) return state.Verdict = new TreeVerdict(false, -1);
+        var nodes = list.Nodes;
+        bool passed = true;
+        int first = -1;
+        for (int i = 0; i < nodes.Length; i = list.End(i))
+        {
+            if (!nodes[i].On) continue;
+            if (CheckNode(list, i, ctx, state, out _) || !passed) continue;
+            passed = false;
+            first = Culprit(list, i, state);
+        }
+        return state.Verdict = new TreeVerdict(passed, first);
+    }
+
+    // One node and, for a group, everything below it; true when it counts. With a state, every node's result and count
+    // are kept and "for" is timed.
+    private static bool CheckNode(ConditionList list, int node, ConditionContext ctx, TreeState? state, out ConditionResult result)
+    {
+        var entry = list.Nodes[node];
+        bool counts;
+        if (entry.Group is not { } group || entry.Invalid != null)
+        {
+            result = Check(entry, ctx);
+            counts = Counts(entry, result);
+            if (state != null)
+            {
+                // Since when it has passed without a break (what set a macro off); with "for" it counts only once it has
+                // passed for the whole time, and any break starts the time again.
+                if (!counts) state.PassingSince[node] = float.NaN;
+                else if (float.IsNaN(state.PassingSince[node])) state.PassingSince[node] = ctx.Now;
+                if (entry.For > 0f) counts = counts && ctx.Now - state.PassingSince[node] >= entry.For - 1e-4f;
+            }
+        }
+        else
+        {
+            int on = 0, passing = 0;
+            for (int i = node + 1; i < list.End(node); i = list.End(i))
+            {
+                if (!list.Nodes[i].On) continue;
+                on++;
+                if (CheckNode(list, i, ctx, state, out _)) passing++;
+            }
+            counts = group.Type switch
+            {
+                "any" => on == 0 || passing > 0,
+                "none" => passing == 0,
+                _ => passing == on,
+            };
+            result = ConditionResult.Of(counts, passing, GroupNote(on));
+        }
+        if (state != null)
+        {
+            state.Results[node] = result;
+            state.Counted[node] = counts;
+        }
+        return counts;
+    }
+
+    // The node to name when a node fails: a condition itself; in a failing "all" its first failing item, in a failing
+    // "any" its first switched-on item (followed down), in a failing "none" its first item that passes.
+    private static int Culprit(ConditionList list, int node, TreeState state)
+    {
+        var entry = list.Nodes[node];
+        if (entry.Group is not { } group || entry.Invalid != null) return node;
+        for (int i = node + 1; i < list.End(node); i = list.End(i))
+        {
+            if (!list.Nodes[i].On) continue;
+            bool counted = state.Counted[i];
+            switch (group.Type)
+            {
+                case "none" when counted:
+                    return i;
+                case "any":
+                case "all" when !counted:
+                    return Culprit(list, i, state);
+            }
+        }
+        return node;
+    }
+
+    private static readonly string[] s_groupNotes = Enumerable.Range(0, ConditionList.Limit + 1).Select(n => $"of {n}").ToArray();
+
+    // "of 3": a group's switched-on items, beside the passing count; made once per count.
+    private static string GroupNote(int on) => on < s_groupNotes.Length ? s_groupNotes[on] : $"of {on}";
 
     /// <summary>One entry: invalid when it can't be checked here, else its kind's answer.</summary>
     public static ConditionResult Check(ConditionEntry entry, ConditionContext ctx)
@@ -66,7 +205,9 @@ internal static class Conditions
     };
 
     /// <summary>A result as a readout shows it: the value, or why it's unknown or invalid.</summary>
-    public static string ValueText(ConditionEntry entry, ConditionResult result) => result.State switch
+    public static string ValueText(ConditionEntry entry, ConditionResult result) => entry.IsGroup && result.State != ConditionState.Invalid
+        ? $"{ArgSpec.Format(result.Number)} {result.Note} pass"
+        : result.State switch
     {
         ConditionState.Invalid => result.Reason ?? "invalid",
         ConditionState.Unknown => result.Reason ?? "unknown",

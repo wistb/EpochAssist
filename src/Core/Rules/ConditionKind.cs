@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace EpochAssist.Core;
 
 // Never stored: entries store args by name and choices by option name.
-internal enum ArgKind { Number, Choice, Buff, Slot, Rarity, Key }
+internal enum ArgKind { Number, Choice, Buff, Slot, Rarity, Key, Skill, Mod, Ailment, Bool }
 internal enum ConditionState { Pass, Fail, Unknown, Invalid }
 
 /// <summary>
@@ -30,6 +30,12 @@ internal sealed class ArgSpec
     public string Unit { get; private init; } = string.Empty;
     /// <summary>Choice and rarity options, by stored name.</summary>
     public string[] Options { get; private init; } = Array.Empty<string>();
+    /// <summary>A missing value reads as Default (or as no value when there is none) instead of making the entry invalid,
+    /// so an argument added later leaves stored entries meaning what they meant.</summary>
+    public bool Optional { get; init; }
+
+    /// <summary>The comparisons a "compare" arg offers, in menu order.</summary>
+    public static readonly string[] Comparisons = { "below", "above", "atLeast", "atMost", "between" };
 
     public static readonly string[] Rarities = { "magic", "rare", "boss" };
 
@@ -49,6 +55,29 @@ internal sealed class ArgSpec
 
     public static ArgSpec Key(string name) => new(name, ArgKind.Key, JsonValue.Create(string.Empty));
 
+    /// <summary>A yes/no, stored as true or false.</summary>
+    public static ArgSpec Bool(string name, bool defaultValue) => new(name, ArgKind.Bool, JsonValue.Create(defaultValue));
+
+    /// <summary>A skill by ability id ("smbmb"); the player picks it.</summary>
+    public static ArgSpec Skill(string name) => new(name, ArgKind.Skill, null);
+
+    /// <summary>A monster mod by its key; the player picks it.</summary>
+    public static ArgSpec Mod(string name) => new(name, ArgKind.Mod, null);
+
+    /// <summary>An ailment by id (0–255), as buffs are; the player picks it.</summary>
+    public static ArgSpec Ailment(string name) => new(name, ArgKind.Ailment, null);
+
+    /// <summary>A comparison: the kind's original ones first (so stored values keep meaning), then the rest.</summary>
+    public static ArgSpec Compare(string defaultValue, params string[] first) =>
+        Choice("compare", defaultValue, first.Concat(Comparisons.Where(c => !first.Contains(c))).ToArray());
+
+    /// <summary>A copy that may be missing (reading as its default).</summary>
+    public ArgSpec AsOptional() => new(Name, Kind, Default) { Min = Min, Max = Max, Step = Step, Unit = Unit, Options = Options, Optional = true };
+
+    /// <summary>An optional number with no default: absent reads as no value (NaN).</summary>
+    public static ArgSpec OptionalNumber(string name, float min, float max, float step, string unit = "") =>
+        new(name, ArgKind.Number, null) { Min = min, Max = max, Step = step, Unit = unit, Optional = true };
+
     /// <summary>A stored value read as this arg: a number in range and on a step, an option, a buff id, or chord text.
     /// Null with the reason when it doesn't fit.</summary>
     public bool TryRead(JsonNode? node, out float number, out string? text, out string reason)
@@ -56,6 +85,15 @@ internal sealed class ArgSpec
         number = 0f;
         text = null;
         reason = string.Empty;
+        if (node == null && Optional)
+        {
+            if (Default == null)
+            {
+                number = float.NaN;
+                return true;
+            }
+            node = Default;
+        }
         switch (Kind)
         {
             case ArgKind.Number:
@@ -89,12 +127,37 @@ internal sealed class ArgSpec
                 reason = node == null ? $"{Name} missing" : $"{Name} isn't one of {string.Join(", ", Options)}";
                 return false;
             case ArgKind.Buff:
+            case ArgKind.Ailment:
                 if (TryNumber(node, out double id) && id >= 0 && id <= 255 && Math.Abs(id - Math.Round(id)) < 1e-6)
                 {
                     number = (float)Math.Round(id);
                     return true;
                 }
-                reason = "pick a buff";
+                reason = Kind == ArgKind.Buff ? "select buff" : "select ailment";
+                return false;
+            case ArgKind.Mod:
+                if (TryNumber(node, out double mod) && mod >= 0 && Math.Abs(mod - Math.Round(mod)) < 1e-6)
+                {
+                    number = (float)Math.Round(mod);
+                    return true;
+                }
+                reason = "select monster mod";
+                return false;
+            case ArgKind.Bool:
+                if (node is JsonValue bv && bv.TryGetValue(out bool flag))
+                {
+                    number = flag ? 1f : 0f;
+                    return true;
+                }
+                reason = $"{Name} isn't true or false";
+                return false;
+            case ArgKind.Skill:
+                if (node is JsonValue sv && sv.TryGetValue(out string? skill) && skill.Length > 0)
+                {
+                    text = skill;
+                    return true;
+                }
+                reason = "select skill";
                 return false;
             case ArgKind.Key:
                 if (node is JsonValue kv && kv.TryGetValue(out string? chordText) && Chord.TryParse(chordText, HotkeyKind.Hold, out var chord) && !chord.IsEmpty)
@@ -120,6 +183,25 @@ internal sealed class ArgSpec
     }
 
     public static string Format(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary>"below 50%", "at least 3", "between 30% and 60%": a comparison's words with the unit after each number.</summary>
+    public static string CompareWords(string compare, float limit, float to, string unit) => compare switch
+    {
+        "above" => $"above {Format(limit)}{unit}",
+        "atLeast" => $"at least {Format(limit)}{unit}",
+        "atMost" => $"at most {Format(limit)}{unit}",
+        "between" => $"between {Format(limit)}{unit} and {(float.IsNaN(to) ? "?" : Format(to))}{unit}",
+        _ => $"below {Format(limit)}{unit}",
+    };
+
+    /// <summary>The words for an option a menu shows ("at least" for atLeast).</summary>
+    public static string OptionWords(string option) => option switch
+    {
+        "atLeast" => "at least",
+        "atMost" => "at most",
+        "potion" => "a potion's heal",
+        _ => option,
+    };
 }
 
 /// <summary>An entry's arguments, read once when its document is parsed, by name. Reading them allocates nothing.</summary>
@@ -151,6 +233,31 @@ internal readonly struct ArgValues
 
     public int Int(string name) => (int)Math.Round(Number(name));
 
+    /// <summary>Whether a number arg has a value (an optional one without a default may not).</summary>
+    public bool Has(string name) => IndexOf(name) is int i and >= 0 && (_texts[i] != null || !float.IsNaN(_numbers[i]));
+
+    /// <summary>A yes/no arg; false when the kind has no such arg.</summary>
+    public bool Flag(string name) => Number(name) > 0.5f;
+
+    /// <summary>
+    /// The value against the entry's compare (below when absent), its limit arg and, for between, "to" (both ends
+    /// included). Allocates nothing.
+    /// </summary>
+    public bool Compare(float value, string limit) => Compare(value, Text("compare"), Number(limit), Number("to"));
+
+    public static bool Compare(float value, string compare, float limit, float to) => compare switch
+    {
+        "above" => value > limit,
+        "atLeast" => value >= limit - 1e-4f,
+        "atMost" => value <= limit + 1e-4f,
+        "between" => value >= limit - 1e-4f && value <= to + 1e-4f,
+        _ => value < limit,
+    };
+
+    /// <summary>"set an upper bound" when compare is between and "to" is missing or below the limit; else null.</summary>
+    public string? BetweenInvalid(string limit) =>
+        Text("compare") == "between" && (!Has("to") || Number("to") < Number(limit) - 1e-4f) ? "set an upper bound" : null;
+
     /// <summary>A choice, rarity or key arg's stored text; empty when the kind has no such arg.</summary>
     public string Text(string name) => IndexOf(name) is int i and >= 0 ? _texts[i] ?? string.Empty : string.Empty;
 }
@@ -171,9 +278,12 @@ internal readonly record struct ConditionResult(ConditionState State, float Numb
     public bool HasValue => !float.IsNaN(Number) || Note != null;
 }
 
-/// <summary>What a check is about: the slot the list belongs to (0-based, -1 for none), the owner's enemy tally, and now.</summary>
+/// <summary>What a check is about: the slot the list belongs to (0-based, -1 for none), the owner's enemy tally, and now;
+/// for a library macro's trees, its id.</summary>
 internal readonly record struct ConditionContext(int Slot, WorldTally? Tally, float Now)
 {
+    public string? Macro { get; init; }
+
     /// <summary>A slot arg as a bar slot number (1–5): 0 means the list's own slot; 0 when there is none.</summary>
     public int SlotNumber(int arg) => arg > 0 ? arg : Slot >= 0 ? Slot + 1 : 0;
 }
@@ -205,7 +315,18 @@ internal sealed class ConditionKind
     public bool Scanned { get; init; }
     /// <summary>For scanned kinds: the range in metres the entry needs counted.</summary>
     public Func<ArgValues, float>? Range { get; init; }
+    /// <summary>For enemy kinds: which enemy the entry is about; the owner's scan picks it.</summary>
+    public Func<ArgValues, SubjectKey>? Picks { get; init; }
+    /// <summary>For scanned kinds: what the entry needs counted (range, centre, weights); null reads Range around the
+    /// hero with the owner's weights.</summary>
+    public Func<ArgValues, TallyKey>? TallyKey { get; init; }
+
+    /// <summary>The count a scanned entry needs, or null for a kind that isn't scanned.</summary>
+    public TallyKey? KeyFor(ArgValues values) =>
+        !Scanned ? null : TallyKey != null ? TallyKey(values) : Range != null ? new TallyKey(Range(values), false) : null;
     public Func<ConditionContext, ArgValues, ConditionResult> Check { get; init; } = (_, _) => ConditionResult.Unknown("no check");
+    /// <summary>Why read args can't be checked together (between without an upper bound), or null.</summary>
+    public Func<ArgValues, string?>? Validate { get; init; }
     /// <summary>The entry's sentence: "Health below 50%".</summary>
     public Func<ArgValues, string> Words { get; init; } = _ => string.Empty;
     /// <summary>The words after an entry's label, when they read better shorter ("Enemy gate: weight 1 within 15 m").</summary>
