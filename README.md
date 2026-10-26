@@ -23,7 +23,7 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 
 ## Settings
 
-Open Settings with the gear in the menu's sidebar.
+Open the Settings tab at the top of the menu. The search box there finds any setting.
 
 - **Mini HUD**: shows autocast's state and slots while the menu is closed. Click it for quick toggles.
   <details><summary>Screenshots</summary>
@@ -33,7 +33,7 @@ Open Settings with the gear in the menu's sidebar.
   ![Settings: Mini HUD](nexus/media/settings-hud.png)
 
   </details>
-- **Appearance**: themes (Slate, Ember, Epoch, Glass), fonts and animations.
+- **Appearance**: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations.
   <details><summary>Screenshot</summary>
 
   ![Settings: Appearance](nexus/media/appearance.png)
