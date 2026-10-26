@@ -43,6 +43,46 @@ internal sealed class CrashTestFeature : Feature
     }
     private static DispatchClient? s_uiClient;
 
+    // A dev-only page in the Dev tab: a list row over an in-memory list (nothing saved), for checking the list row by
+    // mouse, keys, search and the bridge.
+    public override MenuEntry? Menu => s_menu;
+
+    private sealed class TestEntry
+    {
+        public int Kind;
+        public float Value;
+    }
+
+    private static readonly string[] s_kinds = { "Health below", "Mana below", "Enemies within" };
+    private static readonly List<TestEntry> s_entries = new()
+    {
+        new() { Kind = 0, Value = 40f }, new() { Kind = 1, Value = 25f }, new() { Kind = 2, Value = 10f },
+    };
+
+    private static readonly MenuEntry s_menu = new(MenuCategory.Dev, order: 90)
+    {
+        Pages =
+        {
+            new MenuPage("List row")
+            {
+                Rows =
+                {
+                    new HintRow(() => "Test entries, kept in memory only. Add, move and remove them by mouse or keys."),
+                    new ListRow("Conditions", () => s_entries, entry => new MenuRow[]
+                    {
+                        new ValueChoice("Condition", () => ((TestEntry)entry).Kind, v => ((TestEntry)entry).Kind = v, () => s_kinds),
+                        new ValueNumber("Amount", () => ((TestEntry)entry).Value, v => ((TestEntry)entry).Value = v, 0f, 100f, 5f, "%"),
+                    }, "Add condition")
+                    {
+                        Add = () => s_entries.Add(new TestEntry { Kind = 0, Value = 50f }),
+                        Remove = i => s_entries.RemoveAt(i),
+                        Move = (from, to) => (s_entries[from], s_entries[to]) = (s_entries[to], s_entries[from]),
+                    },
+                },
+            },
+        },
+    };
+
     public static void ArmFault() => s_updateThrows = 5;
 
     public static void ArmStart(string message) => s_startThrow = message;

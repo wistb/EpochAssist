@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 # Starts a new feature the way the codebase does it, in its own folder src/Features/<Name>/: a feature class, its logic
-# with a per-run state holder, a settings group and a menu page. Registration in Runtime.Init is left to do by hand; the
+# with a per-run state holder, a settings group, and its place in the menu as data (no drawing code). Registration in Runtime.Init is left to do by hand; the
 # update order follows the feature's Needs and RunsAfter, not its place in the list.
-# Usage: tools/new-feature.sh <Name> [--id <id>] [--automation] [--patch]
+# Usage: tools/new-feature.sh <Name> [--id <id>] [--category <tab>] [--automation] [--patch]
 #   <Name>        PascalCase letters and digits (AutoPotion)
 #   --id          lowercase letters and digits; default: the name lowercased
+#   --category    the menu tab: combat (default), overlays, map, visuals or stats
 #   --automation  adds a dispatcher client (priority Skills) with one pause rule of its own
 #   --patch       adds a Harmony patch class with a placeholder target, in an optional group
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-usage() { echo "usage: $0 <Name> [--id <id>] [--automation] [--patch]" >&2; exit 1; }
+usage() { echo "usage: $0 <Name> [--id <id>] [--category <tab>] [--automation] [--patch]" >&2; exit 1; }
 
-name="" id="" automation=0 patch=0
+name="" id="" category="combat" automation=0 patch=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --id) [ $# -ge 2 ] || usage; id="$2"; shift 2 ;;
+        --category) [ $# -ge 2 ] || usage; category="$2"; shift 2 ;;
         --automation) automation=1; shift ;;
         --patch) patch=1; shift ;;
         -*) usage ;;
@@ -28,12 +30,15 @@ done
 refuse() { echo "Refused: $1; nothing was written." >&2; exit 1; }
 [[ "$name" =~ ^[A-Z][A-Za-z0-9]*$ ]] || refuse "the name must be PascalCase letters and digits, starting with a capital"
 [[ "$id" =~ ^[a-z][a-z0-9]*$ ]] || refuse "the id must be lowercase letters and digits, starting with a letter"
+case "$category" in
+    combat) tab=Combat ;; overlays) tab=Overlays ;; map) tab=Map ;; visuals) tab=Visuals ;; stats) tab=Stats ;;
+    *) refuse "the category must be combat, overlays, map, visuals or stats" ;;
+esac
 
 feature="src/Features/${name}/${name}Feature.cs"
 logic="src/Features/${name}/${name}.cs"
 settings="src/Features/${name}/${name}Settings.cs"
-page="src/Features/${name}/${name}Page.cs"
-for file in "$feature" "$logic" "$settings" "$page"; do
+for file in "$feature" "$logic" "$settings"; do
     [ ! -e "$root/$file" ] || refuse "$file already exists"
 done
 grep -rqF "Id => \"$id\"" "$root/src" && refuse "a feature already has the id '$id'"
@@ -76,12 +81,11 @@ write() {
             else if ($0 == "@@PATCH@@") part = patch_members
             else { print; next }
             if (part != "") print part
-        }' | sed -e "s/__NAME__/$name/g" -e "s/__ID__/$id/g" > "$target"
+        }' | sed -e "s/__NAME__/$name/g" -e "s/__ID__/$id/g" -e "s/__TAB__/$tab/g" > "$target"
 }
 
 write "$feature" <<'EOF'
 using EpochAssist.Core;
-using EpochAssist.Ui;
 using Feature = EpochAssist.Core.Feature;
 using S = EpochAssist.Features.__NAME__Settings;
 
@@ -99,11 +103,18 @@ internal sealed class __NAME__Feature : Feature
     public override string[] Needs => new[] { @NEEDS@ };
     // Features it runs after each frame, order only: profiles puts a character's settings in place first.
     public override string[] RunsAfter => new[] { "profiles" };
-    // A page in the menu (its switch in the header) and a place on the HUD pill.
-    public override FeaturePage? Page => s_page;
+    // Its place in the menu and on the HUD pill. The menu draws the entry: a node in the __TAB__ tab with a page per
+    // settings section, searchable and reachable by key, with no drawing code here. Players can turn the whole feature
+    // off from Settings › Diagnostics › Features.
+    public override MenuEntry? Menu => s_menu;
     public override string? StatusName => "__NAME__";
 
-    private static readonly FeaturePage s_page = new("__NAME__", 20, __NAME__Page.Draw) { Switch = S.Enabled };
+    private static readonly MenuEntry s_menu = new(MenuCategory.__TAB__, order: 20)
+    {
+        // The node's dot shows its switch, which the footer and the HUD panel offer too.
+        Switch = S.Enabled,
+        Pages = { new MenuPage(S.Main), new MenuPage(S.Options) },
+    };
 
     // Player, world and game data come from the models: add "player", "world" or "data" to Needs and declare each part
     // it reads, e.g. public override PartNeed[] Parts => new[] { Part("player", "skill bar") };
@@ -214,6 +225,13 @@ internal static class __NAME__Settings
     // Off until the player turns it on. The quick label offers it on the HUD panel.
     public static readonly Toggle Enabled = new(Main, "Enabled", "__NAME__", false) { QuickLabel = "__NAME__" };
 
+    // Each section is a page in the menu; a setting's label, help and range are declared here only.
+    public static readonly Section Options = Group.Section("options", "Options");
+    public static readonly Number Range = new(Options, "Range", "Range", 15f, 2f, 60f)
+    {
+        Unit = " m", Help = "Replace with the feature's own settings.",
+    };
+
     public static void Register()
     {
         // Migrations go here, before Register: Group.Migration(2, _ => { ... });
@@ -222,28 +240,10 @@ internal static class __NAME__Settings
 }
 EOF
 
-write "$page" <<'EOF'
-using EpochAssist.Core;
-using EpochAssist.Ui;
-using S = EpochAssist.Features.__NAME__Settings;
-
-namespace EpochAssist.Features;
-
-// __NAME__'s page below the header, which already shows its switch: its settings as cards.
-internal static class __NAME__Page
-{
-    public static void Draw()
-    {
-        Menu.BeginScroll();
-        SettingsView.Card(S.Main);
-        Menu.EndScroll();
-    }
-}
-EOF
-
-echo "Created $feature, $logic, $settings, $page"
+echo "Created $feature, $logic, $settings"
 echo "Next:"
 echo "  1. Register it in Runtime.Init (src/Core/Host/Entry.cs): new ${name}Feature(). The update order follows its Needs"
 echo "     and RunsAfter, so its place in the list doesn't matter."
 echo "  2. Replace the example requirements$([ "$patch" = 1 ] && echo " and the patch target") with real ones."
-echo "  3. Check it with ./build.sh and ./build.sh dev."
+echo "  3. Replace the example Options section with the feature's settings; each section is a page under ${tab} › ${name}."
+echo "  4. Check it with ./build.sh and ./build.sh dev: its node shows in the ${tab} tab, and menu rows prints its pages."
