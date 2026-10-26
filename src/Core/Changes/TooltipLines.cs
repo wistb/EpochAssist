@@ -53,7 +53,7 @@ internal static class TooltipLines
     }
 
     /// <summary>The group's patch is live (the feature runs and a provider exists).</summary>
-    public static bool Patched => FeatureHost.Find("gameui") is { } feature && feature.DemandGroupsOn.Contains(GameUiFeature.TooltipGroup);
+    public static bool Patched => FeatureHost.Find("gameui") is { } feature && feature.Record.DemandGroupsOn.Contains(GameUiFeature.TooltipGroup);
 
     private static TooltipItem Describe(ItemDataUnpacked item)
     {

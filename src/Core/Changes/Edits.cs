@@ -50,7 +50,7 @@ internal static class Edits
         }
         var edit = new Edit<T>(owner, target, value, typed);
         typed.Push(edit);
-        owner.Edits.Add(edit);
+        owner.Record.Edits.Add(edit);
         s_active.Add(edit);
         s_added = true;
         if (typed.Top == edit && typed.LiveCount > 0) Run(owner, "edit " + target.Name, () => typed.WriteAll(value));
@@ -78,11 +78,11 @@ internal static class Edits
     internal static void RemoveOwner(Feature owner)
     {
         // Latest first, so an owner's own stacked edits unwind in order.
-        for (int i = owner.Edits.Count - 1; i >= 0; i--)
+        for (int i = owner.Record.Edits.Count - 1; i >= 0; i--)
         {
-            if (i < owner.Edits.Count) owner.Edits[i].Remove();
+            if (i < owner.Record.Edits.Count) owner.Record.Edits[i].Remove();
         }
-        owner.Edits.Clear();
+        owner.Record.Edits.Clear();
     }
 
     /// <summary>Shutdown (reload and quit), after every feature stopped: whatever is left goes back; errors are logged.</summary>
@@ -100,7 +100,7 @@ internal static class Edits
             }
         }
         s_stacks.Clear();
-        foreach (var edit in s_active) edit.Owner.Edits.Clear();
+        foreach (var edit in s_active) edit.Owner.Record.Edits.Clear();
         s_active.Clear();
         EditsFile.Reset();
     }

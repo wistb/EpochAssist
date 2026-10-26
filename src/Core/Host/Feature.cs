@@ -50,13 +50,16 @@ internal abstract class Feature
     public virtual FeatureStatus Status =>
         State == FeatureState.Running ? new FeatureStatus(StatusState.Active, string.Empty, null) : FeatureStatus.Off(LastError ?? string.Empty);
 
-    public FeatureState State { get; internal set; }
-    public string? LastError { get; internal set; }
+    /// <summary>What the host tracks about this feature; it alone writes it.</summary>
+    internal FeatureRecord Record { get; } = new();
+
+    public FeatureState State => Record.State;
+    public string? LastError => Record.LastError;
     /// <summary>When LastError was set by an error (local time); null when it isn't one.</summary>
-    public DateTime? LastErrorAt { get; internal set; }
+    public DateTime? LastErrorAt => Record.LastErrorAt;
     /// <summary>The need that kept or took this feature out of Running, or null.</summary>
-    public string? BlockedBy { get; internal set; }
-    public List<string> PatchFailures { get; } = new();
+    public string? BlockedBy => Record.BlockedBy;
+    public List<string> PatchFailures => Record.PatchFailures;
 
     /// <summary>Registers settings. Called once per load, before the first start.</summary>
     public virtual void RegisterSettings() { }
@@ -85,15 +88,14 @@ internal abstract class Feature
     public virtual double BudgetMs => 0.3;
 
     /// <summary>Its average was over BudgetMs for 3 counted seconds in a row (cleared after 3 under), and since when.</summary>
-    public bool OverBudget { get; internal set; }
-    public DateTime? OverSince { get; internal set; }
-    internal int OverStreak, UnderStreak;
+    public bool OverBudget => Record.OverBudget;
+    public DateTime? OverSince => Record.OverSince;
 
     /// <summary>Extra lines for the feature's Diagnostics details (game events: producers the mode doesn't support).</summary>
     public virtual IEnumerable<string> DiagnosticNotes => Array.Empty<string>();
 
     /// <summary>Optional requirement groups the game lacks; the feature runs without them.</summary>
-    public HashSet<string> MissingGroups { get; } = new();
+    public HashSet<string> MissingGroups => Record.MissingGroups;
 
     /// <summary>False when an optional requirement group is missing from the game.</summary>
     public bool Has(string group) => !MissingGroups.Contains(group);
@@ -106,15 +108,4 @@ internal abstract class Feature
         owner.GetNestedTypes(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
             .Where(t => Attribute.IsDefined(t, typeof(HarmonyPatch)))
             .ToArray();
-
-    internal HarmonyLib.Harmony? HarmonyInstance;
-    // The DemandGroups the host has patched now.
-    internal readonly HashSet<string> DemandGroupsOn = new();
-    // The scheduler's jobs owned by this feature; the host drops them when it leaves Running.
-    internal readonly List<Job> Jobs = new();
-    // The registry's edits owned by this feature; the host removes them when it leaves Running.
-    internal readonly List<Edit> Edits = new();
-    internal readonly FrameTimes Frames = new();
-    internal readonly Queue<float> RecentErrors = new();
-    internal bool SettingsRegistered;
 }

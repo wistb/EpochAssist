@@ -20,7 +20,7 @@ internal static class EventCommands
         int featureJobs = 0;
         foreach (var feature in FeatureHost.All)
         {
-            foreach (var job in feature.Jobs)
+            foreach (var job in feature.Record.Jobs)
             {
                 if (!job.Pending) continue;
                 featureJobs++;

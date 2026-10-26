@@ -80,8 +80,8 @@ internal static partial class FeatureHost
         bool skip = s_skipSecond, rolled = false;
         foreach (var feature in s_features)
         {
-            total += feature.Frames.Current;
-            if (feature.Frames.Close(second) && feature.State == FeatureState.Running)
+            total += feature.Record.Frames.Current;
+            if (feature.Record.Frames.Close(second) && feature.State == FeatureState.Running)
             {
                 rolled = true;
                 if (!skip) CheckBudget(feature);
@@ -103,21 +103,21 @@ internal static partial class FeatureHost
     // 3 counted seconds over the budget set the warning (one log line), 3 under clear it; nothing else happens.
     private static void CheckBudget(Feature feature)
     {
-        double ms = feature.Frames.LastSecondMs;
+        double ms = feature.Record.Frames.LastSecondMs;
         if (ms > feature.BudgetMs)
         {
-            feature.UnderStreak = 0;
-            if (++feature.OverStreak < BudgetSeconds || feature.OverBudget) return;
-            feature.OverBudget = true;
-            feature.OverSince = DateTime.Now;
+            feature.Record.UnderStreak = 0;
+            if (++feature.Record.OverStreak < BudgetSeconds || feature.OverBudget) return;
+            feature.Record.OverBudget = true;
+            feature.Record.OverSince = DateTime.Now;
             Log.WarnThrottled($"budget:{feature.Id}", $"{feature.Name} is over its frame budget: avg {ms:F2} ms, budget {feature.BudgetMs:F2} ms", 30);
             return;
         }
-        feature.OverStreak = 0;
-        if (!feature.OverBudget || ++feature.UnderStreak < BudgetSeconds) return;
-        feature.OverBudget = false;
-        feature.OverSince = null;
-        feature.UnderStreak = 0;
+        feature.Record.OverStreak = 0;
+        if (!feature.OverBudget || ++feature.Record.UnderStreak < BudgetSeconds) return;
+        feature.Record.OverBudget = false;
+        feature.Record.OverSince = null;
+        feature.Record.UnderStreak = 0;
     }
 
 #if DEV
@@ -164,7 +164,7 @@ internal static partial class FeatureHost
         long start = Stopwatch.GetTimestamp();
         Run(feature, phase, action);
         long elapsed = Stopwatch.GetTimestamp() - start;
-        feature.Frames.Current += elapsed - s_nestedTicks;
+        feature.Record.Frames.Current += elapsed - s_nestedTicks;
         s_nestedTicks = outerNested + elapsed;
         Diagnostics.TimedCalls++;
     }
@@ -183,13 +183,13 @@ internal static partial class FeatureHost
 
     private static void RecordError(Feature feature, string phase, Exception e)
     {
-        feature.LastError = $"{phase}: {e.Message}";
-        feature.LastErrorAt = DateTime.Now;
+        feature.Record.LastError = $"{phase}: {e.Message}";
+        feature.Record.LastErrorAt = DateTime.Now;
         Log.ErrorThrottled($"feature:{feature.Id}:{phase}", $"{feature.Name} {phase} failed: {e}");
 
         float now = Time.unscaledTime;
-        feature.RecentErrors.Enqueue(now);
-        while (feature.RecentErrors.Count > 0 && now - feature.RecentErrors.Peek() > ErrorWindowSeconds) feature.RecentErrors.Dequeue();
-        if (feature.RecentErrors.Count >= MaxErrors) Fault(feature, phase, e);
+        feature.Record.RecentErrors.Enqueue(now);
+        while (feature.Record.RecentErrors.Count > 0 && now - feature.Record.RecentErrors.Peek() > ErrorWindowSeconds) feature.Record.RecentErrors.Dequeue();
+        if (feature.Record.RecentErrors.Count >= MaxErrors) Fault(feature, phase, e);
     }
 }

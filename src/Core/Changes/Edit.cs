@@ -100,7 +100,7 @@ internal sealed class Edit<T> : Edit
     {
         if (Removed) return;
         Removed = true;
-        Owner.Edits.Remove(this);
+        Owner.Record.Edits.Remove(this);
         Edits.Removed(this);
         Edits.Run(Owner, "edit " + Target.Name, () => _stack.Take(this));
     }

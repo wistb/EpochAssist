@@ -51,11 +51,11 @@ internal static class Diagnostics
             return new FeatureDiagnostics(f.Id, f.Name, f.State, f.Status, f.LastError, f.LastErrorAt, f.PatchFailures.ToList(),
                 missing.Where(m => m.Group == null).Select(m => m.Text).ToList(),
                 missing.Where(m => m.Group != null).GroupBy(m => m.Group!).Select(g => $"{g.Key} ({string.Join(", ", g.Select(m => m.Text))})").ToList(),
-                f.Frames.AverageMs, f.Frames.WorstMs)
+                f.Record.Frames.AverageMs, f.Record.Frames.WorstMs)
             {
-                BudgetMs = f.BudgetMs, OverBudget = f.OverBudget, OverSince = f.OverSince, LastSecondMs = f.Frames.LastSecondMs,
+                BudgetMs = f.BudgetMs, OverBudget = f.OverBudget, OverSince = f.OverSince, LastSecondMs = f.Record.Frames.LastSecondMs,
                 Notes = f.State == FeatureState.Running ? Lines(() => f.DiagnosticNotes).ToList() : Array.Empty<string>(),
-                Edits = f.Edits.Select(e => e.Describe()).ToList(),
+                Edits = f.Record.Edits.Select(e => e.Describe()).ToList(),
             };
         }).ToList();
         // Dev builds: the compat self-test, which is never started, shows how missing members are reported.
@@ -85,7 +85,7 @@ internal static class Diagnostics
     {
         try
         {
-            return feature.HarmonyInstance?.GetPatchedMethods().Count() ?? 0;
+            return feature.Record.Harmony?.GetPatchedMethods().Count() ?? 0;
         }
         catch (Exception)
         {

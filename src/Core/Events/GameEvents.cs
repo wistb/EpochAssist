@@ -59,7 +59,7 @@ internal static partial class GameEvents
     internal static readonly Producer[] Producers = { s_hits, s_xp, s_gold, s_drops, s_death, s_echo, s_monolith };
 
     /// <summary>The hit detail group patched now (offline only), or null.</summary>
-    internal static string? DetailOn => s_feature?.DemandGroupsOn.FirstOrDefault();
+    internal static string? DetailOn => s_feature?.Record.DemandGroupsOn.FirstOrDefault();
 
     internal static void Start(Feature feature)
     {

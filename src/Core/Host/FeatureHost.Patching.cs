@@ -5,11 +5,11 @@ internal static partial class FeatureHost
     // One class at a time, so a stale target can't stop the rest from binding.
     private static void Patch(Feature feature)
     {
-        feature.PatchFailures.Clear();
+        feature.Record.PatchFailures.Clear();
         var classes = feature.PatchClasses;
         if (classes.Length == 0) return;
 
-        feature.HarmonyInstance ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
+        feature.Record.Harmony ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
         foreach (var type in classes)
         {
             if (feature.PatchGroups.TryGetValue(type, out string? group) && (!feature.Has(group) || Array.IndexOf(feature.DemandGroups, group) >= 0)) continue;
@@ -21,13 +21,13 @@ internal static partial class FeatureHost
     {
         try
         {
-            feature.HarmonyInstance!.CreateClassProcessor(type).Patch();
+            feature.Record.Harmony!.CreateClassProcessor(type).Patch();
             return true;
         }
         catch (Exception e)
         {
             string message = $"{type.Name}: {e.InnerException?.Message ?? e.Message}";
-            feature.PatchFailures.Add(message);
+            feature.Record.PatchFailures.Add(message);
             Log.Error($"{feature.Name} patch failed: {message}");
             return false;
         }
@@ -41,17 +41,17 @@ internal static partial class FeatureHost
     public static void SetPatchGroup(Feature feature, string group, bool on)
     {
         if (feature.State != FeatureState.Running || Array.IndexOf(feature.DemandGroups, group) < 0 || !feature.Has(group)) return;
-        if (feature.DemandGroupsOn.Contains(group) == on) return;
+        if (feature.Record.DemandGroupsOn.Contains(group) == on) return;
         var classes = feature.PatchClasses.Where(t => feature.PatchGroups.TryGetValue(t, out string? g) && g == group).ToList();
         if (on)
         {
-            feature.HarmonyInstance ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
-            feature.DemandGroupsOn.Add(group);
+            feature.Record.Harmony ??= new HarmonyLib.Harmony($"EpochAssist.{feature.Id}");
+            feature.Record.DemandGroupsOn.Add(group);
             foreach (var type in classes) PatchClass(feature, type);
             return;
         }
-        feature.DemandGroupsOn.Remove(group);
-        var harmony = feature.HarmonyInstance;
+        feature.Record.DemandGroupsOn.Remove(group);
+        var harmony = feature.Record.Harmony;
         if (harmony == null) return;
         foreach (var target in Compat.PatchTargets(feature))
         {
@@ -72,10 +72,10 @@ internal static partial class FeatureHost
 
     private static void Unpatch(Feature feature)
     {
-        feature.DemandGroupsOn.Clear();
+        feature.Record.DemandGroupsOn.Clear();
         try
         {
-            feature.HarmonyInstance?.UnpatchSelf();
+            feature.Record.Harmony?.UnpatchSelf();
         }
         catch (Exception e)
         {

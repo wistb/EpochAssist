@@ -150,14 +150,14 @@ internal static class Scheduler
 
     private static Job Add(Feature owner, Job job)
     {
-        owner.Jobs.Add(job);
+        owner.Record.Jobs.Add(job);
         return job;
     }
 
     // Jobs added during a pass wait for the next one; cancelled ones are skipped and dropped after it.
     internal static void RunDue(Feature owner)
     {
-        var jobs = owner.Jobs;
+        var jobs = owner.Record.Jobs;
         int count = jobs.Count;
         if (count == 0) return;
         float now = Clock.Now;
@@ -172,7 +172,7 @@ internal static class Scheduler
 
     internal static void RunSpread(Feature owner)
     {
-        var jobs = owner.Jobs;
+        var jobs = owner.Record.Jobs;
         int count = jobs.Count;
         for (int i = 0; i < count && i < jobs.Count; i++)
         {
@@ -210,8 +210,8 @@ internal static class Scheduler
     /// <summary>Drops every job of the feature (the host, wherever it removes the feature's actions).</summary>
     internal static void RemoveOwner(Feature owner)
     {
-        foreach (var job in owner.Jobs) job.Cancel();
-        owner.Jobs.Clear();
+        foreach (var job in owner.Record.Jobs) job.Cancel();
+        owner.Record.Jobs.Clear();
     }
 
     /// <summary>Host jobs that are due; a failure is logged (throttled) and can't fault anything.</summary>

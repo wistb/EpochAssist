@@ -70,19 +70,19 @@ internal static partial class FeatureHost
     public static void Start(Feature feature)
     {
         if (feature.State == FeatureState.Running) return;
-        feature.LastError = null;
-        feature.LastErrorAt = null;
-        feature.RecentErrors.Clear();
-        feature.Frames.Reset();
-        feature.OverBudget = false;
-        feature.OverSince = null;
-        feature.OverStreak = feature.UnderStreak = 0;
+        feature.Record.LastError = null;
+        feature.Record.LastErrorAt = null;
+        feature.Record.RecentErrors.Clear();
+        feature.Record.Frames.Reset();
+        feature.Record.OverBudget = false;
+        feature.Record.OverSince = null;
+        feature.Record.OverStreak = feature.Record.UnderStreak = 0;
         try
         {
-            if (!feature.SettingsRegistered)
+            if (!feature.Record.SettingsRegistered)
             {
                 feature.RegisterSettings();
-                feature.SettingsRegistered = true;
+                feature.Record.SettingsRegistered = true;
             }
             // Settings first, so a blocked feature's page still has them.
             string? blocker = feature.Needs.FirstOrDefault(id => Find(id)?.State != FeatureState.Running);
@@ -91,14 +91,14 @@ internal static partial class FeatureHost
                 Block(feature, blocker);
                 return;
             }
-            feature.BlockedBy = null;
+            feature.Record.BlockedBy = null;
             var missing = Compat.Missing(feature);
             Diagnostics.Remember(feature, missing);
             var required = missing.Where(m => m.Group == null).Select(m => m.Text).ToList();
             if (required.Count > 0)
             {
-                feature.State = FeatureState.Unavailable;
-                feature.LastError = "the game no longer has " + string.Join(", ", required.Take(3)) + (required.Count > 3 ? $" and {required.Count - 3} more" : string.Empty);
+                feature.Record.State = FeatureState.Unavailable;
+                feature.Record.LastError = "the game no longer has " + string.Join(", ", required.Take(3)) + (required.Count > 3 ? $" and {required.Count - 3} more" : string.Empty);
                 Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
                 if (s_startingAll) s_unavailable.Add(feature.Name);
                 else Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
@@ -110,15 +110,15 @@ internal static partial class FeatureHost
                 Commands.RemoveOwner(feature.Id);
                 return;
             }
-            feature.MissingGroups.Clear();
+            feature.Record.MissingGroups.Clear();
             foreach (var group in missing.GroupBy(m => m.Group!))
             {
-                feature.MissingGroups.Add(group.Key);
+                feature.Record.MissingGroups.Add(group.Key);
                 Log.Warn($"{feature.Name} runs without '{group.Key}': the game no longer has {string.Join(", ", group.Select(m => m.Text))}");
             }
             Patch(feature);
             feature.Start();
-            feature.State = FeatureState.Running;
+            feature.Record.State = FeatureState.Running;
         }
         catch (Exception e)
         {
@@ -133,7 +133,7 @@ internal static partial class FeatureHost
         if (feature.State is FeatureState.Stopped or FeatureState.Unavailable) return;
         bool wasRunning = feature.State == FeatureState.Running;
         if (wasRunning) StopDependents(feature);
-        feature.State = FeatureState.Stopped;
+        feature.Record.State = FeatureState.Stopped;
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
@@ -155,12 +155,12 @@ internal static partial class FeatureHost
     {
         bool wasRunning = feature.State == FeatureState.Running;
         if (wasRunning) StopDependents(feature);
-        feature.State = FeatureState.Faulted;
-        feature.LastError = $"{phase}: {e.Message}";
-        feature.LastErrorAt = DateTime.Now;
+        feature.Record.State = FeatureState.Faulted;
+        feature.Record.LastError = $"{phase}: {e.Message}";
+        feature.Record.LastErrorAt = DateTime.Now;
         Log.Error($"{feature.Name} stopped after errors in {phase}: {e.Message}");
         bool saved = Reports.Write(feature, phase, e);
-        Toasts.Show("host", $"{feature.Name} stopped after an error: {feature.LastError.TrimEnd('.')}.{(saved ? " A report was saved." : string.Empty)}", ToastKind.Warning);
+        Toasts.Show("host", $"{feature.Name} stopped after an error: {feature.Record.LastError.TrimEnd('.')}.{(saved ? " A report was saved." : string.Empty)}", ToastKind.Warning);
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Actions.RemoveOwner(feature.Id);
@@ -178,9 +178,9 @@ internal static partial class FeatureHost
     // Stopped, not faulted: it starts again by itself once the need runs.
     private static void Block(Feature feature, string need)
     {
-        feature.State = FeatureState.Stopped;
-        feature.BlockedBy = need;
-        feature.LastError = $"needs {Find(need)?.Name ?? need}";
+        feature.Record.State = FeatureState.Stopped;
+        feature.Record.BlockedBy = need;
+        feature.Record.LastError = $"needs {Find(need)?.Name ?? need}";
     }
 
     // Dependents go first, latest registered first, each through its own Shutdown (and so its own dependents).

@@ -33,7 +33,7 @@ internal static partial class GameEvents
         s_lastHealth = health;
         // With detail on and its object found, the game's own calls are the hits, so a drop isn't counted twice.
         if (health is not float now || last is not float before || now >= before) return;
-        bool detailLive = detail != null && feature.DemandGroupsOn.Contains(detail) && s_protectionPtr != IntPtr.Zero;
+        bool detailLive = detail != null && feature.Record.DemandGroupsOn.Contains(detail) && s_protectionPtr != IntPtr.Zero;
         if (detailLive) return;
         Bus.Raise(new HitTaken(before - now, null, null, null, null, null, false));
     }
