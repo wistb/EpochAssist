@@ -99,4 +99,4 @@ and `./build.sh dev` switches back.
 
 ## License
 
-MIT
+GPL-3.0 (see [LICENSE](LICENSE)).
