@@ -106,6 +106,7 @@ internal static partial class DevCommands
         Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
         Commands.AddDevVerb("mods", "simulate", owner, ModsSimulate);
         SessionCommands.Register(owner);
+        MacroCommands.Register(owner);
     }
 
     // mods simulate <name>|off: a pretend loaded mod (kind mod, file <name>.dll) until off or a reload, then the start
@@ -130,6 +131,7 @@ internal static partial class DevCommands
         Watch.Stop("bridge stopped");
         EventCommands.StopWatch("bridge stopped");
         Hovered.Reset();
+        MacroCommands.Reset();
     }
 
     // instances <type> [count|all]: count 5 when not given, 1 to 50; all lists every one (into instances.txt past 40).

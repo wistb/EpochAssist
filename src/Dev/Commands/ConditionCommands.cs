@@ -13,11 +13,17 @@ internal static class ConditionCommands
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
-    public const string WhyUsage = "why [<slot 1-5>]";
+    public const string WhyUsage = "why [<slot 1-5>] | why macros | why macro <name>";
 
     // why [slot]: every slot's verdict with each condition's value and result, from AutoCast.
     public static CommandResult Why(CommandCall call)
     {
+        if (call.Lower(1) is "macros" or "macro")
+        {
+            if (FeatureHost.Find("autocast") is not { State: FeatureState.Running }) return CommandResult.Error("why: macros aren't running");
+            if (call.Lower(1) == "macro" && call.Args.Length < 2) return CommandResult.Error($"why: usage {WhyUsage}");
+            return new CommandResult(DevOutput.Reply("why", Features.Macros.Explain(call.Lower(1) == "macro" ? call.Rest(2) : null)));
+        }
         int? slot = null;
         if (call.Args.Length >= 1)
         {
@@ -126,7 +132,8 @@ internal static class ConditionCommands
     {
         if (call.Args.Length < 3) return CommandResult.Error($"cond add: usage {CondUsage}");
         if (!ConditionTargets.TryResolve(call.Args[1], out var target, out string? key)) return CommandResult.Error($"cond add: no list '{call.Args[1]}'");
-        if (ConditionKinds.Find(call.Lower(3)) is not { } kind) return CommandResult.Error($"cond add: unknown kind '{call.Args[2]}' (cond kinds lists them)");
+        // Ids are camel case ("skill.sinceCast"); typed in any case.
+        if ((ConditionKinds.Find(call.Args[2]) ?? ConditionKinds.All.FirstOrDefault(k => k.Id.Equals(call.Args[2], StringComparison.OrdinalIgnoreCase))) is not { } kind) return CommandResult.Error($"cond add: unknown kind '{call.Args[2]}' (cond kinds lists them)");
         if (target.Setting.List(key).Full) return CommandResult.Error($"cond add: the list is full ({ConditionList.Limit} conditions at most)");
 
         var entry = ConditionEntry.New(kind);

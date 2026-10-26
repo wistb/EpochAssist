@@ -66,7 +66,7 @@ internal sealed class CrashTestFeature : Feature
     private static readonly ConditionSetting s_conditions = new(s_conditionGroup.Section("conditions", "Conditions"), "DevConditions", "Conditions", "{\"v\":1,\"lists\":{}}");
     private const string ConditionKey = "crashtest";
     private static readonly WorldTally s_tally = new();
-    private static readonly List<float> s_ranges = new();
+    private static readonly List<TallyKey> s_ranges = new();
     private static readonly ConditionResult[] s_results = new ConditionResult[16];
     private static ListVerdict s_verdict = ListVerdict.Pass;
     private static bool s_running;
@@ -161,7 +161,7 @@ internal sealed class CrashTestFeature : Feature
         {
             s_ranges.Clear();
             ConditionEditor.EnemyRanges(s_conditions.List(ConditionKey), s_ranges);
-            if (s_ranges.Count > 0) s_tally.Refresh(s_ranges, s_weight);
+            if (s_ranges.Count > 0) s_tally.Refresh(s_ranges, s_weight, null);
         }, startNow: true);
         // An empty repeat job, so `jobs` can show a fault dropping it.
         Scheduler.Every(this, "tick", 1f, () => { });

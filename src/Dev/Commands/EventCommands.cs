@@ -89,12 +89,10 @@ internal static class EventCommands
     private static string ProducersLine()
     {
         bool? online = Player.Online;
-        string? detail = GameEvents.DetailOn;
         return string.Join(", ", GameEvents.Producers.Select(p =>
         {
             if (online is bool mode && !p.Supports(mode)) return $"{p.Part} off (not supported {(mode ? "online" : "offline")})";
             string state = p.Active ? "on" : "off";
-            if (p.Part == "hits") state += detail != null ? " (detail offline on)" : " (detail off)";
             return $"{p.Part} {state}";
         }));
     }
