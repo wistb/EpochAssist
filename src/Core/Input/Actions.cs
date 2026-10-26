@@ -57,6 +57,11 @@ internal static class Actions
         foreach (string name in s_actions.Values.Where(a => a.Owner == owner).Select(a => a.Name).ToList()) s_actions.Remove(name);
     }
 
+#if DEV
+    // The dev check after a release (Owned).
+    internal static int CountOwner(string owner) => s_actions.Values.Count(a => a.Owner == owner);
+#endif
+
     /// <summary>
     /// Runs an action on the calling (main) thread. A trigger names itself so the log shows what ran it. Errors stay
     /// here, so a failing action can't count against the feature that triggered it.

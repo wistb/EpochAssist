@@ -102,12 +102,7 @@ internal static partial class FeatureHost
                 Log.Warn($"{feature.Name} unavailable: {string.Join(", ", required)}");
                 if (s_startingAll) s_unavailable.Add(feature.Name);
                 else Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
-                Actions.RemoveOwner(feature.Id);
-                Scheduler.RemoveOwner(feature);
-                Edits.RemoveOwner(feature);
-                TooltipLines.RemoveOwner(feature);
-                Bus.RemoveOwner(feature);
-                Commands.RemoveOwner(feature.Id);
+                Owned.Release(feature);
                 return;
             }
             feature.Record.MissingGroups.Clear();
@@ -136,12 +131,7 @@ internal static partial class FeatureHost
         feature.Record.State = FeatureState.Stopped;
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
-        Actions.RemoveOwner(feature.Id);
-        Scheduler.RemoveOwner(feature);
-        Edits.RemoveOwner(feature);
-        TooltipLines.RemoveOwner(feature);
-        Bus.RemoveOwner(feature);
-        Commands.RemoveOwner(feature.Id);
+        Owned.Release(feature);
     }
 
     public static void Restart(Feature feature)
@@ -163,12 +153,7 @@ internal static partial class FeatureHost
         Toasts.Show("host", $"{feature.Name} stopped after an error: {feature.Record.LastError.TrimEnd('.')}.{(saved ? " A report was saved." : string.Empty)}", ToastKind.Warning);
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
-        Actions.RemoveOwner(feature.Id);
-        Scheduler.RemoveOwner(feature);
-        Edits.RemoveOwner(feature);
-        TooltipLines.RemoveOwner(feature);
-        Bus.RemoveOwner(feature);
-        Commands.RemoveOwner(feature.Id);
+        Owned.Release(feature);
     }
 
     // "A", "A and B", "A, B and C".

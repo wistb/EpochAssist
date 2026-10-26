@@ -151,6 +151,11 @@ internal static class Bus
         foreach (var channel in s_channels) channel.RemoveOwner(owner);
     }
 
+#if DEV
+    // The dev check after a release (Owned).
+    internal static int CountOwner(Feature owner) => s_channels.Sum(c => c.Subscriptions.Count(s => s.Owner == owner));
+#endif
+
     private static Channel<T> ChannelOf<T>() where T : struct
     {
         if (Of<T>.Channel is { } channel) return channel;

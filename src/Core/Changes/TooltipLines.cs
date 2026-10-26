@@ -40,6 +40,11 @@ internal static class TooltipLines
     /// <summary>The host, with Edits.RemoveOwner (stop, fault, unavailable).</summary>
     internal static void RemoveOwner(Feature owner) => Remove(owner);
 
+#if DEV
+    // The dev check after a release (Owned).
+    internal static int CountOwner(Feature owner) => s_providers.Count(p => p.Owner == owner);
+#endif
+
     internal static void Reset()
     {
         s_providers.Clear();

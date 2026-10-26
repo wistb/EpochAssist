@@ -79,6 +79,12 @@ internal static class Commands
         foreach (var key in s_devVerbs.Where(v => v.Value.Owner == owner).Select(v => v.Key).ToList()) s_devVerbs.Remove(key);
     }
 
+#if DEV
+    // The dev check after a release (Owned).
+    internal static int CountOwner(string owner) =>
+        s_commands.Values.Count(c => c.Owner == owner) + s_devVerbs.Values.Count(v => v.Owner == owner);
+#endif
+
     public static void Clear()
     {
         s_commands.Clear();
