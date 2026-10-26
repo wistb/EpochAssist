@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Starts a new feature the way the codebase does it: a feature class, its logic with a per-run state
-# holder, a settings group and a menu page. Registration in Runtime.Init is left to do by hand, since order matters.
+# Starts a new feature the way the codebase does it, in its own folder src/Features/<Name>/: a feature class, its logic
+# with a per-run state holder, a settings group and a menu page. Registration in Runtime.Init is left to do by hand; the
+# update order follows the feature's Needs and RunsAfter, not its place in the list.
 # Usage: tools/new-feature.sh <Name> [--id <id>] [--automation] [--patch]
 #   <Name>        PascalCase letters and digits (AutoPotion)
 #   --id          lowercase letters and digits; default: the name lowercased
@@ -28,10 +29,10 @@ refuse() { echo "Refused: $1; nothing was written." >&2; exit 1; }
 [[ "$name" =~ ^[A-Z][A-Za-z0-9]*$ ]] || refuse "the name must be PascalCase letters and digits, starting with a capital"
 [[ "$id" =~ ^[a-z][a-z0-9]*$ ]] || refuse "the id must be lowercase letters and digits, starting with a letter"
 
-feature="src/Features/${name}Feature.cs"
-logic="src/Features/${name}.cs"
-settings="src/Features/${name}Settings.cs"
-page="src/Ui/${name}Page.cs"
+feature="src/Features/${name}/${name}Feature.cs"
+logic="src/Features/${name}/${name}.cs"
+settings="src/Features/${name}/${name}Settings.cs"
+page="src/Features/${name}/${name}Page.cs"
 for file in "$feature" "$logic" "$settings" "$page"; do
     [ ! -e "$root/$file" ] || refuse "$file already exists"
 done
@@ -94,8 +95,10 @@ internal sealed class __NAME__Feature : Feature
 
     public override string Id => "__ID__";
     public override string Name => "__NAME__";
-    // Features it can't act without; they must be registered before it.
+    // Features it can't act without: the host runs it after them, and only while they run.
     public override string[] Needs => new[] { @NEEDS@ };
+    // Features it runs after each frame, order only: profiles puts a character's settings in place first.
+    public override string[] RunsAfter => new[] { "profiles" };
     // A page in the menu (its switch in the header) and a place on the HUD pill.
     public override FeaturePage? Page => s_page;
     public override string? StatusName => "__NAME__";
@@ -221,9 +224,10 @@ EOF
 
 write "$page" <<'EOF'
 using EpochAssist.Core;
+using EpochAssist.Ui;
 using S = EpochAssist.Features.__NAME__Settings;
 
-namespace EpochAssist.Ui;
+namespace EpochAssist.Features;
 
 // __NAME__'s page below the header, which already shows its switch: its settings as cards.
 internal static class __NAME__Page
@@ -238,6 +242,8 @@ internal static class __NAME__Page
 EOF
 
 echo "Created $feature, $logic, $settings, $page"
-echo "Next: register it in Runtime.Init (src/Core/Host/Entry.cs), after the features it needs:"
-echo "    new ${name}Feature(),"
-echo "Then ./build.sh and ./build.sh dev."
+echo "Next:"
+echo "  1. Register it in Runtime.Init (src/Core/Host/Entry.cs): new ${name}Feature(). The update order follows its Needs"
+echo "     and RunsAfter, so its place in the list doesn't matter."
+echo "  2. Replace the example requirements$([ "$patch" = 1 ] && echo " and the patch target") with real ones."
+echo "  3. Check it with ./build.sh and ./build.sh dev."
