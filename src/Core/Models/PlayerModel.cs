@@ -215,6 +215,7 @@ internal static partial class PlayerModel
         s_ward = null;
         s_using = null;
         s_clientUsing = null;
+        s_tree = null;
         s_clientAbilities = null;
         s_retry.Clear();
         s_charges = null;
@@ -223,11 +224,14 @@ internal static partial class PlayerModel
         s_potion = null;
         s_buffsUi = null;
         s_abilityInfo.Clear();
+        s_rechargeTimes.Clear();
         s_reaper = null;
         s_reaperLookup.Clear();
         s_uiLookup.Clear();
         s_modeFrame = -1;
         s_online = null;
+        ResetCasts();
+        ResetMovement();
     }
 
     internal static void Start(Feature feature)
@@ -283,6 +287,7 @@ internal static partial class PlayerModel
         s_ward = null;
         s_using = null;
         s_clientUsing = null;
+        s_tree = null;
         s_clientAbilities = null;
         s_retry.Clear();
         s_charges = null;

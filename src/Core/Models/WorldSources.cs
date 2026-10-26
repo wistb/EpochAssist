@@ -30,12 +30,14 @@ internal static class WorldSources
         Need<ActorDisplayInformation>(nameof(ActorDisplayInformation.displayName), World.Enemies),
 
         Need<Actor>(nameof(Actor.health), World.EnemyHealthOffline),
+        Need<ActorVisuals>(nameof(ActorVisuals.ailmentVFXCreator), World.EnemyAilments),
+        Need<AilmentVFXCreator>(nameof(AilmentVFXCreator.ailmentVisuals), World.EnemyAilments),
         Need<BaseHealth>(nameof(BaseHealth.currentHealth), World.EnemyHealthOffline),
         Need<BaseHealth>(nameof(BaseHealth.maxHealth), World.EnemyHealthOffline),
         Need<Actor>(nameof(Actor.protection), World.EnemyHealthOffline),
         Need<ProtectionClass>(nameof(ProtectionClass.currentWard), World.EnemyHealthOffline),
 
-        Need<ActorSync>(nameof(ActorSync.healthRatio), World.EnemyHealthOnline),
+        Need<ActorSync>(nameof(ActorSync.getHealthRatio), World.EnemyHealthOnline),
         Need<ActorSync>(nameof(ActorSync.SyncedMaxHealth), World.EnemyHealthOnline),
         Need<ActorSync>(nameof(ActorSync.SyncedCurrentWard), World.EnemyHealthOnline),
 
@@ -47,7 +49,7 @@ internal static class WorldSources
 
         Need<ActorSync>(nameof(ActorSync.IsLocalPlayer), World.PlayersOnline),
         Need<ActorSync>(nameof(ActorSync.IsDead), World.PlayersOnline),
-        Need<ActorSync>(nameof(ActorSync.healthRatio), World.PlayersOnline),
+        Need<ActorSync>(nameof(ActorSync.getHealthRatio), World.PlayersOnline),
         Need<ActorSync>(nameof(ActorSync.SyncedMaxHealth), World.PlayersOnline),
         Need<ActorSync>(nameof(ActorSync.SyncedCurrentWard), World.PlayersOnline),
 
@@ -319,7 +321,9 @@ internal static class WorldSources
             {
                 float max = entry.Sync!.SyncedMaxHealth;
                 entry.MaxHealth = max;
-                entry.HealthFraction = entry.Sync.healthRatio / 255f;
+                // The method, not the healthRatio field: online the field stays at 255 while the method follows the
+                // server's health (GF-09, checked 2026-10-26).
+                entry.HealthFraction = entry.Sync.getHealthRatio() / 255f;
                 entry.Health = entry.HealthFraction * max;
                 entry.Ward = entry.Sync.SyncedCurrentWard;
                 if (entry.Kind == WorldKind.Player) entry.Dead = entry.Sync.IsDead;

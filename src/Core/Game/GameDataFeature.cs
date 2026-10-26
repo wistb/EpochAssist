@@ -11,6 +11,10 @@ internal sealed class GameDataFeature : Feature
     // Each kind is its own group, so a renamed table loses only its lookups.
     public override Requirement[] Requirements => new[]
     {
+        Need(typeof(CharacterClassList), nameof(CharacterClassList.get), GameData.ClassSkills),
+        Need<CharacterClassList>(nameof(CharacterClassList.classes), GameData.ClassSkills),
+        Need<CharacterClass>(nameof(CharacterClass.classID), GameData.ClassSkills),
+        Need<CharacterClass>(nameof(CharacterClass.getAllAbilities), GameData.ClassSkills),
         Need(typeof(AffixList), nameof(AffixList.get), GameData.Affixes),
         Need<AffixList>(nameof(AffixList.GetAffix), GameData.Affixes),
         Need<AffixList.Affix>(nameof(AffixList.Affix.affixName), GameData.Affixes),

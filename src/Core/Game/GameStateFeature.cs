@@ -12,6 +12,7 @@ internal sealed class GameStateFeature : Feature
     // Optional too: without them automation doesn't pause for that one condition.
     private const string LoadingGroup = "loading";
     private const string PauseMenu = "pause menu";
+    public const string EchoCorruption = "game: echo corruption";
 
     public override Type[] PatchClasses => NestedPatches(typeof(GameState));
     public override Requirement[] Requirements => new[]
@@ -26,6 +27,7 @@ internal sealed class GameStateFeature : Feature
         Need(typeof(Il2CppLE.UI.LoadingScreen), nameof(Il2CppLE.UI.LoadingScreen.IsVisible), LoadingGroup),
         Need<UIBase>(nameof(UIBase.instance), PauseMenu),
         Need<UIBase>(nameof(UIBase.menuOpen), PauseMenu),
+        Need(typeof(Il2CppLE.Gameplay.Monolith.MonolithGameplayManager), nameof(Il2CppLE.Gameplay.Monolith.MonolithGameplayManager.CurrentCorruption), EchoCorruption),
     };
 
     public override void Start()
@@ -33,6 +35,7 @@ internal sealed class GameStateFeature : Feature
         GameState.CanReadChat = Has(ChatTyping);
         GameState.CanReadLoading = Has(LoadingGroup);
         GameState.CanReadPauseMenu = Has(PauseMenu);
+        GameState.CanReadCorruption = Has(EchoCorruption);
         GameState.OnSceneChanged();
     }
 

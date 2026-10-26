@@ -77,8 +77,72 @@ internal static class GameData
         s_affixValues.Clear();
         s_items.Clear();
         s_allBuffs = null;
+        s_classSkills.Clear();
+        s_allMods = null;
         GameReads = 0;
         s_feature = null;
+    }
+
+    /// <summary>The five base classes as the library stores them, by the game's class id order where it reads.</summary>
+    public static readonly string[] Classes = { "Primalist", "Mage", "Sentinel", "Acolyte", "Rogue" };
+
+    /// <summary>
+    /// A base class's name by the game's class id: the game's CharacterClassID name when it is one of the five, else the
+    /// fixed order (GF-77: 4 is Rogue). Null for an id outside them.
+    /// </summary>
+    public static string? ClassName(int id)
+    {
+        try
+        {
+            // CharacterClassID's own underlying type, so the check can't throw on a type mismatch.
+            Type type = typeof(CharacterClassID);
+            object value = Convert.ChangeType(id, Enum.GetUnderlyingType(type));
+            if (Enum.IsDefined(type, value) && Enum.GetName(type, value) is { } name && Classes.Contains(name)) return name;
+        }
+        catch (Exception)
+        {
+            // An id outside the underlying type: the fixed order answers.
+        }
+        return id >= 0 && id < Classes.Length ? Classes[id] : null;
+    }
+
+    public const string ClassSkills = "data: class skills";
+
+    private static readonly Dictionary<string, IReadOnlyList<string>> s_classSkills = new();
+
+    /// <summary>
+    /// A base class's skills (ability ids), its own and its masteries', from the game's class list (GF-77); empty when
+    /// it can't be read. Read once per class per session.
+    /// </summary>
+    public static IReadOnlyList<string> SkillsFor(string className)
+    {
+        if (s_classSkills.TryGetValue(className, out var cached)) return cached;
+        var ids = new List<string>();
+        if (Has(ClassSkills))
+        {
+            try
+            {
+                var classes = CharacterClassList.get()?.classes;
+                for (int i = 0; classes != null && i < classes.Count; i++)
+                {
+                    var cls = classes[i];
+                    if (!Game.Alive(cls) || ClassName((int)cls!.classID) != className) continue;
+                    var all = cls.getAllAbilities();
+                    for (int j = 0; all != null && j < all.Count; j++)
+                    {
+                        var ability = all[j];
+                        if (Game.Alive(ability) && !string.IsNullOrEmpty(ability!.playerAbilityID) && !ids.Contains(ability.playerAbilityID)) ids.Add(ability.playerAbilityID);
+                    }
+                }
+                GameReads++;
+            }
+            catch (Exception e)
+            {
+                Failed(DataKind.Ability, e);
+            }
+        }
+        s_classSkills[className] = ids;
+        return ids;
     }
 
     /// <summary>A buff or debuff by ailment id; the id's enum name when the ailment has no display name.</summary>
@@ -143,6 +207,35 @@ internal static class GameData
             if (byKey != null && byKey.ContainsKey(key)) mod = byKey[key];
             return ModEntry(key, mod);
         });
+
+    private static IReadOnlyList<int>? s_allMods;
+
+    /// <summary>Every monster mod key the game has, read once a session (the enemy mod picker); empty when unread.</summary>
+    public static IReadOnlyList<int> AllMonsterMods()
+    {
+        if (s_allMods != null) return s_allMods;
+        if (!Has(MonsterMods)) return Array.Empty<int>();
+        var keys = new List<int>();
+        try
+        {
+            var byKey = MonsterRarityManager.monsterModByKey;
+            if (byKey != null)
+            {
+                foreach (var pair in byKey) keys.Add(pair.Key);
+            }
+            GameReads++;
+        }
+        catch (Exception e)
+        {
+            Failed(DataKind.MonsterMod, e);
+        }
+        return s_allMods = keys;
+    }
+
+    /// <summary>Every ailment id with a name (the enemy ailment picker), in id order.</summary>
+    public static IReadOnlyList<int> AllAilments() => s_allAilments ??= Enum.GetValues(typeof(AilmentID)).Cast<AilmentID>().Select(id => (int)id).Distinct().ToList();
+
+    private static IReadOnlyList<int>? s_allAilments;
 
     /// <summary>A monster mod an enemy carries (ActorDisplayInformation.appliedMods), kept by its key.</summary>
     public static DataEntry MonsterMod(Il2Cpp.MonsterMod mod)

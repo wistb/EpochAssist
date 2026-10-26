@@ -104,6 +104,25 @@ internal static class GameState
         }
     }
 
+    public static bool CanReadCorruption = true;
+
+    /// <summary>The echo's corruption (GF-75: the monolith's current corruption), or null when it can't be read.</summary>
+    public static int? EchoCorruption
+    {
+        get
+        {
+            if (!CanReadCorruption) return null;
+            try
+            {
+                return Il2CppLE.Gameplay.Monolith.MonolithGameplayManager.CurrentCorruption;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
     /// <summary>The game's own pause menu (Esc) is open; false when it can't be read.</summary>
     public static bool GamePaused
     {

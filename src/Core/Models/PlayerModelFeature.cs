@@ -25,6 +25,19 @@ internal sealed class PlayerModelFeature : Feature
 
         Need(typeof(GameplayEnvironment), nameof(GameplayEnvironment.IsOnlinePlay), PlayerModel.ModeFlag),
 
+        Need<UsingAbilityPlayer>(nameof(UsingAbilityPlayer.timeSinceLastAbilityUseStart), PlayerModel.CastSignalOffline),
+        Need<UsingAbility>(nameof(UsingAbility.ability), PlayerModel.CastSignalOffline),
+        Need<ClientUsingAbilityState>(nameof(ClientUsingAbilityState.timeSinceCast), PlayerModel.CastSignalOnline),
+        Need<ClientUsingAbilityState>(nameof(ClientUsingAbilityState.ability), PlayerModel.CastSignalOnline),
+        Need<Ability>(nameof(Ability.playerAbilityID), PlayerModel.CastSignalOffline),
+        Need<Ability>(nameof(Ability.playerAbilityID), PlayerModel.CastSignalOnline),
+
+        Need<PlayerActorSync>(nameof(PlayerActorSync.AutoDrinkPotions), PlayerModel.GameAutoDrinkGroup),
+
+        Need<LocalTreeData>(nameof(LocalTreeData.characterClass), PlayerModel.ClassGroup),
+        Need<CharacterClass>(nameof(CharacterClass.classID), PlayerModel.ClassGroup),
+        Need<LocalTreeData>(nameof(LocalTreeData.characterLevel), PlayerModel.LevelGroup),
+
         Need<Actor>(nameof(Actor.ailmentReceiver), PlayerModel.BuffsOffline),
         Need<AilmentReceiver>(nameof(AilmentReceiver.ailments), PlayerModel.BuffsOffline),
         Need<AilmentReceiver>(nameof(AilmentReceiver.ailmentStacks), PlayerModel.BuffsOffline),

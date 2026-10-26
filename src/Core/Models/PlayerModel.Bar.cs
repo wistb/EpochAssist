@@ -16,6 +16,7 @@ internal static partial class PlayerModel
         {
             info = (ability.playerAbilityID, ability.abilityName, ability.channelled);
             s_abilityInfo[ability.Pointer] = info;
+            SeeSkill(info.Id, info.Name);
         }
         return info;
     }
@@ -100,10 +101,17 @@ internal static partial class PlayerModel
         // no cooldown, or a charge to spend.
         if (readReady && online) slot.Ready = maxCharges <= 0 || current >= 1f;
         if (maxCharges <= 0) return;
+        // Online the rate reads 0 for a moment after a cast, until the server's value arrives: the skill's last known
+        // charge time stands in.
+        float? one = rate > 0f ? 1f / rate : info.Id != null && s_rechargeTimes.TryGetValue(info.Id, out float known) ? known : null;
+        if (rate > 0f && info.Id != null) s_rechargeTimes[info.Id] = 1f / rate;
         if (current >= maxCharges) slot.NextChargeIn = 0f;
-        else if (rate > 0f) slot.NextChargeIn = (MathF.Floor(current) + 1f - current) / rate;
-        if (rate > 0f) slot.RechargeTime = 1f / rate;
+        else if (one is float time) slot.NextChargeIn = (MathF.Floor(current) + 1f - current) * time;
+        slot.RechargeTime = one;
     }
+
+    // One charge's time per skill id, as last read with a rate (dropped with the player: stats change it).
+    private static readonly Dictionary<string, float> s_rechargeTimes = new();
 
     // The charge lists and each slot's index in them. Online they follow the manager's bar icons; offline the
     // manager's own ability list, in its own order.

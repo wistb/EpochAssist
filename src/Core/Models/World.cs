@@ -22,6 +22,7 @@ internal static class World
     public const string ShrinesOnline = "world: shrines (online)";
     public const string ChestsOffline = "world: chests (offline)";
     public const string ChestsOnline = "world: chests (online)";
+    public const string EnemyAilments = "world: enemy ailments";
 
     /// <summary>Active entries and entries this close are refreshed every frame (AutoCast's largest aim range).</summary>
     public const float NearRadius = 60f;
@@ -157,6 +158,45 @@ internal static class World
             if (Matches(entry, query)) into.Add(entry);
         }
         return into.Count;
+    }
+
+    /// <summary>
+    /// How many of an ailment an enemy shows (GF-74: its visuals' ailment counters, the same in both modes), 0 when it
+    /// shows none; null when it can't be read (the group missing, the enemy gone).
+    /// </summary>
+    public static int? AilmentStacks(WorldEntry entry, int ailmentId)
+    {
+        if (!Has("enemy ailments") || entry.Gone || !Game.Alive(entry.Visuals)) return null;
+        try
+        {
+            var list = entry.Visuals!.ailmentVFXCreator?.ailmentVisuals;
+            if (list == null) return null;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var counter = list[i];
+                if (counter != null && (int)counter.getAilmentID() == ailmentId) return (int)MathF.Round(counter.getCount());
+            }
+            return 0;
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("world:ailments", $"Enemy ailment read failed: {e.Message}", 30);
+            return null;
+        }
+    }
+
+    /// <summary>Other players within a range of the player (the world's player entries, alive or not).</summary>
+    public static int PlayersWithin(float range)
+    {
+        Want(WorldKind.Player);
+        int count = 0;
+        var entries = Entries;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            if (entry.Kind == WorldKind.Player && !entry.Gone && entry.Distance <= range) count++;
+        }
+        return count;
     }
 
     public static int Count(in WorldQuery query)
