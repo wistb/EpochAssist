@@ -71,7 +71,7 @@ internal static class Menu
             s_search = string.Empty;
             MenuRoutes.Show(next);
         }
-        if (Visible && nav.Search) TopBar.FocusSearch = true;
+        if (Visible && nav.Search) TreeView.FocusSearch = true;
 
         // Only IMGUI text fields take keyboard control; buttons don't. A dropdown's filter takes typing too.
         GameState.UiTyping = Visible && (GUIUtility.keyboardControl != 0 || Popups.Current is DropdownPopup { Filterable: true });
@@ -90,10 +90,10 @@ internal static class Menu
     {
         if (Popups.IsOpen) Popups.Close(commit: false);
         else if (Hotkeys.CaptureActive) Hotkeys.CancelCapture();
-        else if (s_search.Length > 0 && (TopBar.SearchFocused || Focus.Current == "top/search"))
+        else if (s_search.Length > 0 && Focus.Current == "search")
         {
             s_search = string.Empty;
-            TopBar.BlurSearch();
+            TreeView.BlurSearch();
         }
         else Actions.Run("menu.close", "key Escape");
     }

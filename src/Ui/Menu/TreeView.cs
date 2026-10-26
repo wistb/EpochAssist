@@ -3,20 +3,28 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// The compact tree on the left (200 px): a filter, then the shown tab's nodes, each with its groups, items and pages on
-// 20 px rows. A node carries its feature's on/off dot; a node that isn't running is dimmed and shows its state's shape.
+// The compact tree on the left (200 px): the menu's search, then the shown tab's nodes, each with its groups, items and
+// pages on 20 px rows. The search shows its results across every tab on the page and narrows the tree to the names that
+// match. A node carries its feature's on/off dot; a node that isn't running is dimmed and shows its state's shape.
 // The page shown has the selection fill. Left and Right close and open nodes, or move to the parent or first child.
 internal static class TreeView
 {
     public const float Width = 200f;
     private const float RowHeight = 20f, Indent = 12f, FilterHeight = 22f, OpenSeconds = 0.15f;
-    private const string FilterControl = "EpochAssistTreeFilter";
+    private const string SearchControl = "EpochAssistSearch";
+
+    /// <summary>Set by Ctrl+F: the search field takes the keyboard at the next pass.</summary>
+    public static bool FocusSearch;
+
+    // Set by Esc: the search field lets go of the keyboard at the next pass (focus can only change inside OnGUI).
+    private static bool s_blurSearch;
+
+    public static bool SearchFocused => GUI.GetNameOfFocusedControl() == SearchControl;
 
     private enum Kind { Node, Group, Item, Page }
 
     private sealed record Row(Kind Kind, int Depth, string Key, string Label, MenuNode Node, PageNode? Page, TreeItem? Item, string? Parent, float Open);
 
-    private static string s_filter = string.Empty;
     private static Vector2 s_scroll;
     // Closed nodes and groups, by key (all start open), and how far each is open (0 to 1) for the motion.
     private static readonly HashSet<string> s_closed = new();
@@ -24,7 +32,6 @@ internal static class TreeView
 
     public static void Reset()
     {
-        s_filter = string.Empty;
         s_scroll = Vector2.zero;
         s_open.Clear();
     }
@@ -36,7 +43,7 @@ internal static class TreeView
         s_closed.Remove(page.Node.Path);
     }
 
-    private static bool Closed(string key) => s_closed.Contains(key) && s_filter.Length == 0;
+    private static bool Closed(string key) => s_closed.Contains(key) && Menu.Search.Length == 0;
 
     // How far a node or group is open, eased toward its target once per frame (in the layout pass).
     private static float Openness(string key)
@@ -50,7 +57,7 @@ internal static class TreeView
 
     private static List<Row> Rows(MenuTab tab)
     {
-        string[] words = MenuSearchText.Words(s_filter);
+        string[] words = MenuSearchText.Words(Menu.Search);
         var rows = new List<Row>();
         foreach (var node in tab.Nodes)
         {
@@ -84,7 +91,7 @@ internal static class TreeView
     {
         Focus.Scope = string.Empty;
         var filter = new Rect(area.x + 6f, area.y + 6f, area.width - 12f, FilterHeight);
-        FilterField(filter);
+        SearchField(filter);
 
         var tab = MenuRoutes.Page?.Node.Tab;
         if (tab == null) return;
@@ -124,16 +131,55 @@ internal static class TreeView
         }
     }
 
-    private static void FilterField(Rect field)
+    // The search field: a placeholder while empty, a clear button inside its right end while not; Enter opens the first
+    // result.
+    private static void SearchField(Rect field)
     {
-        GUI.SetNextControlName(FilterControl);
-        s_filter = GUI.TextField(field, s_filter, 40, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
-        bool focused = GUI.GetNameOfFocusedControl() == FilterControl;
-        if (focused) Focus.Take("tree.filter");
-        if (Focus.Item("tree.filter", field) || Focus.Arrived("tree.filter")) GUI.FocusControl(FilterControl);
-        if (Event.current.type == EventType.Repaint && s_filter.Length == 0 && !focused)
-            Widgets.Paint(field, "Filter", Widgets.Style(() => Theme.FieldDim, GUI.skin.label));
+        var clear = new Rect(field.xMax - 20f, field.y, 20f, field.height);
+        string search = Menu.Search;
+        bool hasText = search.Length > 0;
+        // Drawn first so it takes its click before the field under it, and always, so the field's control id doesn't move.
+        bool cleared = GUI.Button(clear, GUIContent.none, GUIStyle.none) && hasText;
+        GUI.SetNextControlName(SearchControl);
+        string typed = GUI.TextField(field, search, 64, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
+        if (typed != search) Menu.SetSearch(typed);
+        if (SearchFocused) Focus.Take("search");
+        bool activated = Focus.Item("search", field);
+        if (s_blurSearch && Event.current.type == EventType.Layout)
+        {
+            s_blurSearch = false;
+            if (SearchFocused)
+            {
+                GUI.FocusControl(null);
+                GUIUtility.keyboardControl = 0;
+            }
+        }
+        else if (FocusSearch && Event.current.type == EventType.Layout)
+        {
+            FocusSearch = false;
+            Focus.Take("search");
+            GUI.FocusControl(SearchControl);
+        }
+        else if (Focus.Arrived("search") || (activated && !SearchFocused))
+        {
+            GUI.FocusControl(SearchControl);
+        }
+        else if (activated && hasText)
+        {
+            PageView.OpenFirstResult();
+        }
+        if (cleared)
+        {
+            Menu.SetSearch(string.Empty);
+            GUIUtility.keyboardControl = 0;
+        }
+        if (Event.current.type != EventType.Repaint) return;
+        if (Menu.Search.Length == 0 && !SearchFocused) Widgets.Paint(field, "Search", Widgets.Style(() => Theme.FieldDim, GUI.skin.label));
+        else if (hasText && Widgets.Themed) Theme.Tinted(new Rect(clear.center.x - 5f, clear.center.y - 5f, 10f, 10f), Theme.Cross, clear.Contains(Event.current.mousePosition) ? Theme.Text : Theme.Dim);
     }
+
+    /// <summary>Lets go of the search field (Esc), at the next GUI pass.</summary>
+    public static void BlurSearch() => s_blurSearch = true;
 
     private static void DrawRow(Row row, Rect r, string current, List<Row> rows)
     {

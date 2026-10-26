@@ -5,62 +5,57 @@ using BuildInfo = EpochAssist.Core.BuildInfo;
 namespace EpochAssist.Ui;
 
 // The 40 px bar across the top: the logo and version, the tabs (editor style: the selected tab takes the page's colour
-// and opens into it), then the search field, the profile in use and the close button. Its empty space drags the window.
+// and opens into it), then the profile in use and the close button. Its empty space drags the window. The search is at
+// the top of the tree.
 internal static class TopBar
 {
     public const float Height = 40f;
-    private const string SearchControl = "EpochAssistSearch";
     private const float TabHeight = 34f;
 
     /// <summary>Where nothing was drawn, for dragging the window.</summary>
     public static Rect DragArea { get; private set; }
-
-    /// <summary>Set by Ctrl+F: the search field takes the keyboard at the next pass.</summary>
-    public static bool FocusSearch;
-
-    public static bool SearchFocused => GUI.GetNameOfFocusedControl() == SearchControl;
 
     public static void Draw(Rect bar)
     {
         Focus.Scope = "top";
         GUIStyle version = Widgets.Style(() => Theme.Version, GUI.skin.label);
         float x = bar.x + 10f;
-        // A narrow window (a small screen at a large UI scale) leaves the logo and version out, so the tabs and the
-        // search never overlap; the version is on Diagnostics too.
-        if (Roomy(bar, version)) x = Brand(bar, x, version);
+        // The version always shows; a narrow window (a small screen at a large UI scale) leaves the logo out, so the tabs
+        // and the profile never overlap.
+        x = Brand(bar, x, version, withLogo: LogoFits(bar, version));
         x = Tabs(bar, x);
         Right(bar, x);
     }
 
-    // Logo, version, tabs, search, profile and close all fit across the bar.
-    private static bool Roomy(Rect bar, GUIStyle version)
+    // The logo (or the name), the version, the tabs, the profile and close all fit across the bar.
+    private static bool LogoFits(Rect bar, GUIStyle version)
     {
         GUIStyle brand = Widgets.Style(() => Theme.Brand, GUI.skin.label), tab = Widgets.Style(() => Theme.Tab, GUI.skin.button);
         float brandWidth = Theme.Logo != null && Widgets.Themed ? 145f : TextCache.Width(BuildInfo.Name, brand);
         float tabs = MenuTree.Tabs.Sum(t => TextCache.Width(t.Title, tab) + 29f);
-        // Close, profile and the narrow search with their gaps.
-        const float rightSide = 8f + 22f + 6f + 150f + 6f + 130f + 8f;
+        // Close and profile with their gaps.
+        const float rightSide = 8f + 22f + 6f + 150f + 8f;
         return 10f + brandWidth + 10f + TextCache.Width("v" + BuildInfo.Version, version) + 14f + tabs + rightSide <= bar.width;
     }
 
-    private static float Brand(Rect bar, float x, GUIStyle version)
+    private static float Brand(Rect bar, float x, GUIStyle version, bool withLogo)
     {
-        // Beside the logo, the version sits on the wordmark's baseline (the logo's foot), not the bar's middle.
+        // Beside the logo, the version sits on the wordmark's baseline (the logo's foot); alone, on the bar's middle.
         float versionShift = 0f;
-        if (Theme.Logo is { } logo && Widgets.Themed)
+        if (withLogo && Theme.Logo is { } logo && Widgets.Themed)
         {
             versionShift = Mathf.Round(8.5f - version.fontSize * 0.4f);
             if (Event.current.type == EventType.Repaint) GUI.DrawTexture(Menu.PixelSnap(new Rect(x, bar.center.y - 8.5f, 145f, 17f)), logo);
             x += 145f;
         }
-        else
+        else if (withLogo)
         {
             GUIStyle brand = Widgets.Style(() => Theme.Brand, GUI.skin.label);
             float w = TextCache.Width(BuildInfo.Name, brand);
             if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, bar.y, w, bar.height), BuildInfo.Name, brand);
             x += w;
         }
-        x += 10f;
+        if (withLogo) x += 10f;
         string v = "v" + BuildInfo.Version;
         float vw = TextCache.Width(v, version);
         if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, bar.y + versionShift, vw, bar.height), v, version);
@@ -104,7 +99,7 @@ internal static class TopBar
 
     private static void Right(Rect bar, float tabsEnd)
     {
-        // From the right: close, profile, search.
+        // From the right: close, then the profile.
         float right = bar.xMax - 8f;
         var close = new Rect(right - 22f, Mathf.Round(bar.center.y - 11f), 22f, 22f);
         bool closeClicked = GUI.Button(close, GUIContent.none, GUIStyle.none);
@@ -121,12 +116,6 @@ internal static class TopBar
         GUIStyle field = Widgets.Style(() => Theme.FieldText, GUI.skin.label);
         float pw = Mathf.Clamp(TextCache.Width(Profiles.Active.Name, field) + field.padding.horizontal + 22f, 80f, 150f);
         var profile = new Rect(right - pw, Mathf.Round(bar.center.y - 12f), pw, 24f);
-        right = profile.x - 6f;
-
-        bool wide = SearchFocused || Menu.Search.Length > 0;
-        float sw = Mathf.Min(wide ? 260f : 130f, Mathf.Max(80f, right - tabsEnd - 8f));
-        var search = new Rect(right - sw, Mathf.Round(bar.center.y - 12f), sw, 24f);
-        SearchField(search);
 
         Dropdown.Draw(profile, "profile", names, active, pick =>
         {
@@ -141,51 +130,7 @@ internal static class TopBar
         }, tip: Profiles.HasCharacter ? "The profile this character uses" : "The profile you edit");
 
         if (Focus.Item("close", close) || closeClicked) Actions.Run("menu.close", "menu ×");
-        DragArea = new Rect(tabsEnd, bar.y, Mathf.Max(0f, search.x - tabsEnd), bar.height);
+        DragArea = new Rect(tabsEnd, bar.y, Mathf.Max(0f, profile.x - tabsEnd), bar.height);
         Focus.Scope = string.Empty;
-    }
-
-    // The search field: a placeholder while empty, a clear button inside its right end while not.
-    private static void SearchField(Rect field)
-    {
-        var clear = new Rect(field.xMax - 22f, field.y, 22f, field.height);
-        string search = Menu.Search;
-        bool hasText = search.Length > 0;
-        // Drawn first so it takes its click before the field under it, and always, so the field's control id doesn't move.
-        bool cleared = GUI.Button(clear, GUIContent.none, GUIStyle.none) && hasText;
-        GUI.SetNextControlName(SearchControl);
-        string typed = GUI.TextField(field, search, 64, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
-        if (typed != search) Menu.SetSearch(typed);
-        if (SearchFocused) Focus.Take("search");
-        bool activated = Focus.Item("search", field);
-        if (FocusSearch && Event.current.type == EventType.Layout)
-        {
-            FocusSearch = false;
-            Focus.Take("search");
-            GUI.FocusControl(SearchControl);
-        }
-        else if (Focus.Arrived("search") || (activated && !SearchFocused))
-        {
-            GUI.FocusControl(SearchControl);
-        }
-        else if (activated && hasText)
-        {
-            // Enter in the field opens the first result.
-            PageView.OpenFirstResult();
-        }
-        if (cleared)
-        {
-            Menu.SetSearch(string.Empty);
-            GUIUtility.keyboardControl = 0;
-        }
-        if (Event.current.type != EventType.Repaint) return;
-        if (Menu.Search.Length == 0 && !SearchFocused) Widgets.Paint(field, "Search", Widgets.Style(() => Theme.Placeholder, GUI.skin.label));
-        else if (hasText && Widgets.Themed) Theme.Tinted(new Rect(clear.center.x - 5f, clear.center.y - 5f, 10f, 10f), Theme.Cross, clear.Contains(Event.current.mousePosition) ? Theme.Text : Theme.Dim);
-    }
-
-    /// <summary>Lets go of the search field (Esc).</summary>
-    public static void BlurSearch()
-    {
-        if (SearchFocused) GUIUtility.keyboardControl = 0;
     }
 }
