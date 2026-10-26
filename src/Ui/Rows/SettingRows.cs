@@ -13,6 +13,9 @@ internal static class SettingRows
         RowKinds.Register<ValueChoice>(new ValueChoiceRenderer());
         RowKinds.Register<ValueNumber>(new ValueNumberRenderer());
         RowKinds.Register<ValueToggle>(new ValueToggleRenderer());
+        RowKinds.Register<ValueKey>(new ValueKeyRenderer());
+        RowKinds.Register<ValueReadout>(new ValueReadoutRenderer());
+        RowKinds.Register<ValueText>(new ValueTextRenderer());
     }
 
     /// <summary>A setting's focus key: its group and id, the same on every page and in search results.</summary>
@@ -125,6 +128,13 @@ internal static class SettingRows
         toggle.Value = !toggle.Value;
     }
 
+    /// <summary>A quick switch flips through its action, falling back to setting it directly.</summary>
+    public static void Flip(IQuickSwitch quick, string trigger)
+    {
+        if (!Actions.Run(quick.ActionId, trigger).StartsWith("error")) return;
+        quick.Set(!quick.Value);
+    }
+
     /// <summary>One setting's control in a rect.</summary>
     public static void Control(Setting setting, Rect r, string key, string? tip)
     {
@@ -233,7 +243,7 @@ internal static class SettingRows
         protected override float Height(ValueChoice row, float width, RowContext ctx) =>
             ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, InlineWidth(row), null);
 
-        protected override float InlineWidth(ValueChoice row) => Dropdown.WidthFor(Options(row));
+        protected override float InlineWidth(ValueChoice row) => row.Width ?? Dropdown.WidthFor(Options(row));
 
         protected override void Draw(ValueChoice row, Rect rect, RowContext ctx)
         {
@@ -241,7 +251,10 @@ internal static class SettingRows
             Rect control = ctx.Inline ? new Rect(rect.x, rect.y, rect.width, RowLayout.ControlHeight) : RowLayout.Lay(rect, InlineWidth(row), null).Control;
             if (!ctx.Inline) RowLayout.Label(RowLayout.Lay(rect, InlineWidth(row), null).Label, row.Label, ctx, null);
             int current = Safe.Call(row.Get, -1, row.Key + ".get");
-            Dropdown.Draw(control, ctx.Prefix + row.Key, options, current, i => Safe.Call(() => { row.Set(i); return true; }, false, row.Key + ".set"), tip: row.Label);
+            var groups = row.Groups == null ? null : Safe.Call(row.Groups, null, row.Key + ".groups");
+            string? shown = current >= 0 || row.Shown == null ? null : Safe.Call(row.Shown, null, row.Key + ".shown");
+            Dropdown.Draw(control, ctx.Prefix + row.Key, options, current, i => Safe.Call(() => { row.Set(i); return true; }, false, row.Key + ".set"),
+                groups, shown, tip: row.Label);
         }
 
         protected override IEnumerable<string> Search(ValueChoice row) => Options(row).Prepend(row.Label);
@@ -250,8 +263,124 @@ internal static class SettingRows
         {
             var options = Options(row);
             int current = Safe.Call(row.Get, -1, row.Key + ".get");
-            return new RowText("dropdown", row.Label, current >= 0 && current < options.Count ? options[current] : string.Empty, ctx.Enabled && Safe.Enabled(row));
+            string value = current >= 0 && current < options.Count ? options[current] : row.Shown != null ? Safe.Call(row.Shown, null, row.Key + ".shown") ?? string.Empty : string.Empty;
+            return new RowText("dropdown", row.Label, value, ctx.Enabled && Safe.Enabled(row));
         }
+    }
+
+    // A key bound to a value: its box, then Change (or Cancel while capturing); a warning glyph when it overlaps another key.
+    private sealed class ValueKeyRenderer : RowRenderer<ValueKey>
+    {
+        private static bool Capturing(ValueKey row, RowContext ctx) => Hotkeys.CapturingTarget?.Label == CaptureLabel(row, ctx);
+
+        private static string CaptureLabel(ValueKey row, RowContext ctx) => ctx.Prefix + row.Key;
+
+        private static string Text(ValueKey row, bool capturing)
+        {
+            if (capturing) return "Press keys or a mouse button...";
+            string chord = Safe.Call(row.Get, string.Empty, row.Key + ".get");
+            return Chord.TryParse(chord, HotkeyKind.Hold, out var parsed) && !parsed.IsEmpty ? parsed.Display : "Not set";
+        }
+
+        protected override float Height(ValueKey row, float width, RowContext ctx) => RowLayout.ControlHeight;
+
+        protected override float InlineWidth(ValueKey row) => Controls.KeyBoxWidth(Text(row, false)) + 6f + Controls.ButtonWidth("Change") + 26f;
+
+        protected override void Draw(ValueKey row, Rect rect, RowContext ctx)
+        {
+            bool capturing = Capturing(row, ctx);
+            string text = Text(row, capturing);
+            float box = Controls.KeyBoxWidth(text);
+            Controls.KeyBox(new Rect(rect.x, rect.y, box, RowLayout.ControlHeight), text, capturing);
+            float x = rect.x + box + 6f;
+            string change = capturing ? "Cancel" : "Change";
+            bool wasEnabled = GUI.enabled;
+            GUI.enabled = wasEnabled && (capturing || HotkeysRunning);
+            if (Controls.Button(new Rect(x, rect.y, Controls.ButtonWidth(change), RowLayout.ControlHeight), change, ctx.Prefix + row.Key + ".change", tip: row.Label))
+            {
+                if (capturing) Hotkeys.CancelCapture();
+                else Hotkeys.BeginCapture(new CaptureTarget(CaptureLabel(row, ctx), HotkeyKind.Hold, chord => Safe.Call(() => { row.Set(chord); return true; }, false, row.Key + ".set")));
+            }
+            GUI.enabled = wasEnabled;
+            x += Controls.ButtonWidth(change) + 6f;
+            var warnings = row.Warnings == null ? Array.Empty<string>() : Safe.Call(row.Warnings, Array.Empty<string>(), row.Key + ".warnings");
+            if (warnings.Count == 0) return;
+            var glyph = new Rect(x, Mathf.Round(rect.y + RowLayout.ControlHeight / 2f - 8f), 16f, 16f);
+            if (Event.current.type == EventType.Repaint) Widgets.Paint(glyph, Widgets.Themed ? Widgets.Colored("!", Theme.Pause) : "!", Widgets.Style(() => Theme.Label, GUI.skin.label));
+            Popups.Tip(glyph, string.Join("\n", warnings), ctx.Prefix + row.Key + ".warning");
+        }
+
+        protected override IEnumerable<string> Search(ValueKey row) => new[] { row.Label };
+
+        protected override RowText Bridge(ValueKey row, RowContext ctx)
+        {
+            var warnings = row.Warnings == null ? Array.Empty<string>() : Safe.Call(row.Warnings, Array.Empty<string>(), row.Key + ".warnings");
+            string chord = Safe.Call(row.Get, string.Empty, row.Key + ".get");
+            return new RowText("key", row.Label, chord.Length > 0 ? chord : "none", ctx.Enabled && Safe.Enabled(row)) { Warnings = warnings.ToList() };
+        }
+    }
+
+    // A live value inline, with its state's shape before the text; the error look when the state is null.
+    private sealed class ValueReadoutRenderer : RowRenderer<ValueReadout>
+    {
+        private static (string Text, StatusState? State) Value(ValueReadout row) => Safe.Call(row.Value, (string.Empty, (StatusState?)null), row.Key);
+
+        protected override float Height(ValueReadout row, float width, RowContext ctx) => RowLayout.ControlHeight;
+
+        protected override float InlineWidth(ValueReadout row) =>
+            Mathf.Clamp(TextCache.Width(Value(row).Text, Widgets.Style(() => Theme.Label, GUI.skin.label)) + 18f, 48f, 130f);
+
+        protected override void Draw(ValueReadout row, Rect rect, RowContext ctx)
+        {
+            var (text, state) = Value(row);
+            var r = new Rect(rect.x, rect.y, rect.width, RowLayout.ControlHeight);
+            string? tip = row.Tip == null ? null : Safe.Call(row.Tip, null, row.Key + ".tip");
+            Popups.Tip(r, tip, ctx.Prefix + row.Key);
+            if (Event.current.type != EventType.Repaint) return;
+            Color color = state is { } s ? Theme.StateColor(s) : Theme.Error;
+            float x = r.x;
+            if (Widgets.Themed)
+            {
+                Menu.DrawState(new Rect(x, Mathf.Round(r.center.y - 4f), 8f, 8f), state ?? StatusState.Holding, color);
+                x += 14f;
+            }
+            GUIStyle style = Widgets.Style(() => Theme.Label, GUI.skin.label);
+            var area = new Rect(x, r.y, r.xMax - x, r.height);
+            string fitted = Controls.Fit(text, style, area.width);
+            Widgets.Paint(area, Widgets.Themed ? Widgets.Colored(fitted, color) : fitted, style);
+        }
+
+        protected override IEnumerable<string> Search(ValueReadout row) => Array.Empty<string>();
+
+        protected override RowText Bridge(ValueReadout row, RowContext ctx)
+        {
+            string word = row.Word == null ? string.Empty : Safe.Call(row.Word, string.Empty, row.Key + ".word");
+            return new RowText("readout", row.Label, $"{RowText.Quote(Value(row).Text)} {word}".TrimEnd());
+        }
+    }
+
+    // Muted text inline.
+    private sealed class ValueTextRenderer : RowRenderer<ValueText>
+    {
+        private static string Text(ValueText row) => Safe.Call(row.Text, string.Empty, row.Key);
+
+        protected override float Height(ValueText row, float width, RowContext ctx) => RowLayout.ControlHeight;
+
+        private static GUIStyle Style => Widgets.Style(() => Theme.Label, GUI.skin.label);
+
+        protected override float InlineWidth(ValueText row) => row.Width ?? Mathf.Clamp(TextCache.Width(Text(row), Style) + 8f, 40f, 600f);
+
+        protected override void Draw(ValueText row, Rect rect, RowContext ctx)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            var r = new Rect(rect.x, rect.y, rect.width, RowLayout.ControlHeight);
+            string text = Controls.Fit(Text(row), Style, r.width);
+            Widgets.Paint(r, Widgets.Themed ? Widgets.Colored(text, Theme.Dim) : text, Style);
+        }
+
+        protected override IEnumerable<string> Search(ValueText row) => new[] { Text(row) };
+
+        protected override RowText Bridge(ValueText row, RowContext ctx) => new("text", row.Label, Text(row));
     }
 
     private sealed class ValueNumberRenderer : RowRenderer<ValueNumber>

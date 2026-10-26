@@ -84,6 +84,9 @@ internal sealed class ActionButton : MenuRow
     public string Label { get; }
     public string Action { get; }
     public bool Primary { get; }
+    /// <summary>Runs instead of the named action (a list entry's own button); Action is then only its key.</summary>
+    public Action? OnClick { get; init; }
+    public string? Tip { get; init; }
     protected override string DefaultKey => "button." + Action;
 }
 
@@ -179,7 +182,67 @@ internal sealed class ValueChoice : MenuRow
     public Func<int> Get { get; }
     public Action<int> Set { get; }
     public Func<IReadOnlyList<string>> Options { get; }
+    /// <summary>Headings in the dropdown: each group starts at option index First.</summary>
+    public Func<(string Label, int First)[]?>? Groups { get; init; }
+    /// <summary>The text shown when Get is outside the options ("Buff #81").</summary>
+    public Func<string?>? Shown { get; init; }
+    /// <summary>The width inline, when the options' own would be too wide for the line.</summary>
+    public float? Width { get; init; }
     protected override string DefaultKey => "choice." + MenuEntry.Slug(Label);
+}
+
+/// <summary>A key bound to a value: captured like a hold binding (modifiers first, mouse 3–7 allowed), "Not set" when
+/// empty, with the hotkey layer's conflict warnings as a glyph's tip.</summary>
+internal sealed class ValueKey : MenuRow
+{
+    public ValueKey(string label, Func<string> get, Action<string> set)
+    {
+        Label = label;
+        Get = get;
+        Set = set;
+    }
+
+    public string Label { get; }
+    /// <summary>Chord text, empty for none.</summary>
+    public Func<string> Get { get; }
+    public Action<string> Set { get; }
+    /// <summary>Warnings for the chord (conflicts with other bindings).</summary>
+    public Func<IReadOnlyList<string>>? Warnings { get; init; }
+    protected override string DefaultKey => "key." + MenuEntry.Slug(Label);
+}
+
+/// <summary>A live value inline: text in its state's colour and shape; a null state is the error look.</summary>
+internal sealed class ValueReadout : MenuRow
+{
+    public ValueReadout(string label, Func<(string Text, StatusState? State)> value)
+    {
+        Label = label;
+        Value = value;
+    }
+
+    public string Label { get; }
+    public Func<(string Text, StatusState? State)> Value { get; }
+    /// <summary>Its words for the bridge ("pass", "unknown").</summary>
+    public Func<string>? Word { get; init; }
+    /// <summary>A longer text as its tip (why it's unknown).</summary>
+    public Func<string?>? Tip { get; init; }
+    protected override string DefaultKey => "readout." + MenuEntry.Slug(Label);
+}
+
+/// <summary>Muted text inline in a list entry (an invalid entry's stored text and reason).</summary>
+internal sealed class ValueText : MenuRow
+{
+    public ValueText(string label, Func<string> text)
+    {
+        Label = label;
+        Text = text;
+    }
+
+    public string Label { get; }
+    public Func<string> Text { get; }
+    /// <summary>A fixed width, so the controls after it line up from entry to entry; null fits the text.</summary>
+    public float? Width { get; init; }
+    protected override string DefaultKey => "text." + MenuEntry.Slug(Label);
 }
 
 /// <summary>A number field bound to a value; clamped and snapped like a Number setting.</summary>
@@ -245,7 +308,17 @@ internal sealed class ListRow : MenuRow
     public Func<object, IReadOnlyList<MenuRow>> RowsOf { get; }
     public string AddLabel { get; }
     public Action? Add { get; init; }
+    /// <summary>When given, the add button opens a dropdown of these (grouped by AddGroups) and AddPicked gets the index.</summary>
+    public Func<IReadOnlyList<string>>? AddChoices { get; init; }
+    public Func<(string Label, int First)[]?>? AddGroups { get; init; }
+    public Action<int>? AddPicked { get; init; }
+    /// <summary>Why nothing can be added now (the add button greys with it as its tip), or null.</summary>
+    public Func<string?>? AddBlocked { get; init; }
     public Action<int>? Remove { get; init; }
+    /// <summary>Why an entry can't be removed (its remove button greys with it as its tip), or null.</summary>
+    public Func<int, string?>? RemoveBlocked { get; init; }
     public Action<int, int>? Move { get; init; }
+    /// <summary>A second line under an entry while it returns rows (its details unfolded), else null.</summary>
+    public Func<object, IReadOnlyList<MenuRow>?>? Details { get; init; }
     protected override string DefaultKey => "list." + MenuEntry.Slug(Label);
 }

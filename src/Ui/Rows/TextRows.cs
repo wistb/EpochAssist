@@ -17,7 +17,11 @@ internal static class TextRows
     }
 
     /// <summary>Runs a button's action from the menu.</summary>
-    public static void Run(ActionButton button) => Actions.Run(button.Action, "menu");
+    public static void Run(ActionButton button)
+    {
+        if (button.OnClick != null) Safe.Call(() => { button.OnClick(); return true; }, false, button.Key);
+        else Actions.Run(button.Action, "menu");
+    }
 
     /// <summary>A flat banner with the accent bar at its left; the button, when given, at its right. Returns its height.</summary>
     public static float BannerHeight(string text, float width, ActionButton? button) =>
@@ -94,7 +98,7 @@ internal static class TextRows
         protected override void Draw(ActionButton row, Rect rect, RowContext ctx)
         {
             var r = new Rect(rect.x, rect.y, Controls.ButtonWidth(row.Label), RowLayout.ControlHeight);
-            if (Controls.Button(r, row.Label, ctx.Prefix + row.Key, row.Primary)) Run(row);
+            if (Controls.Button(r, row.Label, ctx.Prefix + row.Key, row.Primary, row.Tip)) Run(row);
         }
 
         protected override IEnumerable<string> Search(ActionButton row) => new[] { row.Label };

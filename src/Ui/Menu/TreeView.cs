@@ -56,7 +56,7 @@ internal static class TreeView
         {
             bool nodeMatch = MenuSearchText.Matches(node.Title, words);
             var items = node.Entry.Groups.Select(g => (Group: g, Items: Safe.Call(g.Items, Array.Empty<TreeItem>(), node.Path + "." + g.Title))).ToList();
-            var pages = node.Leaf ? new List<PageNode>() : node.Pages.Where(p => nodeMatch || MenuSearchText.Matches(p.Page.Title, words)).ToList();
+            var pages = node.Leaf ? new List<PageNode>() : node.Pages.Where(p => p.Page.InTree && (nodeMatch || MenuSearchText.Matches(p.Page.Title, words))).ToList();
             var groups = items.Select(g => (g.Group, Items: g.Items.Where(i => nodeMatch || MenuSearchText.Matches(g.Group.Title, words)
                 || MenuSearchText.Matches(i.Label, words)).ToList())).Where(g => g.Items.Count > 0 || nodeMatch).ToList();
             if (!nodeMatch && pages.Count == 0 && groups.All(g => g.Items.Count == 0)) continue;
