@@ -8,10 +8,11 @@ internal static class AutoCastSettings
 {
     // Version 2: HoldToPauseKey is a Hotkey (chord text) instead of a KeyCode. Version 3: the enemy gate moved into
     // GateConditions.
-    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Autocast", version: 3) { ActionKey = "autocast" };
+    // The feature grew into Macros; ids, the group id and its version stay, so nothing migrates (labels only).
+    public static readonly SettingsGroup Group = new("EpochAssist_AutoCast", "Macros", version: 3) { ActionKey = "autocast" };
 
-    private static readonly Section Main = Group.Section("main", "Autocast");
-    public static readonly Toggle Enabled = new(Main, "Enabled", "Autocast", false) { QuickLabel = "Autocast" };
+    private static readonly Section Main = Group.Section("main", "Macros");
+    public static readonly Toggle Enabled = new(Main, "Enabled", "Run macros", false) { QuickLabel = "Macros" };
 
     public static readonly Section Controls = Group.Section("controls", "Controls");
     public static readonly Choice<KeyCode> ModifierKey = new(Controls, "ModifierKey", "Modifier", KeyCode.LeftControl,
@@ -22,7 +23,7 @@ internal static class AutoCastSettings
     };
     public static readonly Hotkey HoldToPauseKey = new(Controls, "HoldToPauseKey", "Hold to pause", string.Empty, HotkeyKind.Hold, HotkeyScope.Gameplay)
     {
-        Clearable = true, Help = "While held, autocast stops and lets go of any channel.",
+        Clearable = true, Help = "While held, macros stop.",
     };
 
     public static readonly Section Pausing = Group.Section("pausing", "Pause");
@@ -44,14 +45,14 @@ internal static class AutoCastSettings
 
     // Version 3: the enemy gate is the first entry of the every-slot condition list (GateConditions); RequireEnemies,
     // EnemyRange and EnemyMinWeight are left in the files and read only by the step.
-    public static readonly Section Gate = Group.Section("gate", "Every slot");
+    public static readonly Section Gate = Group.Section("gate", "Shared Conditions");
     public const string EveryList = "every";
     public const string GateEntryId = "gate";
     private const string GateDefault =
         "{\"v\":1,\"lists\":{\"every\":{\"all\":[{\"id\":\"gate\",\"label\":\"Enemy gate\",\"kind\":\"enemies.weight\",\"args\":{\"range\":15,\"weight\":1},\"on\":false,\"trueWhenUnknown\":true}]}}}";
-    public static readonly ConditionSetting GateConditions = new(Gate, "GateConditions", "Every slot", GateDefault)
+    public static readonly ConditionSetting GateConditions = new(Gate, "GateConditions", "Shared Conditions", GateDefault)
     {
-        Help = "Checked for every slot before its own conditions.",
+        Help = "Checked for every slot macro before its own conditions.",
         // The old gate switch's quick toggle and action, now the gate entry's switch.
         Quick = { (EveryList, GateEntryId, "Enemy gate", SettingsRegistry.ToggleAction(Group, "RequireEnemies")) },
         KeptEntries = { (EveryList, GateEntryId) },
@@ -69,6 +70,27 @@ internal static class AutoCastSettings
     // Keyed "<form>/<slot>": form -1 is human, else the transform id; slot 1–5.
     public static readonly Section Slots = Group.Section("slots", "Slot conditions");
     public static readonly ConditionSetting SlotConditions = new(Slots, "SlotConditions", "Slot conditions", "{\"v\":1,\"lists\":{}}");
+
+    // Named sets of macros per class (contracts/macro-format.md); the Slots set isn't stored here.
+    public static readonly Section Library = Group.Section("library", "Macro library");
+    public static readonly MacroLibrarySetting LibraryDoc = new(Library, "Library", "Macro library", MacroDoc.DefaultText)
+    {
+        Help = "Named sets of macros for each class.",
+    };
+
+    public static readonly Section Debug = Group.Section("debug", "Debug");
+    public static readonly Toggle DebugConditions = new(Debug, "DebugConditions", "Debug conditions", false)
+    {
+        Help = "Shows each enabled macro's state and first failing line on screen.",
+    };
+    public static readonly Toggle DebugRanges = new(Debug, "DebugRanges", "Debug ranges", false)
+    {
+        Help = "Draws the ranges enemy lines count, green while they pass.",
+    };
+    public static readonly Toggle DebugNotifications = new(Debug, "DebugNotifications", "Debug notifications", false)
+    {
+        Help = "Each macro that starts shows a notification: the line that set it off, with its value, and its first step.",
+    };
 
     /// <summary>The gate entry of the every-slot list, or null when the list can't be read here.</summary>
     public static ConditionEntry? GateEntry()
@@ -139,7 +161,7 @@ internal static class AutoCastSettings
         Group.Register();
     }
 
-    private static Number Weight(string id, string label, float defaultValue) => new(Gate, id, label, defaultValue, 0f, 50f)
+    private static Number Weight(string id, string label, float defaultValue) => new(Gate, id, label, defaultValue, 0f, 100f)
     {
         Fold = "Enemy weights", Help = "How much each enemy counts toward an enemy weight condition.",
     };

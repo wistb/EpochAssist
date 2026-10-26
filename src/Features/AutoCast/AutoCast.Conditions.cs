@@ -12,11 +12,14 @@ internal static partial class AutoCast
     /// </summary>
     private sealed class Verdicts
     {
-        public ConditionResult[] Every = new ConditionResult[ConditionList.Limit];
-        public ListVerdict EveryVerdict = ListVerdict.Pass;
-        public readonly ConditionResult[][] Slot = new ConditionResult[SlotCount][];
-        public readonly ListVerdict[] SlotVerdict = new ListVerdict[SlotCount];
+        // Trees with their results and "for" timers: the shared conditions, and each slot's own list.
+        public readonly TreeState Every = new();
+        public TreeVerdict EveryVerdict = TreeVerdict.Pass;
+        public readonly TreeState[] Slot = new TreeState[SlotCount];
+        public readonly TreeVerdict[] SlotVerdict = new TreeVerdict[SlotCount];
         public readonly bool[] Waiting = new bool[SlotCount];
+        // Slots a library run has (FR-042): left alone, reason "in use by a macro".
+        public readonly bool[] InUse = new bool[SlotCount];
 
         // The every-slot rule's reason, worked out again only when its first failing entry changes.
         public ConditionList? ReasonList;
@@ -33,22 +36,53 @@ internal static partial class AutoCast
         {
             for (int i = 0; i < SlotCount; i++)
             {
-                Slot[i] = new ConditionResult[ConditionList.Limit];
-                SlotVerdict[i] = ListVerdict.Pass;
+                Slot[i] = new TreeState();
+                SlotVerdict[i] = TreeVerdict.Pass;
             }
         }
 
         public void Clear()
         {
-            EveryVerdict = ListVerdict.Pass;
+            EveryVerdict = TreeVerdict.Pass;
+            Every.Reset();
             for (int i = 0; i < SlotCount; i++)
             {
-                SlotVerdict[i] = ListVerdict.Pass;
+                SlotVerdict[i] = TreeVerdict.Pass;
+                Slot[i].Reset();
                 Waiting[i] = false;
             }
             ReasonList = null;
             ReasonIndex = -1;
             Reason = string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// The enemy ranges the slots count (the shared conditions and each toggled slot's own list), each marked true while
+    /// a line using it counts, added to rings for the Debug ranges overlay.
+    /// </summary>
+    internal static void SlotRanges(Dictionary<(float Range, bool Cursor), bool> rings)
+    {
+        if (s_run is not { } run) return;
+        bool[] toggles = CurrentToggles();
+        if (!toggles.Any(t => t)) return;
+        AddRanges(run.Verdicts.Every, rings);
+        for (int i = 0; i < SlotCount; i++)
+        {
+            if (toggles[i]) AddRanges(run.Verdicts.Slot[i], rings);
+        }
+    }
+
+    private static void AddRanges(TreeState tree, Dictionary<(float Range, bool Cursor), bool> rings)
+    {
+        if (tree.List is not { } list) return;
+        var nodes = list.Nodes;
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            if (!nodes[i].On || nodes[i].IsGroup || nodes[i].Invalid != null || nodes[i].KindDef?.KeyFor(nodes[i].Values) is not { } key) continue;
+            bool counts = i < tree.Counted.Length && tree.Counted[i];
+            var ring = (key.Range, key.Cursor);
+            rings[ring] = (rings.TryGetValue(ring, out bool any) && any) || counts;
         }
     }
 
@@ -82,40 +116,51 @@ internal static partial class AutoCast
     /// <summary>Whether autocast counts enemies now (for the editor's "not counted (autocast off)").</summary>
     internal static bool Scanning => s_run is { Active: true };
 
-    private static ConditionResult[] Fit(ConditionResult[] results, ConditionList list) =>
-        results.Length >= list.Entries.Count ? results : new ConditionResult[list.Entries.Count];
-
     // The every-slot list, each update while running (the pause rule needs it even while that rule holds autocast).
     private static void CheckEvery(Run run)
     {
         long start = System.Diagnostics.Stopwatch.GetTimestamp();
         var verdicts = run.Verdicts;
         var list = S.GateConditions.List(S.EveryList);
-        verdicts.Every = Fit(verdicts.Every, list);
         verdicts.EveryVerdict = Conditions.Check(list, ContextFor(-1), verdicts.Every);
         if (!verdicts.EveryVerdict.Passed && (verdicts.EveryVerdict.FirstFailing != verdicts.ReasonIndex || !ReferenceEquals(list, verdicts.ReasonList)))
         {
             verdicts.ReasonList = list;
             verdicts.ReasonIndex = verdicts.EveryVerdict.FirstFailing;
-            verdicts.Reason = verdicts.ReasonIndex >= 0 ? list.Entries[verdicts.ReasonIndex].FailText : list.Invalid ?? "every-slot list can't be read";
+            verdicts.Reason = verdicts.ReasonIndex >= 0 ? list.Nodes[verdicts.ReasonIndex].FailText : list.Invalid ?? "Shared Conditions can't be read";
         }
         AddCheckTime(verdicts, start);
         // The every-slot check runs once per frame, so frames are counted here; slot checks add to the same frame.
         verdicts.CheckFrames++;
     }
 
-    // One toggled slot's own list for the current form; true when it lets the slot cast.
+    // One toggled slot's own list for the current form, then its list-level movement and wait between uses (absent:
+    // any, 0); true when it lets the slot cast.
     private static bool CheckSlot(Run run, int slot)
     {
         long start = System.Diagnostics.Stopwatch.GetTimestamp();
         var verdicts = run.Verdicts;
         var list = S.SlotConditions.List(SlotKey(run.FormKey, slot));
-        verdicts.Slot[slot] = Fit(verdicts.Slot[slot], list);
         var verdict = Conditions.Check(list, ContextFor(slot), verdicts.Slot[slot]);
         verdicts.SlotVerdict[slot] = verdict;
-        verdicts.Waiting[slot] = !verdict.Passed;
+        bool passes = verdict.Passed && MoveAllows(list) && WaitAllows(list, slot);
+        verdicts.Waiting[slot] = !passes;
         AddCheckTime(verdicts, start);
-        return verdict.Passed;
+        return passes;
+    }
+
+    // A slot list's "move" beside "all": any (absent), moving or still; unknown movement holds the slot.
+    private static bool MoveAllows(ConditionList list)
+    {
+        if (list.Field("move") is not System.Text.Json.Nodes.JsonValue v || !v.TryGetValue(out string? move) || move == "any") return true;
+        return PlayerModel.Moving is bool moving && moving == (move == "moving");
+    }
+
+    // A slot list's "waitMs": the slot's last press at least that long ago (absent: 0).
+    private static bool WaitAllows(ConditionList list, int slot)
+    {
+        if (list.Field("waitMs") is not System.Text.Json.Nodes.JsonValue v || !v.TryGetValue(out double ms) || ms <= 0) return true;
+        return Dispatcher.SlotPresses[slot] == 0 || Clock.Now - Dispatcher.LastPressAt[slot] >= ms / 1000.0;
     }
 
     private static void AddCheckTime(Verdicts verdicts, long start)
@@ -174,7 +219,8 @@ internal static partial class AutoCast
             bool? ready = PlayerModel.Slot(i + 1)?.Ready;
             string readiness = ready switch { true => "ready", false => "not ready", _ => "ready? (unknown = ready)" };
             string conditions = list.Entries.Count == 0 ? "conditions: none" : EntriesText(list, results, "  ").TrimStart();
-            string outcome = blocking != null && blocking.Name == "every-slot" ? $"held by every-slot {everyVerdict.FirstFailing + 1}"
+            string outcome = run != null && run.Verdicts.InUse[i] ? "in use by a macro"
+                : blocking != null && blocking.Name == "every-slot" ? $"held by every-slot {everyVerdict.FirstFailing + 1}"
                 : blocking != null ? $"paused: {blocking.Reason}"
                 : !verdict.Passed ? $"waiting on {verdict.FirstFailing + 1}"
                 : ready == false ? "on cooldown"

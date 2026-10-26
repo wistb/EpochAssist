@@ -46,6 +46,9 @@ internal static partial class AutoCast
         // Slots whose current bar command has already toggled, so one press toggles once.
         public readonly bool[] ToggleKeyDown = new bool[SlotCount];
         public DispatchClient? Client;
+        // Library macro runs (skills, registered before the slots client so a run's press goes first) and their drink
+        // steps (survival); they share the slots client's feature rules but not the every-slot list.
+        public DispatchClient? Library, Drinks;
         public bool Active;
         // Set by a zone change; cleared by a skill press of the player's own or by switching a slot on.
         public bool ZonePaused;
@@ -63,7 +66,8 @@ internal static partial class AutoCast
 
         // Enemies near the player from the world model, counted a few times a second for the ranges conditions use.
         public readonly WorldTally Tally = new();
-        public readonly List<float> Ranges = new();
+        public readonly List<TallyKey> Ranges = new();
+        public readonly List<SubjectKey> Subjects = new();
         // Closest enemy within aim range as of the last count; checked again (not gone, not dead) before aiming.
         public WorldEntry? ClosestEnemy;
         public readonly Verdicts Verdicts = new();
@@ -84,6 +88,28 @@ internal static partial class AutoCast
     public static DispatchClient? Client => s_run?.Client;
 
     public static string? SlotAbilityName(int slot) => s_run?.Slots[slot].Ability?.abilityName;
+
+    private static string? s_runningName, s_runningText;
+
+    /// <summary>
+    /// The feature's status: the slot macros' (as before) unless a library run is going ("running <macro>"), or the
+    /// library is held by a rule while no slot is toggled (that rule's reason).
+    /// </summary>
+    public static FeatureStatus StatusOf(DispatchClient slots)
+    {
+        var status = Dispatcher.StatusOf(slots);
+        if (Macros.RunningName is { } name)
+        {
+            // One string per running macro, not per read.
+            if (!ReferenceEquals(name, s_runningName)) (s_runningName, s_runningText) = (name, "running " + name);
+            return new FeatureStatus(StatusState.Active, s_runningText!, status.Slots);
+        }
+        if (s_run?.Library is { Blocking: not null } library && Macros.HasEnabled && !CurrentToggles().Any(on => on))
+        {
+            return Dispatcher.StatusOf(library) with { Slots = status.Slots };
+        }
+        return status;
+    }
 
     // The enemy gate and the hold-to-pause key flip constantly in combat, so they are left out of the logged status.
     private static string BuildStatus(DispatchClient client)
@@ -128,6 +154,7 @@ internal static partial class AutoCast
 
         if (!Player.Exists)
         {
+            Macros.Cancel("no player");
             ClearRefs(run);
             return;
         }
@@ -145,6 +172,8 @@ internal static partial class AutoCast
 
         UpdateEnemyGate(run);
         CheckEvery(run);
+        // Library macros ask first, so their press is in before the slot macros' in the same frame.
+        Macros.Update();
         RequestCasts(run);
 
         // Cosmetic only: a failure here must never stop casting.
@@ -161,6 +190,7 @@ internal static partial class AutoCast
     /// <summary>Draws the enemy gate's range as a ring on the ground around the player, while the gate entry is on.</summary>
     public static void OnGUI()
     {
+        Macros.OnGUI();
         var run = s_run;
         if (run == null || !run.Active || !S.ShowRangeRing.Value) return;
         if (Event.current == null || Event.current.type != EventType.Repaint) return;
@@ -169,7 +199,7 @@ internal static partial class AutoCast
 
         Vector3 center = player.position;
         float radius = gate.Values.Number("range");
-        Color color = Conditions.Counts(gate, run.Verdicts.Every[index]) ? s_rangeRingCastingColor : s_rangeRingHoldingColor;
+        Color color = GateCounts(run, gate) ? s_rangeRingCastingColor : s_rangeRingHoldingColor;
 
         Draw.WorldCircle(center, radius, color, RangeRingWidth, RangeRingSegments);
     }
@@ -184,11 +214,15 @@ internal static partial class AutoCast
         Log.Debug($"Autocast status: {status}");
     }
 
-    /// <summary>Starts a clean run and registers with the dispatcher, with autocast's own pause rules in rank order.</summary>
+    /// <summary>
+    /// Starts a clean run and registers with the dispatcher: drinks (survival), library and slots (skills, in that
+    /// order), each with the feature's own pause rules in rank order; only the slots client has the every-slot list.
+    /// </summary>
     public static void Start(Feature feature)
     {
         var run = new Run();
-        run.Client = Dispatcher.Register(new DispatchClient(feature, PriorityClass.Skills, S.Enabled, new[]
+        // The same rule objects on every client, so they read and show alike.
+        var featureRules = new[]
         {
             new PauseRule("non-combat", "non-combat zone", RuleKind.Latched,
                 () => S.PauseInNonCombatZones.Value && InNonCombatZone()),
@@ -197,13 +231,27 @@ internal static partial class AutoCast
             // Restoring a character's slots never starts casting by itself.
             new PauseRule("entry-pause", "press any skill to resume", RuleKind.Latched, () => run.EntryPaused),
             new PauseRule("hold-key", () => S.HoldToPauseKey.Display + " held", RuleKind.Momentary, () => Hotkeys.Held(S.HoldToPauseKey)),
-            // The every-slot list in the old enemy gate's place; with the gate failing its reason reads as before.
-            new PauseRule("every-slot", () => run.Verdicts.Reason, RuleKind.Momentary, () => run.Active && !run.Verdicts.EveryVerdict.Passed),
-        })
+        };
+        // Drinks go on with the menu open (the menu pausing them once let a fight kill the player); every other rule holds.
+        run.Drinks = Dispatcher.Register(new DispatchClient(feature, PriorityClass.Survival, S.Enabled, featureRules)
         {
+            Name = "macros: drinks",
+            Ignores = new[] { PauseRules.MenuOpen },
+        });
+        run.Library = Dispatcher.Register(new DispatchClient(feature, PriorityClass.Skills, S.Enabled, featureRules)
+        {
+            Name = "macros: library",
+            Channelled = Macros.LibraryChannelled,
+        });
+        run.Client = Dispatcher.Register(new DispatchClient(feature, PriorityClass.Skills, S.Enabled, featureRules.Append(
+            // The every-slot list in the old enemy gate's place; with the gate failing its reason reads as before.
+            new PauseRule("every-slot", () => run.Verdicts.Reason, RuleKind.Momentary, () => run.Active && !run.Verdicts.EveryVerdict.Passed)).ToArray())
+        {
+            Name = "macros: slots",
             Slots = CurrentToggles,
             Channelled = slot => run.Slots[slot].Channelled,
         });
+        Macros.Start(run.Library, run.Drinks);
         run.Client.SwallowRealPress = OnRealBarCommand;
         run.Client.SlotChordHeld = Hotkeys.SlotChordEngaged;
         s_run = run;
@@ -225,7 +273,7 @@ internal static partial class AutoCast
         RegisterConditionTargets(feature);
         // Toggle keys in conditions start off with every run.
         ConditionToggles.Clear();
-        Actions.Register(feature.Id, "autocast.toggle", "Autocast", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
+        Actions.Register(feature.Id, "autocast.toggle", "Macros", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
         for (int i = 0; i < SlotCount; i++)
         {
             int slot = i;
@@ -241,6 +289,7 @@ internal static partial class AutoCast
     {
         var run = s_run;
         if (run == null) return;
+        Macros.OnZoneChanged();
 
         // An echo transition keeps the scene, so references stay valid; only the bar may change.
         if (change.Monolith)
@@ -271,7 +320,7 @@ internal static partial class AutoCast
     {
         if (!run.EntryPaused) Log.Info($"Autocast: paused on entering the game (scene '{GameState.Scene}')");
         run.EntryPaused = true;
-        if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
+        if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Macros paused. Use a skill to resume.", ToastKind.Info);
     }
 
     // The dispatcher lets go of held slots as soon as the zone-pause rule is active. With no slot on there is nothing to
@@ -281,7 +330,7 @@ internal static partial class AutoCast
         if (!run.ZonePaused)
         {
             Log.Info($"Autocast: paused (scene '{GameState.Scene}')");
-            if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
+            if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Macros paused. Use a skill to resume.", ToastKind.Info);
         }
         run.ZonePaused = true;
     }
@@ -294,7 +343,10 @@ internal static partial class AutoCast
         ConditionKeys.Remove("autocast");
         var run = s_run;
         if (run == null) return;
+        Macros.Shutdown();
         if (run.Client != null) Dispatcher.Unregister(run.Client);
+        if (run.Library != null) Dispatcher.Unregister(run.Library);
+        if (run.Drinks != null) Dispatcher.Unregister(run.Drinks);
         try
         {
             RestoreIcons(run);
@@ -309,6 +361,7 @@ internal static partial class AutoCast
     // Switched off: the dispatcher has let go of held slots (the "off" rule); forget toggles and restore the icons.
     private static void Deactivate(Run run)
     {
+        Macros.Cancel("Run macros off");
         run.Active = false;
         run.LastLoggedStatus = string.Empty;
         ClearToggles(run);
@@ -394,6 +447,15 @@ internal static partial class AutoCast
                 continue;
             }
 
+            // A library run casting on this slot has it: the slot macro leaves it alone until the run is done.
+            if (Macros.SlotInUse(i))
+            {
+                run.Verdicts.InUse[i] = true;
+                Dispatcher.Request(client, i, PressIntent.None, targetPosition, hitTransform);
+                continue;
+            }
+            run.Verdicts.InUse[i] = false;
+
             // A slot whose own conditions fail is let go, as an untoggled one is: conditions only hold slots back.
             if (!CheckSlot(run, i))
             {
@@ -407,6 +469,10 @@ internal static partial class AutoCast
             if (channelling) Dispatcher.Retarget(client, i, targetPosition);
         }
     }
+
+    /// <summary>Whether the slots client holds a channel on a slot (0-based): a library cast there waits for it.</summary>
+    internal static bool SlotChannelHeld(int slot) =>
+        s_run is { Client: { } client } run && client.Holds(slot) && run.Slots[slot].Channelled;
 
     // The player model's ready flag is the game's own cooldown check; unknown counts as ready, as before.
     private static bool IsOnCooldown(int slot, Ability? ability) =>
