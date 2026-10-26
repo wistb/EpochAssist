@@ -76,6 +76,7 @@ internal static class GameData
         s_affixNames.Clear();
         s_affixValues.Clear();
         s_items.Clear();
+        s_allBuffs = null;
         GameReads = 0;
         s_feature = null;
     }
@@ -92,6 +93,37 @@ internal static class GameData
             if (name == null && ailmentId is >= 0 and <= byte.MaxValue && Enum.IsDefined(typeof(AilmentID), (byte)ailmentId)) name = ((AilmentID)ailmentId).ToString();
             return new DataEntry { Kind = DataKind.Buff, Key = ailmentId, Name = name };
         });
+
+    private static IReadOnlyList<int>? s_allBuffs;
+
+    /// <summary>
+    /// Every buff the game has: each AilmentID whose ailment is positive and shows in the buff bar (58 in 1.5.3), in id
+    /// order, read once per session. Empty when game data can't be read (the picker then offers active and seen buffs).
+    /// </summary>
+    public static IReadOnlyList<int> AllBuffs()
+    {
+        if (s_allBuffs != null) return s_allBuffs;
+        if (!Has(Buffs)) return Array.Empty<int>();
+        var ids = new List<int>();
+        try
+        {
+            foreach (AilmentID id in Enum.GetValues(typeof(AilmentID)))
+            {
+                Ailment? ailment = AilmentList.getAilment(id);
+                if (!Game.Alive(ailment) || ailment!.id != id || !ailment.positive || !ailment.showsInBuffUI) continue;
+                if (!ids.Contains((int)id)) ids.Add((int)id);
+            }
+            GameReads++;
+        }
+        catch (Exception e)
+        {
+            Failed(DataKind.Buff, e);
+            ids.Clear();
+        }
+        ids.Sort();
+        s_allBuffs = ids;
+        return s_allBuffs;
+    }
 
     /// <summary>A player ability by its id (the bar's playerAbilityID).</summary>
     public static DataEntry Ability(string playerAbilityId) =>

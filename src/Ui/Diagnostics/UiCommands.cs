@@ -68,9 +68,13 @@ internal static class UiCommands
                 + (conflicts.Count > 0 ? $" [{string.Join("; ", conflicts)}]" : string.Empty);
         });
         var slots = Hotkeys.SlotChords().Select(c => $"slot{c.Slot + 1}={c.Chord.Text}");
-        string slotText = string.Join(", ", slots), ignored = string.Join(",", Hotkeys.Ignored);
+        // Keys that condition entries in the profile in use read (held, or toggled by a press).
+        var conditionKeys = ConditionKeys.All.Select(k => $"{k.Label}={(k.Chord.Length > 0 ? k.Chord : "none")} ({(k.Toggle ? "toggle" : "held")}"
+            + (k.Toggle && ConditionToggles.IsOn(k.Chord) ? ", on" : string.Empty) + ")");
+        string slotText = string.Join(", ", slots), conditionText = string.Join(", ", conditionKeys), ignored = string.Join(",", Hotkeys.Ignored);
+        string capture = Hotkeys.Capturing?.Id ?? Hotkeys.CapturingTarget?.Label ?? "none";
         return $"{string.Join(", ", bindings)}; slot chords {(slotText.Length > 0 ? slotText : "none")}; "
-            + $"capture {Hotkeys.Capturing?.Id ?? "none"}; ignored {(ignored.Length > 0 ? ignored : "none")}";
+            + $"condition keys {(conditionText.Length > 0 ? conditionText : "none")}; capture {capture}; ignored {(ignored.Length > 0 ? ignored : "none")}";
     }
 
     // <id>: <state> (<detail>); for automation clients also every rule, the held slots and press times.

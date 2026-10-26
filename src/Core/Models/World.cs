@@ -92,7 +92,9 @@ internal static class World
     /// <summary>For the sources: a query asked for shrines or chests (or every kind) in the last few seconds.</summary>
     internal static bool ObjectsWanted => Time.unscaledTime < s_objectsWantedUntil;
 
-    private static void Want(WorldKind? kind)
+    /// <summary>A reader is about to look at entries of this kind (null: every kind); shrines and chests are searched for
+    /// online only while someone asks.</summary>
+    internal static void Want(WorldKind? kind)
     {
         if (kind is null or WorldKind.Shrine or WorldKind.Chest) s_objectsWantedUntil = Time.unscaledTime + ObjectsWantedSeconds;
     }

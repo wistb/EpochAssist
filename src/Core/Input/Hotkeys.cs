@@ -14,6 +14,10 @@ internal readonly record struct MenuNav(int Move, bool Activate, int Adjust, int
     public bool Any => Move != 0 || Activate || Adjust != 0 || Page != 0 || Search;
 }
 
+/// <summary>Something a key is captured for that isn't a setting: its name for the log, the kind of key it takes, and
+/// what happens with the chord text.</summary>
+internal sealed record CaptureTarget(string Label, HotkeyKind Kind, Action<string> Commit);
+
 /// <summary>
 /// The one reader of the mod's keys. Once per frame it polls Unity's input and runs the action of every press binding
 /// whose chord went down, answers whether hold bindings are held, fires the slot-toggle chords (a modifier plus the
@@ -70,7 +74,9 @@ internal static class Hotkeys
 
     /// <summary>The setting being rebound, or null.</summary>
     public static Setting? Capturing { get; private set; }
-    public static bool CaptureActive => Capturing != null;
+    /// <summary>A key being captured for something that isn't a setting (a key in a condition), or null.</summary>
+    public static CaptureTarget? CapturingTarget { get; private set; }
+    public static bool CaptureActive => Capturing != null || CapturingTarget != null;
 
     /// <summary>Every Hotkey setting of every registered group.</summary>
     public static IReadOnlyList<Hotkey> Bindings
@@ -99,6 +105,7 @@ internal static class Hotkeys
     {
         s_running = false;
         Capturing = null;
+        CapturingTarget = null;
         s_ignored.Clear();
         s_wasFocused = true;
         s_heldModifiers = s_peakModifiers = s_releasedModifiers = 0;
@@ -122,14 +129,14 @@ internal static class Hotkeys
         // Esc closes the menu even from the mod's own fields, but never takes a key meant for a game field or chat.
         if (Input.GetKeyDown(KeyCode.Escape) && !GameState.GameTyping)
         {
-            if (Capturing != null)
+            if (CaptureActive)
             {
                 CancelCapture();
                 return;
             }
             if (MenuOpen) Actions.Run("menu.escape", "key Escape");
         }
-        if (Capturing != null)
+        if (CaptureActive)
         {
             UpdateCapture();
             return;
@@ -142,6 +149,7 @@ internal static class Hotkeys
 
         bool inGame = GameState.InGame;
         UpdateSlotChords(inGame);
+        UpdateConditionToggles(inGame);
         foreach (var binding in Bindings)
         {
             if (binding.Kind != HotkeyKind.Press || binding.Action == null) continue;
@@ -152,10 +160,12 @@ internal static class Hotkeys
     }
 
     /// <summary>Whether a hold binding is held: every key of its chord down (extra keys allowed), and its gates open.</summary>
-    public static bool Held(Hotkey hotkey)
+    public static bool Held(Hotkey hotkey) => Held(hotkey.Chord, hotkey.Scope);
+
+    /// <summary>Whether a chord is held, with the same gates as a hold binding (for keys in conditions).</summary>
+    public static bool Held(Chord chord, HotkeyScope scope)
     {
-        Chord chord = hotkey.Chord;
-        if (chord.IsEmpty || !Open(hotkey.Scope)) return false;
+        if (chord.IsEmpty || !Open(scope)) return false;
         for (int i = 0; i < Chord.ModifierKeys.Length; i++)
         {
             if ((chord.Modifiers & (1 << i)) != 0 && !Down(Chord.ModifierKeys[i])) return false;
@@ -164,7 +174,7 @@ internal static class Hotkeys
     }
 
     private static bool Open(HotkeyScope scope) =>
-        s_running && Capturing == null && !GameState.Typing && Application.isFocused && (scope == HotkeyScope.Global || GameState.InGame);
+        s_running && !CaptureActive && !GameState.Typing && Application.isFocused && (scope == HotkeyScope.Global || GameState.InGame);
 
     private static bool Down(KeyCode key) => Input.GetKey(key) && !s_ignored.Contains(key);
 
@@ -371,13 +381,23 @@ internal static class Hotkeys
     /// <summary>Starts rebinding a setting (a Hotkey, or a plain Key). One capture at a time.</summary>
     public static void BeginCapture(Setting setting)
     {
+        CapturingTarget = null;
         Capturing = setting;
+        s_capturePeak = 0;
+    }
+
+    /// <summary>Starts capturing a key for a target that isn't a setting; its commit gets the chord text.</summary>
+    public static void BeginCapture(CaptureTarget target)
+    {
+        Capturing = null;
+        CapturingTarget = target;
         s_capturePeak = 0;
     }
 
     public static void CancelCapture()
     {
         Capturing = null;
+        CapturingTarget = null;
         s_capturePeak = 0;
     }
 
@@ -385,7 +405,7 @@ internal static class Hotkeys
     // commits the modifiers alone. Mouse buttons only for hold bindings; the menu closing cancels.
     private static void UpdateCapture()
     {
-        var target = Capturing;
+        object? target = (object?)Capturing ?? CapturingTarget;
         if (!MenuOpen)
         {
             CancelCapture();
@@ -406,11 +426,49 @@ internal static class Hotkeys
                     plain.Value = key;
                     CancelCapture();
                     return;
+                case CaptureTarget other when Chord.ModifierBit(key) == null && Chord.AllowedMain(key, other.Kind):
+                    Commit(other, new Chord(held, key));
+                    return;
             }
         }
 
         if (target is Hotkey modifiersOnly && s_capturePeak != 0 && (held & s_capturePeak) != s_capturePeak)
             Commit(modifiersOnly, new Chord(s_capturePeak, KeyCode.None));
+        else if (target is CaptureTarget otherModifiers && s_capturePeak != 0 && (held & s_capturePeak) != s_capturePeak)
+            Commit(otherModifiers, new Chord(s_capturePeak, KeyCode.None));
+    }
+
+    private static void Commit(CaptureTarget target, Chord chord)
+    {
+        CancelCapture();
+        target.Commit(chord.Text);
+        foreach (KeyCode key in chord.Keys)
+        {
+            if (Input.GetKey(key)) s_ignored.Add(key);
+        }
+        s_modifierPressSpent = true;
+        Log.Info($"hotkeys: {target.Label} = {chord.Text}");
+    }
+
+    // ---- Toggle keys in conditions ----
+
+    // A gated press of a chord that a toggle condition in use names flips its state.
+    private static void UpdateConditionToggles(bool inGame)
+    {
+        if (!inGame) return;
+        foreach (string text in ConditionKeys.Toggles())
+        {
+            Chord chord = ConditionKinds.ChordOf(text);
+            if (PressedOrHeldDown(chord)) ConditionToggles.Flip(text);
+        }
+    }
+
+    // A toggle key fires on its main key's down with at least its modifiers held (mouse buttons included).
+    private static bool PressedOrHeldDown(Chord chord)
+    {
+        if (chord.IsEmpty) return false;
+        if (chord.ModifiersOnly) return s_releasedModifiers == chord.Modifiers;
+        return Input.GetKeyDown(chord.Main) && !s_ignored.Contains(chord.Main) && (s_heldModifiers & chord.Modifiers) == chord.Modifiers;
     }
 
     private static void Commit(Hotkey hotkey, Chord chord)

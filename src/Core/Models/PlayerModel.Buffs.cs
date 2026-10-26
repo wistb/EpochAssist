@@ -4,11 +4,21 @@ namespace EpochAssist.Core;
 
 internal static partial class PlayerModel
 {
+    // Buff ids seen on the player since the game started (zones and model restarts keep them), for the buff picker.
+    private static readonly HashSet<int> s_seenBuffs = new();
+
+    /// <summary>Every buff (not debuff) id seen on the player this session.</summary>
+    public static IReadOnlyCollection<int> SeenBuffs => s_seenBuffs;
+
     private static void FillBuffs(BuffsPart part)
     {
         part.Clear();
         if (Online == true) FillBuffsOnline(part);
         else FillBuffsOffline(part);
+        foreach (var buff in part.Value)
+        {
+            if (buff.IsBuff != false) s_seenBuffs.Add(buff.Id);
+        }
     }
 
     private static Buff NextBuff(BuffsPart part)
