@@ -17,6 +17,8 @@ internal static partial class GameEvents
     public const string Xp = "events: xp";
     public const string Gold = "events: gold";
     public const string Drops = "events: drops";
+    public const string DropFilter = "events: drop filter";
+    public const string DropKey = "events: drop key";
     public const string Death = "events: death cause";
     public const string Echo = "events: echo";
     public const string Monolith = "events: monolith";
@@ -73,6 +75,8 @@ internal static partial class GameEvents
         foreach (var producer in Producers) producer.Active = false;
         ResetPlayer();
         s_dropScan = null;
+        s_droppedKeys.Clear();
+        s_droppedOrder.Clear();
         s_zoneSubscription = null;
         s_deathSubscription = null;
         s_feature = null;
@@ -90,6 +94,7 @@ internal static partial class GameEvents
         s_lastGold = null;
         s_dropsBaseline = true;
         s_seenDrops.Clear();
+        s_pendingDrops.Clear();
         s_echoBaselined = false;
         s_attackerNames.Clear();
     }
@@ -102,6 +107,7 @@ internal static partial class GameEvents
         s_lastXp = null;
         s_dropsBaseline = true;
         s_seenDrops.Clear();
+        s_pendingDrops.Clear();
         s_echoBaselined = false;
         s_attackerNames.Clear();
         s_protection = null;

@@ -24,8 +24,15 @@ internal readonly record struct XpGained(long Amount, long Total);
 /// <summary>A change of the player's gold (a spend is negative), and the total after it.</summary>
 internal readonly record struct GoldChanged(int Amount, int Total);
 
-/// <summary>An item that dropped in this scene (gold piles, potions, tomes and bones aren't items).</summary>
-internal readonly record struct ItemDropped(string? Name, string? BaseName, int Rarity, string RarityName, uint Id);
+/// <summary>
+/// An item that dropped in this scene (gold piles, potions, tomes and bones aren't items). Shown is whether the player's
+/// loot filter shows it (its label's last result, by rule number Rule); null when no filter is active or the result
+/// couldn't be read in time. Raised once the filter has judged the item, at most 2 s after it appeared. Key identifies the
+/// item by its packed data (a hash of `ItemData.id`), so the same item dropped again isn't reported again; null when it
+/// couldn't be read.
+/// </summary>
+internal readonly record struct ItemDropped(string? Name, string? BaseName, int Rarity, string RarityName, uint Id, bool? Shown = null, int? Rule = null,
+    string? Key = null);
 
 /// <summary>What killed the player, from the death screen's text, after a PlayerDied; all null when it didn't say.</summary>
 internal readonly record struct DeathCause(string? Killer, string[]? Types, string? Text)
