@@ -13,8 +13,10 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 
 ## Features
 
-- **Autocast**: **Left Ctrl** + a skill's key turns autocast on or off for that slot. Optional: enemy gate, aim at the
-  closest enemy, hold-to-pause key.
+- **Autocast**: **Left Ctrl** + a skill's key turns autocast on or off for that slot. Each slot can have its own
+  conditions, and all that are on must pass: health, mana or ward below or above a value, a buff missing or running
+  out, the skill ready or charged, enemies in range, a key held or toggled. The enemy gate is the first condition under
+  Every slot. Optional: aim at the closest enemy, hold-to-pause key.
   <details><summary>Screenshot</summary>
 
   ![The Autocast page](nexus/media/autocast.png)
