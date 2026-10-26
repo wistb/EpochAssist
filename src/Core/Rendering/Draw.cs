@@ -1,13 +1,9 @@
-using EpochAssist.Ui;
 using UnityEngine;
 
 namespace EpochAssist.Core;
 
-/// <summary>Colours of a world bar; Default takes them from the theme.</summary>
-internal readonly record struct BarColours(Color Background, Color Health, Color Ward)
-{
-    public static BarColours Default => new(new Color(Theme.Off.r * 0.3f, Theme.Off.g * 0.3f, Theme.Off.b * 0.3f, 0.75f), Theme.Good, Theme.Accent);
-}
+/// <summary>Colours of a world bar; Draw.DefaultBars are the theme's.</summary>
+internal readonly record struct BarColours(Color Background, Color Health, Color Ward);
 
 /// <summary>
 /// The drawing layer for OnGUI repaint events: lines, circles, labels and markers at world positions, filled shapes,
@@ -25,6 +21,12 @@ internal static class Draw
 
     /// <summary>Style for world labels, set by the theme on build and cleared on release; no labels without it.</summary>
     public static GUIStyle? LabelStyle;
+
+    /// <summary>Bar colours from the theme, set by it on build; the Slate theme's until then.</summary>
+    public static BarColours DefaultBars { get; set; } = new(
+        new Color(0x54 / 255f * 0.3f, 0x5B / 255f * 0.3f, 0x68 / 255f * 0.3f, 0.75f),
+        new Color(0x25 / 255f, 0x93 / 255f, 0x61 / 255f, 1f),
+        new Color(0x4C / 255f, 0x8D / 255f, 0xFF / 255f, 1f));
 
     /// <summary>Textures the layer holds now, for the dev bridge.</summary>
     public static int ResourceCount => (s_white != null ? 1 : 0) + (s_triangle != null ? 1 : 0);

@@ -39,6 +39,8 @@ internal static class Diagnostics
 
     /// <summary>Theme file problems, set by the menu ("file: text" each).</summary>
     public static Func<IEnumerable<string>>? ThemeProblems;
+    /// <summary>Textures the UI holds, set by the theme when it builds.</summary>
+    public static Func<int>? UiTextures;
     /// <summary>The profiles line, set by the profiles feature while it runs.</summary>
     public static Func<string>? ProfileStatus;
 
@@ -76,7 +78,7 @@ internal static class Diagnostics
         {
             Edits = Core.Edits.Lines().ToList(),
             PatchedMethods = FeatureHost.All.Sum(f => PatchedBy(f)),
-            Textures = Draw.ResourceCount + Ui.Theme.TextureCount,
+            Textures = Draw.ResourceCount + (UiTextures?.Invoke() ?? 0),
         };
     }
 

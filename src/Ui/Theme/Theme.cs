@@ -109,6 +109,9 @@ internal static partial class Theme
         s_builtAccent = Config.Accent.Value;
         if (Config.Accent.TryGetColor(out Color accent)) ApplyAccent(v, accent);
         s_values = v;
+        // Core draws and counts with what the theme hands it.
+        Draw.DefaultBars = new(new Color(Off.r * 0.3f, Off.g * 0.3f, Off.b * 0.3f, 0.75f), Good, Accent);
+        Diagnostics.UiTextures = () => TextureCount;
         s_builtIdentity = theme.Identity;
         var skin = UnityEngine.Object.Instantiate((UnityEngine.Object)GUI.skin).Cast<GUISkin>();
         skin.hideFlags = HideFlags.HideAndDontSave;

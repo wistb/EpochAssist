@@ -78,12 +78,12 @@ internal static partial class DevCommands
             {
                 if (e.HealthFraction is not float health) continue;
                 float? ward = e.Ward is float w && e.MaxHealth is float max && max > 0f ? w / max : null;
-                Draw.WorldBar(e.Position, 2.4f, health, ward, BarColours.Default);
+                Draw.WorldBar(e.Position, 2.4f, health, ward, Draw.DefaultBars);
             }
             if (Player.Transform is Transform me && PlayerModel.Vitals is { } vitals)
             {
                 float? ward = vitals.Ward is float w && vitals.MaxHealth > 0f ? w / vitals.MaxHealth : null;
-                Draw.WorldBar(me.position, -0.3f, vitals.HealthFraction, ward, BarColours.Default, 80f, 7f);
+                Draw.WorldBar(me.position, -0.3f, vitals.HealthFraction, ward, Draw.DefaultBars, 80f, 7f);
             }
         }
     }
