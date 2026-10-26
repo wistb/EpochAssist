@@ -23,13 +23,14 @@ is drawn (`tools/shot.sh …`; shots land in `UserData/EpochAssist/dev/shots/`):
 
 | Name | Shows | Take it with |
 |---|---|---|
-| `autocast` | Combat › Autocast › Controls, with Slots open in the tree | `menu open combat/autocast/controls`, `wait 90`, `shot menu autocast matte` |
+| `macros` | Macros › Library with Slots, Potions and a filled-out example set (made for the shot, removed after; slots 1 and 5 ticked) | `menu open macros/library/library`, `wait 90`, `shot menu macros matte` |
+| `macro-editor` | One macro's editor with an all-of tree, a nested any-of group and live values | `macro edit <set>/<macro>`, `wait 90`, `shot menu macro-editor matte` |
 | `hud` | The mini HUD with its quick toggles open | `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close` |
 | `profiles` | Settings › Profiles | `run menu.profiles`, `wait 90`, `shot menu profiles matte` |
 | `appearance` | Settings › Interface › Appearance | `menu open settings 1`, `wait 90`, `shot menu appearance matte` |
 | `keybinds` | Settings › Interface › Keybinds | `menu open settings 2`, `wait 90`, `shot menu keybinds matte` |
 | `diagnostics` | Settings › Diagnostics › Overview (a dev build's summary says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time) | `run diagnostics.open`, `wait 900`, `shot menu diagnostics matte` |
-| `settings-hud` | Settings › Mini HUD, second image under Mini HUD (the HUD preview can poke a few pixels past the menu's left edge; trim the image to the menu's 1600 px) | `menu open settings 0`, `wait 90`, `shot menu settings-hud matte` |
+| `settings-hud` | Config › General › Interface › Mini HUD, second image under Mini HUD (the HUD preview can poke a few pixels past the menu's left edge; trim the image to the menu's 1600 px) | `menu open settings 0`, `wait 90`, `shot menu settings-hud matte` |
 
 A dev build shows a Dev tab in the menu; players don't have it. Not shipped in the zip. The Nexus gallery images and the page header and banner (`../banner-1300x372.png`,
 `../header-1920x1080.png`) are uploaded by hand.

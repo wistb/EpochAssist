@@ -12,19 +12,29 @@ A [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod suite for L
 [/list]
 [size=4][b]Features[/b][/size]
 [list]
-[*][b]Autocast[/b]: [font=Courier New]Left Ctrl[/font] + a skill's key turns autocast on or off for that slot. Optional: enemy gate, aim at the closest enemy, hold-to-pause key.
-{{media:autocast}}
-[/list][size=4][b]Settings[/b][/size]
-Open the Settings tab at the top of the menu. The search box there finds any setting.
+[*][b]Macros[/b]: everything automated lives on the Macros tab.
 [list]
-[*][b]Mini HUD[/b]: shows autocast's state and slots while the menu is closed. Click it for quick toggles.
+[*][b]Slots[/b]: [font=Courier New]Left Ctrl[/font] + a skill's key turns that slot on or off. Each slot has its own conditions, and [b]Shared Conditions[/b] (such as the enemy gate) apply to all of them.
+[*][b]Macros[/b]: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until, or show a message.
+[*][b]Conditions[/b]: health, mana, ward, buffs, skills, potions, enemies (nearest or under the cursor, their health, mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
+[*][b]Sharing[/b]: [b]Copy share code[/b] puts a set on the clipboard; [b]Import set[/b] adds one, switched off.
+[*][b]Potions[/b]: a ready-made Auto potion drinks when a whole potion's heal is missing or health is low. It comes switched off.
+[*][b]Debugging[/b]: the footer switches show each macro's state, the enemy ranges in use, and a notification naming the line that started each macro.
+[/list]
+{{media:macros}}
+{{media:macro-editor}}
+[*][b]Session[/b]: the Session tab shows this session's XP and gold per hour, drops by rarity, the drops your loot filter shows, deaths and echoes, and your past sessions. [b]Export CSV[/b] writes them as two spreadsheet files.
+[/list][size=4][b]Settings[/b][/size]
+Open the Config tab at the top of the menu. The search box there finds any setting.
+[list]
+[*][b]Mini HUD[/b]: shows the macros' state and slots while the menu is closed. Click it for quick toggles. Its notifications have their own position, duration, how many show at once, which kinds and order.
 {{media:hud}}
 {{media:settings-hud}}
-[*][b]Appearance[/b]: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations.
+[*][b]Appearance[/b]: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations. [b]Colour vision[/b] picks rarity and danger colours that stay apart for deuteranopia, protanopia or tritanopia in the mod's own overlays.
 {{media:appearance}}
 [*][b]Keybinds[/b]: change any key.
 {{media:keybinds}}
-[*][b]Diagnostics[/b]: [b]Copy diagnostics[/b] puts the mod's state on the clipboard for a bug report, without names or folder paths. Nothing is sent anywhere.
+[*][b]Diagnostics[/b]: [b]Copy diagnostics[/b] puts the mod's state on the clipboard for a bug report, without names or folder paths. [b]Mods[/b] lists the other mods loaded and where they patch the same game code. Nothing is sent anywhere.
 {{media:diagnostics}}
 [*][b]Profiles[/b]: one setup per character. Export and import to share.
 {{media:profiles}}
