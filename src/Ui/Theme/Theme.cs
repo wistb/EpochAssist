@@ -38,6 +38,10 @@ internal static partial class Theme
     /// <summary>Horizontal padding inside a card, both sides together.</summary>
     public static float CardInset => s_values.CardPad * 2f;
 
+    // What the colour roles were last pushed from: the theme's identity, the Colour vision value and the theme files' read.
+    private static string? s_rolesIdentity;
+    private static int s_rolesVision = -1, s_rolesFiles = -1;
+
     private static GUISkin? s_skin;
     private static bool s_failed;
     // Fonts made with Font.CreateDynamicFontFromOSFont garble IMGUI text in this game, so weight comes from
@@ -84,6 +88,22 @@ internal static partial class Theme
             }
             return s_skin;
         }
+    }
+
+    /// <summary>
+    /// ColourRoles' sync hook, on the first role read in a frame: pushes the roles when the selected theme, the Colour
+    /// vision setting or the theme files changed. A palette replaces every role; theme values apply with Standard. It
+    /// needs no skin, so roles follow a switch made with the menu closed.
+    /// </summary>
+    public static void SyncRoles()
+    {
+        var theme = Themes.Resolve(LookSettings.Theme.Value);
+        int vision = LookSettings.ColourVision.Value;
+        if (ReferenceEquals(theme.Identity, s_rolesIdentity) && vision == s_rolesVision && Themes.Generation == s_rolesFiles) return;
+        s_rolesIdentity = theme.Identity;
+        s_rolesVision = vision;
+        s_rolesFiles = Themes.Generation;
+        ColourRoles.Push(Palettes.For(vision)?.Roles ?? theme.Values.Roles);
     }
 
     private static void Build(ResolvedTheme theme)

@@ -20,7 +20,7 @@ internal static class SettingsContent
         new MenuEntry(MenuCategory.Settings, order: 0)
         {
             Title = "Interface",
-            Pages = { new MenuPage(HudSettings.Hud), new MenuPage(Section("appearance")), new MenuPage(Section("keys")) },
+            Pages = { new MenuPage(HudSettings.Hud), Appearance(), new MenuPage(Section("keys")) },
         },
         new MenuEntry(MenuCategory.Settings, order: 1)
         {
@@ -40,6 +40,19 @@ internal static class SettingsContent
             },
         },
     };
+
+    // The appearance section's settings, with the colour role preview under Colour vision.
+    private static MenuPage Appearance()
+    {
+        var section = Section("appearance");
+        var page = new MenuPage(section);
+        foreach (var setting in section.Settings)
+        {
+            page.Rows.Add(new SettingRow(setting));
+            if (setting == LookSettings.ColourVision) page.Rows.Add(new BlockRow(RolePreview.Block));
+        }
+        return page;
+    }
 
     // The mod's summary, then Logging with the Diagnostics section's settings; Copy diagnostics in the title row.
     private static MenuPage Overview()

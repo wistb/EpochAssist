@@ -67,6 +67,8 @@ public static class Runtime
         LookSettings.Declare();
         KeySettings.Declare();
         Config.Init();
+        // Features read rarity and danger colours from Core; the theme keeps them up to date.
+        ColourRoles.Sync = Theme.SyncRoles;
         Edits.RecoverSaved();
         CoreCommands.Register();
         UiCommands.Register();
@@ -123,6 +125,7 @@ public static class Runtime
         Edits.RestoreAll();
         InputGate.Release();
         Theme.Release();
+        ColourRoles.Sync = null;
         Draw.Release();
         Config.Save();
         Scheduler.DropHostJobs();

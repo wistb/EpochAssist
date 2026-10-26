@@ -61,6 +61,11 @@ internal static class LookSettings
     {
         Step = 0.01f, Percent = true, Help = "Menu background opacity; text and switches stay solid.",
     };
+    public static readonly Choice<int> ColourVision = new(Look, "ColourVision", "Colour vision", 0,
+        (0, "Standard"), (1, "Deuteranopia (red-green)"), (2, "Protanopia (red-green)"), (3, "Tritanopia (blue-yellow)"))
+    {
+        Help = "Colours for rarity and danger in Epoch Assist's own overlays, picked to stay apart for this kind of colour vision. The game's own colours don't change.",
+    };
     public static readonly Toggle Animations = new(Look, "Animations", "Animations", true)
     {
         Help = "Motion in the menu, such as the tree opening and pages fading in. Off, everything changes at once.",

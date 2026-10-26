@@ -15,6 +15,7 @@ internal sealed class MenuFeature : Feature
         RowKinds.RegisterBuiltIn();
         ProfilesPage.Register();
         DiagnosticsPage.Register();
+        RolePreview.Register();
         ConsolePage.Register();
         MenuTree.Invalidate();
 

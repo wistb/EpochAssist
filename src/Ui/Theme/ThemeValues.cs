@@ -1,3 +1,4 @@
+using EpochAssist.Core;
 using UnityEngine;
 
 namespace EpochAssist.Ui;
@@ -9,7 +10,8 @@ internal sealed record ThemeValueSpec(string Name, ThemeValueKind Kind, float Mi
 
 /// <summary>
 /// Every value a theme sets (contracts/themes.md): colours, base window opacity, corner radii, card spacing and font
-/// sizes. Value names are a compatibility contract: renaming one raises the theme file version, with a migration.
+/// sizes, and the colour roles features draw rarity and danger with (contracts/colour-roles.md). Value names are a
+/// compatibility contract: renaming one raises the theme file version, with a migration.
 /// </summary>
 internal sealed class ThemeValues
 {
@@ -29,8 +31,16 @@ internal sealed class ThemeValues
     public int RadiusWindow, RadiusCard, RadiusControl, RadiusChip;
     public int CardPad, CardGap;
     public int FontBody = 13, FontSmall = 12, FontCaption = 11, FontTitle = 18, FontNav = 15;
+    // The colour roles in ColourRoles.Names order. Every preset shares the game-matched defaults: rarity colours are
+    // the game's language, not a menu look. Theme files set them one by one.
+    public Color[] Roles = (Color[])ColourRoles.Defaults.Clone();
 
-    public ThemeValues Clone() => (ThemeValues)MemberwiseClone();
+    public ThemeValues Clone()
+    {
+        var copy = (ThemeValues)MemberwiseClone();
+        copy.Roles = (Color[])Roles.Clone();
+        return copy;
+    }
 
     /// <summary>Every value by its file name, in the contract's order.</summary>
     public static readonly IReadOnlyList<ThemeValueSpec> Specs = new[]
@@ -88,7 +98,7 @@ internal sealed class ThemeValues
         Whole("font.caption", ThemeValueKind.Font, 28, v => v.FontCaption, (v, n) => v.FontCaption = n, min: 8),
         Whole("font.title", ThemeValueKind.Font, 28, v => v.FontTitle, (v, n) => v.FontTitle = n, min: 8),
         Whole("font.nav", ThemeValueKind.Font, 28, v => v.FontNav, (v, n) => v.FontNav = n, min: 8),
-    };
+    }.Concat(ColourRoles.Names.Select((name, i) => Colour(name, v => v.Roles[i], (v, c) => v.Roles[i] = c))).ToArray();
 
     private static ThemeValueSpec Colour(string name, Func<ThemeValues, Color> get, Action<ThemeValues, Color> set) =>
         new(name, ThemeValueKind.Colour, 0f, 0f, v => get(v), (v, x) => set(v, (Color)x));

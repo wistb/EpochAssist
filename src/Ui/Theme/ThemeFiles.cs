@@ -58,6 +58,9 @@ internal static class Themes
 
     public static int FileCount => All.Count(t => !t.IsPreset);
 
+    /// <summary>Raised whenever the files are read again (Rescan).</summary>
+    public static int Generation { get; private set; }
+
     public static ThemeEntry? Find(string name) => All.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The theme for a stored name. A name that no longer exists uses Carbonfox (or a skipped file's base) and is kept.</summary>
@@ -101,6 +104,7 @@ internal static class Themes
             foreach (string problem in problems) s_problems.Add($"{file}: {problem}");
         }
         s_all = all;
+        Generation++;
     }
 
     private static ThemeEntry? Read(string path, List<ThemeEntry> known, List<string> problems)
