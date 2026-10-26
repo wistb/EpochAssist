@@ -12,16 +12,23 @@ internal sealed class MenuFeature : Feature
 
     public override void Start()
     {
-        Actions.Register(Id, "menu.toggle", "Menu", Menu.Toggle, () => Menu.Visible);
-        Actions.Register(Id, "menu.close", "Close the menu", Menu.Close);
-        // One per page, from the registered features; a page that isn't running still opens, to show why.
-        foreach (var feature in Menu.PageFeatures)
+        RowKinds.RegisterBuiltIn();
+        ProfilesPage.Register();
+        DiagnosticsPage.Register();
+        ConsolePage.Register();
+        MenuTree.Invalidate();
+
+        Actions.Register(Id, "menu.toggle", "Menu", Ui.Menu.Toggle, () => Ui.Menu.Visible);
+        Actions.Register(Id, "menu.close", "Close the menu", Ui.Menu.Close);
+        Actions.Register(Id, "menu.escape", "Close a list, cancel, clear the search, or close the menu", Ui.Menu.Escape);
+        // One per feature with a menu entry; a feature that isn't running still opens, to show why.
+        foreach (var feature in FeatureHost.All.Where(f => f.Menu != null))
         {
-            string page = feature.Id;
-            Actions.Register(Id, $"menu.page.{page}", $"Open {feature.Page!.Title}", () => Menu.Open(page));
+            string id = feature.Id;
+            Actions.Register(Id, $"menu.page.{id}", $"Open {feature.Menu!.Title ?? feature.Name}", () => Ui.Menu.Open(id));
         }
-        Actions.Register(Id, $"menu.page.{Menu.SettingsPage}", "Open Settings", Menu.OpenSettings);
-        Actions.Register(Id, "menu.profiles", "Open Profiles", Menu.OpenProfiles);
+        Actions.Register(Id, "menu.page.settings", "Open Settings", Ui.Menu.OpenSettings);
+        Actions.Register(Id, "menu.profiles", "Open Profiles", Ui.Menu.OpenProfiles);
         // The theme choice lists presets and player files, which the core setting can't know about.
         Themes.Rescan();
         LookSettings.Theme.Options = () => Themes.Names;
@@ -29,12 +36,22 @@ internal sealed class MenuFeature : Feature
         Diagnostics.ThemeProblems = () => Themes.Problems;
     }
 
-    public override void Update() => Menu.OnUpdate();
-    public override void OnGUI() => Menu.OnGUI();
+    public override void Update() => Ui.Menu.OnUpdate();
+    public override void OnGUI() => Ui.Menu.OnGUI();
 
     public override void Shutdown()
     {
-        Menu.Close();
+        Ui.Menu.Close();
+        Popups.Reset();
+        MenuTree.Invalidate();
+        MenuSearch.Reset();
+        MenuRoutes.Reset();
+        PageView.Reset();
+        TreeView.Reset();
+        ProfilesPage.Reset();
+        TextCache.Clear();
+        MenuBlocks.Clear();
+        SettingsContent.Reset();
         LookSettings.Theme.Options = null;
         LookSettings.Theme.Notes = null;
         Diagnostics.ThemeProblems = null;

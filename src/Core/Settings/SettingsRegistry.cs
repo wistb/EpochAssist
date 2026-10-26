@@ -1,6 +1,6 @@
 namespace EpochAssist.Core;
 
-/// <summary>Every registered group, for the settings search and the HUD's quick toggles.</summary>
+/// <summary>Every registered group, for the menu and the HUD's quick toggles.</summary>
 internal static class SettingsRegistry
 {
     private static readonly List<SettingsGroup> s_groups = new();
@@ -36,15 +36,4 @@ internal static class SettingsRegistry
     private static string Key(SettingsGroup group) => Slug(group.ActionKey.Length > 0 ? group.ActionKey : group.Id);
 
     private static string Slug(string text) => new(text.ToLowerInvariant().Where(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9')).ToArray());
-
-    public static IEnumerable<Setting> Search(string query)
-    {
-        string q = query.Trim();
-        if (q.Length == 0) return Enumerable.Empty<Setting>();
-        return s_groups.SelectMany(g => g.All).Where(s =>
-            s.Label.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || (s.Help?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-            || s.Section.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || s.Section.Group.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
-    }
 }

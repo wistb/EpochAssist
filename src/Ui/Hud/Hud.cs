@@ -202,7 +202,8 @@ internal static class Hud
         if (GUILayout.Button($"Open full menu  ·  {KeySettings.MenuKey.Display}", Theme.SmallButton))
         {
             s_panelOpen = false;
-            Actions.Run($"menu.page.{Menu.PageNames.First()}", "HUD open full menu");
+            string? first = FeatureHost.All.FirstOrDefault(f => f.Menu != null)?.Id;
+            Actions.Run(first != null ? $"menu.page.{first}" : "menu.page.settings", "HUD open full menu");
         }
         GUILayout.EndArea();
     }

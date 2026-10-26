@@ -21,7 +21,6 @@ internal static partial class DevCommands
         void Add(string name, string usage, string help, Func<CommandCall, CommandResult> run) =>
             Commands.Register(new Command(name, usage, help, CommandMark.Dev, owner, run));
 
-        Add("menu", "menu open <page> [tab]|close|search [text]", "Opens the menu on a page, closes it, or searches the settings.", MenuCommand);
         Add("hud", "hud panel open|close", "Opens or closes the mini HUD's quick panel.", HudCommand);
         Add("probe", "probe <type> [filter]", "Writes a game type's members to probe.txt.", call => Plain(Probe(Arg(call, 1), call.Args.Length > 1 ? call.Args[1] : null)));
         Add("patchcheck", "patchcheck <game version>", "Checks every patch target's first bytes in GameAssembly.dll and saves patch-check.json for the release.", call =>
@@ -53,10 +52,11 @@ internal static partial class DevCommands
         Add("shot", "shot full|menu|hud [name] [matte]", "Saves a screenshot of the screen, the menu or the HUD to shots/; matte gives the menu or HUD a transparent background, trimmed to what is drawn.",
             call => StartCapture(call.Lower(1), call.Args.Length > 1 ? call.Args[1] : call.Lower(1), call.Lower(3) == "matte"));
         Add("draw", "draw test|minimap|arrows|bars on|off", "Draws a test pattern around the player, markers on the minimap, edge arrows for the 10 nearest rares, or bars over enemies.", DrawCommand);
-        Add("focus", "focus", "Shows the menu control that has keyboard focus.", _ =>
+        Add("focus", "focus [key]", "Shows the menu control that has keyboard focus, or moves it to a control by its full key.", call =>
         {
+            if (call.Args.Length > 0) Focus.TakeFull(call.Rest(1));
             string? focused = Focus.Current;
-            return CommandResult.Ok("focus: " + (focused == null ? "none" : focused.Contains('/') ? focused : $"{Menu.Current}/{focused}"));
+            return CommandResult.Ok($"focus: {focused ?? "none"} (page {Menu.Current}, region {Focus.Region ?? "none"})");
         });
         // The text keeps its case.
         Add("toast", "toast <text>", "Shows a toast.", call =>
@@ -230,27 +230,6 @@ internal static partial class DevCommands
 
     // A reply already written with its ok or error.
     private static CommandResult Plain(string text) => new(text);
-
-    private static CommandResult MenuCommand(CommandCall call)
-    {
-        switch (call.Lower(1))
-        {
-            case "open":
-                string page = call.Lower(2);
-                if (!Menu.PageNames.Contains(page)) return CommandResult.Error($"unknown page {page}");
-                string opened = Actions.Run($"menu.page.{page}", "dev bridge");
-                if (page == Menu.SettingsPage && int.TryParse(call.Lower(3), out int tab)) Menu.SetSettingsTab(tab);
-                return new CommandResult(opened.StartsWith("ok") ? $"ok {call.Line}" : opened) { Settle = SettleFrames };
-            case "close":
-                string closed = Actions.Run("menu.close", "dev bridge");
-                return new CommandResult(closed.StartsWith("ok") ? $"ok {call.Line}" : closed) { Settle = SettleFrames };
-            case "search":
-                Menu.SetSearch(call.Rest(2));
-                return CommandResult.Ok(call.Line) with { Settle = SettleFrames };
-            default:
-                return CommandResult.Error($"unknown command: {call.Line}");
-        }
-    }
 
     private static CommandResult HudCommand(CommandCall call)
     {

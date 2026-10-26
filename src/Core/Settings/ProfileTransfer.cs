@@ -37,7 +37,7 @@ internal static class ProfileTransfer
 
     /// <summary>Every segment, by group then section, in the order the menu shows them.</summary>
     public static IReadOnlyList<ProfileSegment> Segments =>
-        SettingsRegistry.Groups.SelectMany(g => g.Sections.Where(s => s.Settings.Count > 0).Select(s => new ProfileSegment(g, s))).ToList();
+        SettingsRegistry.Groups.Where(g => !g.Shared).SelectMany(g => g.Sections.Where(s => s.Settings.Count > 0).Select(s => new ProfileSegment(g, s))).ToList();
 
     /// <summary>A setting's key for choosing it: group/section/setting.</summary>
     public static string Key(Setting setting) => $"{setting.Section.Group.Id}/{setting.Section.Id}/{setting.Id}";

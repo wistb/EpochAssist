@@ -23,47 +23,45 @@ internal static class AutoCastSettings
         Clearable = true, Help = "While held, autocast stops and lets go of any channel.",
     };
 
-    public static readonly Section Pausing = Group.Section("pausing", "Pausing");
+    public static readonly Section Pausing = Group.Section("pausing", "Pause");
     public static readonly Toggle PauseOnZoneChange = new(Pausing, "PauseOnZoneChange", "Pause on zone change", true)
     {
         Help = "Press any skill yourself to resume.",
     };
     public static readonly Toggle PauseInNonCombatZones = new(Pausing, "PauseInNonCombatZones", "Pause in non-combat zones", false);
 
-    public static readonly Section Targeting = Group.Section("targeting", "Targeting");
+    public static readonly Section Targeting = Group.Section("targeting", "Target");
     public static readonly Toggle AimAtClosestEnemy = new(Targeting, "AimAtClosestEnemy", "Aim at closest enemy", false)
     {
         QuickLabel = "Aim at closest enemy", Help = "Uses the cursor when nothing is in range.",
     };
     public static readonly Number AimRange = new(Targeting, "AimRange", "Aim range", 20f, 2f, 60f)
     {
-        Unit = " m", VisibleWhen = () => AimAtClosestEnemy.Value,
+        Unit = " m", VisibleWhen = () => AimAtClosestEnemy.Value, ShownWhen = "Aim at closest enemy is on",
     };
 
     public static readonly Section Gate = Group.Section("gate", "Enemy gate");
+    private const string GateOn = "Only cast with enemies in range is on";
     public static readonly Toggle RequireEnemies = new(Gate, "RequireEnemies", "Only cast with enemies in range", false)
     {
         QuickLabel = "Enemy gate",
     };
     public static readonly Number EnemyRange = new(Gate, "EnemyRange", "Range", 15f, 2f, 60f)
     {
-        Unit = " m", VisibleWhen = () => RequireEnemies.Value,
+        Unit = " m", VisibleWhen = () => RequireEnemies.Value, ShownWhen = GateOn,
     };
     public static readonly Number EnemyMinWeight = new(Gate, "EnemyMinWeight", "Minimum weight", 1f, 1f, 50f)
     {
-        VisibleWhen = () => RequireEnemies.Value, Help = "Total weight of enemies in range needed to cast.",
+        VisibleWhen = () => RequireEnemies.Value, ShownWhen = GateOn, Help = "Total weight of enemies in range needed to cast.",
     };
     public static readonly Toggle ShowRangeRing = new(Gate, "ShowRangeRing", "Show range ring", false)
     {
-        QuickLabel = "Show range ring", VisibleWhen = () => RequireEnemies.Value,
+        QuickLabel = "Show range ring", VisibleWhen = () => RequireEnemies.Value, ShownWhen = GateOn,
     };
     public static readonly Number WeightNormal = Weight("WeightNormal", "Normal", 1f);
     public static readonly Number WeightMagic = Weight("WeightMagic", "Magic", 2f);
     public static readonly Number WeightRare = Weight("WeightRare", "Rare", 5f);
     public static readonly Number WeightBoss = Weight("WeightBoss", "Boss", 20f);
-
-    /// <summary>The sections shown as cards on the Autocast page, in order.</summary>
-    public static readonly Section[] PageSections = { Controls, Pausing, Targeting, Gate };
 
     public static void Register()
     {
@@ -78,6 +76,6 @@ internal static class AutoCastSettings
 
     private static Number Weight(string id, string label, float defaultValue) => new(Gate, id, label, defaultValue, 0f, 50f)
     {
-        Fold = "Enemy weights", VisibleWhen = () => RequireEnemies.Value,
+        Fold = "Enemy weights", VisibleWhen = () => RequireEnemies.Value, ShownWhen = GateOn,
     };
 }

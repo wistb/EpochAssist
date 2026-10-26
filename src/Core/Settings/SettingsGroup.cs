@@ -46,6 +46,8 @@ internal sealed class SettingsGroup
     public string Name { get; }
     /// <summary>The group's part of action names (settings.reset.[key].[section]); lowercase letters and digits.</summary>
     public string ActionKey { get; init; } = string.Empty;
+    /// <summary>Values are always the global ones; profiles don't override, store, export or import them.</summary>
+    public bool Shared { get; init; }
     /// <summary>Raise when a setting is renamed or changes type, and add a migration for the new version.</summary>
     public int Version { get; }
     /// <summary>What went wrong bringing the stored settings up to Version at the last registration; shown in the menu.</summary>

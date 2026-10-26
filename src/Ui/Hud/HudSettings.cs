@@ -24,10 +24,7 @@ internal static class HudSettings
     // An int, not an enum of ours: an entry typed by one of our own enums would not match after a reload. The stored
     // numbers are the four corners (0-3, as before), then the edge centres (4-7); the options are in compass order.
     public static readonly Choice<int> HudPlacement = new(Hud, "HudCorner", "Position", 0,
-        (0, "Top left"), (4, "Top"), (1, "Top right"), (6, "Left"), (7, "Right"), (2, "Bottom left"), (5, "Bottom"), (3, "Bottom right"))
-    {
-        Cells = new[] { 0, 1, 2, 3, -1, 4, 5, 6, 7 },
-    };
+        (0, "Top left"), (4, "Top"), (1, "Top right"), (6, "Left"), (7, "Right"), (2, "Bottom left"), (5, "Bottom"), (3, "Bottom right"));
     public static readonly Number HudOffsetX = new(Hud, "HudOffsetX", "Horizontal offset", 0f, -100f, 100f)
     {
         Unit = " px", Help = "Moves the mini HUD right from its position; below zero, left.",
@@ -44,7 +41,6 @@ internal static class HudSettings
     public static readonly Choice<int> ToastPlacement = new(Hud, "ToastPosition", "Notifications", 8,
         (0, "Top left"), (4, "Top"), (1, "Top right"), (6, "Left"), (8, "Next to HUD"), (7, "Right"), (2, "Bottom left"), (5, "Bottom"), (3, "Bottom right"))
     {
-        Cells = new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 },
         Help = "Where notifications show. They follow the mini HUD's switch and opacity.",
     };
 

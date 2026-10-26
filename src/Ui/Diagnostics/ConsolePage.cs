@@ -5,7 +5,7 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// The console, shown as the Console tab of Settings → Diagnostics: type a command from the registry (help lists them) and read
+/// The console, Settings › Diagnostics › Console in the menu: type a command from the registry (help lists them) and read
 /// its reply. Dev commands answer only under the dev loader. Opened from the tab or by console.open (the console key),
 /// which also puts the keyboard in its input line.
 /// </summary>
@@ -17,7 +17,7 @@ internal sealed class ConsoleFeature : Feature
     public override void Start()
     {
         ConsolePage.Start();
-        Actions.Register(Id, "console.open", "Open the console", Menu.OpenConsole);
+        Actions.Register(Id, "console.open", "Open the console", Ui.Menu.OpenConsole);
     }
 
     public override void Update() => ConsolePage.Update();
@@ -28,7 +28,8 @@ internal static class ConsolePage
 {
     private const string FieldControl = "EpochAssistConsole";
     private const int MaxEntries = 200, MaxHistory = 20, MaxLine = 256;
-    private const float OutputHeight = 250f;
+    // The output fills the page above the input line.
+    private static float s_outputHeight = 250f;
 
     // An entry is a line typed and its reply; each part has a kind for its colour.
     private enum Kind { Input, Ok, Error, Text }
@@ -66,6 +67,16 @@ internal static class ConsolePage
         AddReply(s_run, pending.Entry, reply);
     }
 
+    public static void Register() => MenuBlocks.Register("console", (rect, _) =>
+    {
+        GUILayout.BeginArea(rect);
+        Popups.PushOrigin(rect.position);
+        s_outputHeight = Mathf.Max(80f, rect.height - 64f);
+        Draw();
+        Popups.PopOrigin();
+        GUILayout.EndArea();
+    }, _ => s_run == null ? new[] { "console not running" } : s_run.Output.TakeLast(10).SelectMany(e => e.Select(x => x.Text)));
+
     public static void Draw()
     {
         var run = s_run;
@@ -84,6 +95,8 @@ internal static class ConsolePage
         }
 
         bool focused = GUI.GetNameOfFocusedControl() == FieldControl;
+        // Up and Down walk the history here, so they don't move the menu's focus.
+        Focus.FieldKeepsArrows = focused;
         // Keys meant for the input line, taken before the field sees them: Enter runs, Up and Down walk the history.
         if (focused && e.type == EventType.KeyDown)
         {
@@ -105,7 +118,7 @@ internal static class ConsolePage
         GUILayout.BeginHorizontal();
         Rect field = GUILayoutUtility.GetRect(10f, 26f, GUILayout.ExpandWidth(true), GUILayout.Height(26f));
         GUI.SetNextControlName(FieldControl);
-        run.Input = GUI.TextField(field, run.Input, Style(() => Theme.SearchField, GUI.skin.textField));
+        run.Input = GUI.TextField(field, run.Input, Style(() => Theme.TreeFilter, GUI.skin.textField));
         if (focused) Focus.Take("console.field");
         if (Focus.Item("console.field", field) || Focus.Arrived("console.field") || (Menu.FocusConsoleField && e.type == EventType.Repaint))
         {
@@ -115,7 +128,8 @@ internal static class ConsolePage
         if (Themed && e.type == EventType.Repaint && run.Input.Length == 0) Widgets.Paint(field, "Type a command, or help", Theme.Placeholder);
         // Room for the field's focus outline.
         GUILayout.Space(8f);
-        if (Pressed(GUILayout.Button("Run", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)), "console.run")) run.Submit = true;
+        Rect button = GUILayoutUtility.GetRect(Controls.ButtonWidth("Run"), 26f, GUILayout.Width(Controls.ButtonWidth("Run")), GUILayout.Height(26f));
+        if (Controls.Button(new Rect(button.x, button.y + 1f, button.width, 24f), "Run", "console.run")) run.Submit = true;
         GUILayout.EndHorizontal();
         Hint("Enter runs the line; Up and Down bring back earlier lines. clear empties the output.");
     }
@@ -129,7 +143,7 @@ internal static class ConsolePage
             run.ToBottom = false;
         }
         run.Scroll = GUILayout.BeginScrollView(run.Scroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar, Style(() => Theme.Card, GUI.skin.box),
-            GUILayout.Height(OutputHeight));
+            GUILayout.Height(s_outputHeight));
         Color previous = GUI.contentColor;
         if (run.Output.Count == 0)
         {

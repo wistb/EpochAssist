@@ -42,10 +42,14 @@ internal static partial class FeatureHost
         s_features.Clear();
         s_features.AddRange(order);
         s_orderProblems = problems;
+        FeatureSwitches.Declare(s_features);
         foreach (var feature in s_features)
         {
             var target = feature;
             Actions.Register("host", $"feature.restart.{feature.Id}", $"Restart {feature.Name}", () => Restart(target));
+            if (feature.CanTurnOff)
+                Actions.Register("host", $"feature.toggle.{feature.Id}", $"Turn {feature.Name} on or off", () => SetOn(target, !FeatureSwitches.IsOn(target), out _),
+                    () => FeatureSwitches.IsOn(target));
         }
         s_startingAll = true;
         try
@@ -99,6 +103,16 @@ internal static partial class FeatureHost
                 Owned.Release(feature);
                 return;
             }
+            if (!FeatureSwitches.IsOn(feature))
+            {
+                feature.Record.State = FeatureState.Stopped;
+                feature.Record.TurnedOff = true;
+                feature.Record.BlockedBy = null;
+                feature.Record.LastError = "turned off";
+                Owned.Release(feature);
+                return;
+            }
+            feature.Record.TurnedOff = false;
             string? blocker = feature.Needs.FirstOrDefault(id => Find(id)?.State != FeatureState.Running);
             if (blocker != null)
             {
@@ -146,6 +160,32 @@ internal static partial class FeatureHost
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Owned.Release(feature);
+    }
+
+    /// <summary>Turns a whole feature on (and starts it) or off (and stops it), and stores the choice.</summary>
+    public static bool SetOn(Feature feature, bool on, out string reason)
+    {
+        if (FeatureSwitches.For(feature) is not { } toggle)
+        {
+            reason = $"{feature.Name} can't be turned off";
+            return false;
+        }
+        reason = string.Empty;
+        toggle.Value = on;
+        if (on)
+        {
+            Start(feature);
+        }
+        else
+        {
+            Stop(feature);
+            feature.Record.State = FeatureState.Stopped;
+            feature.Record.TurnedOff = true;
+            feature.Record.BlockedBy = null;
+            feature.Record.LastError = "turned off";
+        }
+        Log.Info($"{feature.Name} turned {(on ? "on" : "off")}");
+        return true;
     }
 
     public static void Restart(Feature feature)

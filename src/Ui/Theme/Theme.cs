@@ -7,7 +7,7 @@ namespace EpochAssist.Ui;
 // textures, and built again when the theme, font or weight changes.
 internal static partial class Theme
 {
-    // The values the skin was built from; Slate until the first build.
+    // The values the skin was built from; Carbonfox until the first build.
     private static ThemeValues s_values = ThemeValues.Presets[0].Values;
     private static string? s_builtIdentity;
 
@@ -38,8 +38,6 @@ internal static partial class Theme
     /// <summary>Horizontal padding inside a card, both sides together.</summary>
     public static float CardInset => s_values.CardPad * 2f;
 
-    public const float SidebarWidth = 150f;
-
     private static GUISkin? s_skin;
     private static bool s_failed;
     // Fonts made with Font.CreateDynamicFontFromOSFont garble IMGUI text in this game, so weight comes from
@@ -53,21 +51,14 @@ internal static partial class Theme
     private static FontStyle s_body = FontStyle.Normal;
     private static readonly List<Texture2D> s_textures = new();
 
-    public static GUIStyle Sidebar = null!, NavTitle = null!, NavVersion = null!, NavItem = null!, NavIcon = null!, NavHint = null!, Main = null!;
-    public static GUIStyle PageTitle = null!, Badge = null!, Close = null!;
+    public static GUIStyle PageTitle = null!;
     public static GUIStyle Card = null!, CardTitle = null!, RowLabel = null!, Hint = null!, Value = null!;
-    public static GUIStyle SearchField = null!, Placeholder = null!, FieldClear = null!, SubTab = null!, Segment = null!, SmallButton = null!, KeyChip = null!;
-    public static GUIStyle Track = null!, TrackFill = null!, SliderBody = null!, Thumb = null!;
+    public static GUIStyle Placeholder = null!, SmallButton = null!;
     public static GUIStyle ChipNumber = null!, ChipName = null!;
     public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, ToastText = null!;
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
-    // Drawn by the menu itself so its opacity setting applies; the styles carry no background.
-    public static Texture2D WindowBg = null!, SidebarBg = null!;
     public static Texture2D Chevron = null!, ChevronRight = null!;
-    public const int GearFrameCount = 12;
-    /// <summary>The gear turned through 45° in equal steps (frame 0 is the gear as drawn).</summary>
-    public static Texture2D[] GearFrames = Array.Empty<Texture2D>();
-    public static Texture2D Swatch = null!, SwatchRing = null!, Gear = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, Divider = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
+    public static Texture2D Swatch = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
     public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
 
@@ -79,7 +70,7 @@ internal static partial class Theme
             if (s_failed) return null;
             var theme = Themes.Resolve(LookSettings.Theme.Value);
             if (s_skin != null && (s_builtWeight != LookSettings.FontWeight.Value || s_builtFont != LookSettings.Font.Value || s_builtIdentity != theme.Identity
-                || s_builtCorners != LookSettings.Corners.Value || s_builtAccent != LookSettings.Accent.Value)) Release();
+                || s_builtCorners != LookSettings.Corners.Value || s_builtAccent != AccentKey)) Release();
             if (s_skin != null) return s_skin;
             try
             {
@@ -106,8 +97,11 @@ internal static partial class Theme
         v.RadiusControl = Round(v.RadiusControl);
         v.RadiusChip = Round(v.RadiusChip);
         ThemeAccent = v.Accent;
-        s_builtAccent = LookSettings.Accent.Value;
+        ThemeHighlight = v.Highlight;
+        ThemeAccentText = v.AccentText;
+        s_builtAccent = AccentKey;
         if (LookSettings.Accent.TryGetColor(out Color accent)) ApplyAccent(v, accent);
+        ApplyAccents(v);
         s_values = v;
         // Core draws and counts with what the theme hands it.
         Draw.DefaultBars = new(new Color(Off.r * 0.3f, Off.g * 0.3f, Off.b * 0.3f, 0.75f), Good, Accent);
@@ -124,7 +118,6 @@ internal static partial class Theme
         int rBadge = Math.Min(11, rChip + 2), rPanel = PanelRadius, rBar = Math.Min(3, rControl), rTrack = Math.Min(2, rControl);
 
         skin.window = new GUIStyle(skin.window) { border = Offset(Slice(rWindow)), padding = Offset(0), overflow = Offset(0), contentOffset = Vector2.zero };
-        WindowBg = Rounded(rWindow, rWindow, v.Window, v.WindowEdge, 1f);
         Background(skin.window, null);
 
         skin.label = new GUIStyle(skin.label) { fontSize = v.FontBody, fontStyle = s_body, wordWrap = false, richText = true, padding = new RectOffset(0, 0, 2, 2) };
@@ -146,44 +139,7 @@ internal static partial class Theme
         skin.horizontalScrollbar = new GUIStyle(skin.horizontalScrollbar) { fixedHeight = 0f };
         Background(skin.horizontalScrollbar, null);
 
-        // Rounded on the left only, so it sits flush against the content area.
-        Sidebar = new GUIStyle { border = new RectOffset(Slice(rWindow), 2, Slice(rWindow), Slice(rWindow)), padding = new RectOffset(10, 10, 14, 12) };
-        SidebarBg = Rounded(rWindow, 0, v.Sidebar, v.Sidebar, 0f);
-        NavTitle = new GUIStyle(skin.label) { fontSize = v.FontNav, fontStyle = FontStyle.Bold, padding = new RectOffset(6, 0, 0, 0) };
-        NavVersion = new GUIStyle(skin.label) { fontSize = v.FontCaption, padding = new RectOffset(6, 0, 0, 0) };
-        TextColor(NavVersion, v.Dim);
-        NavItem = MakeButton(skin.button, Color.clear, v.NavHover, v.Control, v.Accent);
-        NavItem.alignment = TextAnchor.MiddleLeft;
-        NavItem.fontStyle = FontStyle.Bold;
-        NavItem.fixedHeight = 32f;
-        NavItem.padding = new RectOffset(26, 10, 0, 1);
-        NavItem.margin = new RectOffset(0, 0, 0, 4);
-        TextColor(NavItem, v.Dim);
-        NavItem.hover.textColor = v.Text;
-        SetOnText(NavItem, v.OnAccent);
-        // A small square button for the Settings gear, on the closing hint's line.
-        NavIcon = MakeButton(skin.button, Color.clear, v.NavHover, v.Control, v.Accent);
-        NavIcon.fixedWidth = 24f;
-        NavIcon.fixedHeight = 24f;
-        NavIcon.padding = new RectOffset(0, 0, 0, 0);
-        NavIcon.margin = new RectOffset(0, 6, 0, 0);
-        Main = new GUIStyle { padding = new RectOffset(16, 16, 12, 14) };
-
         PageTitle = new GUIStyle(skin.label) { fontSize = v.FontTitle, fontStyle = FontStyle.Bold, padding = new RectOffset(0, 0, 1, 0) };
-        Badge = new GUIStyle(skin.label)
-        {
-            fontSize = v.FontSmall, fontStyle = FontStyle.Bold, border = Offset(Slice(rBadge)), alignment = TextAnchor.MiddleLeft,
-            padding = new RectOffset(20, 9, 0, 1), margin = new RectOffset(8, 0, 3, 0), fixedHeight = 22f,
-        };
-        Close = MakeButton(skin.button, Color.clear, v.ControlHover, v.ControlActive, v.Accent);
-        Close.fontSize = v.FontTitle;
-        Close.fixedWidth = 26f;
-        Close.fixedHeight = 26f;
-        Close.padding = new RectOffset(0, 0, 0, 3);
-        Close.margin = new RectOffset(8, 0, 0, 0);
-        TextColor(Close, v.Dim);
-        Close.hover.textColor = v.Text;
-
         // Padding comes from one theme value: the sides take it whole, top and bottom a little less.
         int pad = v.CardPad;
         Card = new GUIStyle(skin.box) { margin = new RectOffset(0, 0, 0, v.CardGap), padding = new RectOffset(pad, pad, Math.Max(pad - 4, 4), Math.Max(pad - 2, 10)) };
@@ -193,7 +149,6 @@ internal static partial class Theme
         RowLabel = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleLeft, margin = new RectOffset(0, 4, 0, 0) };
         Hint = new GUIStyle(skin.label) { fontSize = v.FontSmall, fontStyle = FontStyle.Normal, wordWrap = true, margin = new RectOffset(0, 0, 2, 4) };
         TextColor(Hint, v.Dim);
-        NavHint = new GUIStyle(Hint) { wordWrap = false, alignment = TextAnchor.MiddleLeft, fixedHeight = 24f, margin = new RectOffset(0, 0, 0, 0) };
         Value = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleRight, margin = new RectOffset(4, 0, 0, 0) };
 
         skin.textField = new GUIStyle(skin.textField)
@@ -207,78 +162,26 @@ internal static partial class Theme
         TextColor(skin.textField, v.Text);
         skin.settings.cursorColor = v.Text;
         skin.settings.selectionColor = new Color(v.Accent.r, v.Accent.g, v.Accent.b, 0.45f);
-        // Room on the right for the clear button drawn inside it.
-        SearchField = new GUIStyle(skin.textField) { padding = new RectOffset(9, 28, 5, 5), margin = new RectOffset(0, 0, 0, 0) };
         Placeholder = new GUIStyle(skin.label)
         {
             fontSize = v.FontBody, fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(10, 28, 0, 1),
         };
         TextColor(Placeholder, v.Dim);
-        FieldClear = new GUIStyle(skin.label) { fontSize = v.FontBody + 3, alignment = TextAnchor.MiddleCenter, padding = new RectOffset(0, 0, 0, 2) };
-        TextColor(FieldClear, v.Dim);
-        FieldClear.hover.textColor = v.Text;
-
-        SubTab = MakeButton(skin.button, Color.clear, v.ControlHover, v.ControlActive, v.Control);
-        SubTab.fontSize = v.FontSmall;
-        SubTab.fontStyle = FontStyle.Bold;
-        SubTab.margin = new RectOffset(0, 4, 0, 0);
-        TextColor(SubTab, v.Dim);
-        SubTab.hover.textColor = v.Text;
-        SetOnText(SubTab, v.Text);
-
-        Segment = MakeButton(skin.button, v.Control, v.ControlHover, v.ControlActive, v.Accent);
-        Segment.margin = new RectOffset(0, 4, 2, 2);
         SmallButton = MakeButton(skin.button, v.Control, v.ControlHover, v.ControlActive, v.Accent);
         SmallButton.fontSize = v.FontSmall;
         SmallButton.fixedHeight = 24f;
         SmallButton.padding = new RectOffset(10, 10, 2, 3);
         SmallButton.margin = new RectOffset(0, 4, 2, 2);
-        KeyChip = new GUIStyle(skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, border = Offset(Slice(rControl)),
-            padding = new RectOffset(9, 9, 2, 3), margin = new RectOffset(4, 6, 2, 2), fixedHeight = 24f,
-        };
-        Background(KeyChip, Rounded(rControl, rControl, v.InputBg, v.InputEdge, 1f));
-        TextColor(KeyChip, v.AccentText);
-
-        Track = new GUIStyle { border = Offset(Slice(rTrack)) };
-        Track.normal.background = Rounded(rTrack, rTrack, v.Track, v.Track, 0f);
-        TrackFill = new GUIStyle { border = Offset(Slice(rTrack)) };
-        TrackFill.normal.background = Rounded(rTrack, rTrack, v.Accent, v.Accent, 0f);
-        SliderBody = new GUIStyle { fixedHeight = 18f };
-        Thumb = new GUIStyle { fixedWidth = 16f, fixedHeight = 16f };
-        Thumb.normal.background = Circle(16, v.Thumb);
-        Thumb.hover.background = Circle(16, v.ThumbHover);
-        Thumb.active.background = Circle(16, v.AccentText);
-
         ChipNumber = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = v.FontTitle - 2, fontStyle = FontStyle.Bold };
         ChipName = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = v.FontCaption - 1, clipping = TextClipping.Clip };
-        ChipOff = Rounded(rChip, rChip, v.Sidebar, v.CardEdge, 1f);
-        ChipOn = Rounded(rChip, rChip, v.ChipOn, v.Accent, 1.5f);
+        ChipOff = Rounded(rChip, rChip, v.Card, v.CardEdge, 1f);
+        ChipOn = Rounded(rChip, rChip, v.ChipOn, v.Highlight, 1.5f);
         ChipPaused = Rounded(rChip, rChip, v.ChipPaused, v.StatePaused, 1.5f);
 
         SwitchOff = Switch(on: false, v.Track, v.Dim);
         SwitchOffHover = Switch(on: false, v.ControlActive, v.Text);
-        SwitchOn = Switch(on: true, v.Accent, v.OnAccent);
-        SwitchOnHover = Switch(on: true, v.AccentHover, v.OnAccent);
-        // State shapes, white and tinted when drawn, so colour is never the only cue.
-        // The gear, and turned copies for its animation: eight teeth repeat every 45°, so frames over 45° cover any turn.
-        GearFrames = new Texture2D[GearFrameCount];
-        for (int frame = 0; frame < GearFrameCount; frame++)
-        {
-            float turn = frame * (Mathf.PI / 4f) / GearFrameCount;
-            GearFrames[frame] = Paint(32, 32, (x, y) =>
-            {
-                float px = x + 0.5f - 16f, py = y + 0.5f - 16f;
-                float angle = Mathf.Atan2(py, px) + turn, distance = Mathf.Sqrt(px * px + py * py);
-                // Eight teeth around a body, with a hole in the middle; edges smoothed over about a pixel.
-                float edge = Mathf.Cos(angle * 8f) > 0.25f ? 14.5f : 11f;
-                float body = Mathf.Clamp01(edge - distance + 0.5f);
-                float hole = Mathf.Clamp01(5f - distance + 0.5f);
-                return Shade(Color.white, Mathf.Clamp01(body - hole));
-            });
-        }
-        Gear = GearFrames[0];
+        SwitchOn = Switch(on: true, SwitchTrack(v, 0.7f), v.OnAccent);
+        SwitchOnHover = Switch(on: true, SwitchTrack(v, 0.82f), v.OnAccent);
         // A down chevron for dropdowns: two strokes meeting at the bottom (the game's fonts have no arrow glyphs).
         Chevron = Paint(12, 12, (x, y) =>
         {
@@ -296,6 +199,7 @@ internal static partial class Theme
         });
         // The same chevron pointing right, for a folded group (rotating the drawing goes wrong inside a scroll view).
         ChevronRight = Paint(12, 12, (x, y) => Chevron.GetPixel(y, 11 - x));
+        // State shapes, white and tinted when drawn, so colour is never the only cue.
         Dot = Circle(10, Color.white);
         Ring = Paint(10, 10, (x, y) => Shade(Color.white, Mathf.Clamp01(Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4.5f)) - Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 2.5f)))));
         Square = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 4f))));
@@ -304,8 +208,6 @@ internal static partial class Theme
         FocusRing = Rounded(rControl + 2, rControl + 2, Color.clear, v.Focus, 2f);
         // Colour swatches: white, tinted when drawn; the ring marks the chosen one.
         Swatch = Rounded(rChip, rChip, Color.white, Color.white, 0f);
-        SwatchRing = Rounded(rChip + 3, rChip + 3, Color.clear, Color.white, 2f);
-        Divider = Paint(1, 1, (_, _) => v.CardEdge);
 
         BadgeActive = Rounded(rBadge, rBadge, v.BadgeActive, v.BadgeActive, 0f);
         BadgeWaiting = Rounded(rBadge, rBadge, v.BadgeWaiting, v.BadgeWaiting, 0f);
@@ -331,6 +233,8 @@ internal static partial class Theme
         TextColor(worldLabel, Color.white);
         Draw.LabelStyle = worldLabel;
 
+        BuildMenu(skin, v);
+        LoadLogo();
         s_skin = skin;
     }
 
@@ -361,6 +265,8 @@ internal static partial class Theme
             if (texture != null) UnityEngine.Object.Destroy(texture);
         }
         s_textures.Clear();
+        s_logo = null;
+        s_logoSize = null;
         if (s_skin != null) UnityEngine.Object.Destroy(s_skin);
         s_skin = null;
         s_failed = false;
@@ -388,16 +294,47 @@ internal static partial class Theme
     /// <summary>The selected theme's own accent, before the player's Accent setting.</summary>
     public static Color ThemeAccent { get; private set; } = ThemeValues.Presets[0].Values.Accent;
 
-    // The player's accent replaces the theme's and everything made from it. Status colours stay the theme's, so states
-    // keep their lightness rules. Text on the accent turns dark on light accents (Catppuccin's are pastels).
+    // The three accent settings as one value, so a change to any of them rebuilds the skin.
+    private static string AccentKey => $"{LookSettings.Accent.Value}|{LookSettings.AccentSecondary.Value}|{LookSettings.AccentTertiary.Value}";
+
+    /// <summary>The selected theme's own highlight and accent text, before the player's secondary and tertiary accents.</summary>
+    public static Color ThemeHighlight { get; private set; } = ThemeValues.Presets[0].Values.Highlight;
+    public static Color ThemeAccentText { get; private set; } = ThemeValues.Presets[0].Values.AccentText;
+
+    // As in an editor's theme settings, each accent role is the theme's own until the player picks one: the accent
+    // (controls), the highlight (where you are: the tree's selected row, list highlights, search matches, slot chips
+    // that are on) and the accent text. A picked colour replaces that role and what is made from it.
+    private static void ApplyAccents(ThemeValues v)
+    {
+        var window = new Color(v.Window.r, v.Window.g, v.Window.b, 1f);
+        if (LookSettings.AccentSecondary.TryGetColor(out Color secondary))
+        {
+            v.Highlight = secondary;
+            v.Selection = Color.Lerp(new Color(v.Sidebar.r, v.Sidebar.g, v.Sidebar.b, 1f), secondary, 0.35f);
+            v.ChipOn = Color.Lerp(window, secondary, 0.25f);
+        }
+        v.HighlightText = Readable(v.Highlight);
+        v.OnHighlight = Contrast(Color.white, v.Highlight) >= Contrast(window, v.Highlight) ? Color.white : window;
+        if (LookSettings.AccentTertiary.TryGetColor(out Color tertiary)) v.AccentText = Readable(tertiary);
+    }
+
+    // A switch that is on: the accent toned toward the bars' colour, with a dark knob, so it reads as on at a glance
+    // without being the brightest thing on the page.
+    private static Color SwitchTrack(ThemeValues v, float amount) =>
+        Color.Lerp(new Color(v.Sidebar.r, v.Sidebar.g, v.Sidebar.b, 1f), v.Accent, amount);
+
+    // Dark colours lightened so they read as text on the dark surfaces.
+    private static Color Readable(Color c) => Luminance(c) < 0.3f ? Color.Lerp(c, Color.white, 0.3f) : c;
+
+    // The player's accent replaces the theme's for the controls (switches, checks, main buttons, the focus ring). Status
+    // colours stay the theme's, so states keep their lightness rules. Text on the accent turns dark on light accents
+    // (Catppuccin's are pastels).
     private static void ApplyAccent(ThemeValues v, Color accent)
     {
         v.Accent = accent;
         v.AccentHover = Color.Lerp(accent, Color.white, 0.15f);
-        v.AccentText = Luminance(accent) < 0.3f ? Color.Lerp(accent, Color.white, 0.3f) : accent;
         v.Focus = accent;
         var window = new Color(v.Window.r, v.Window.g, v.Window.b, 1f);
-        v.ChipOn = Color.Lerp(window, accent, 0.25f);
         v.OnAccent = Contrast(Color.white, accent) >= Contrast(window, accent) ? Color.white : window;
     }
 

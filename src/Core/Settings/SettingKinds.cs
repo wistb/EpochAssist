@@ -30,6 +30,10 @@ internal sealed class Number : Setting<float>
 
     public float Snap(float value) => Mathf.Clamp(Step > 0f ? Mathf.Round(value / Step) * Step : value, Min, Max);
 
+    // The stored value comes back through the preferences file a hair off (0.85 reads as 0.8499999642), so it is the
+    // default when it is within half a step of it.
+    public override bool IsDefault => Mathf.Abs(Value - Default) < (Step > 0f ? Step * 0.5f : 1e-4f);
+
     public string Format(float value)
     {
         if (Percent) return $"{value * 100f:F0}%";
@@ -79,7 +83,7 @@ internal sealed class Key : Setting<KeyCode>
     }
 }
 
-/// <summary>One of a fixed list of values, shown as a row of buttons. T must be storable: an int or a game enum, never one of ours.</summary>
+/// <summary>One of a fixed list of values, shown as a dropdown. T must be storable: an int or a game enum, never one of ours.</summary>
 internal sealed class Choice<T> : Setting<T> where T : notnull
 {
     public Choice(Section section, string id, string label, T defaultValue, params (T Value, string Label)[] options)
@@ -87,8 +91,8 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
 
     public (T Value, string Label)[] Options { get; }
 
-    /// <summary>Lays the options out three to a row, each cell an index into Options or -1 for an empty cell; null for the usual rows.</summary>
-    public int[]? Cells { get; init; }
+    /// <summary>Headings for a long option list: each group starts at option index First. Code only, nothing stored.</summary>
+    public (string Label, int First)[]? Groups { get; init; }
 
     public int Index
     {
@@ -124,8 +128,8 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
 }
 
 /// <summary>
-/// A colour stored as #RRGGBB, or empty for none (the caller's own colour). Shown as swatches (the empty one first, then
-/// the named ones) and a picker for any other colour.
+/// A colour stored as #RRGGBB, or empty for none (the caller's own colour). Shown as a dropdown of swatches (the empty
+/// one first, then the named ones) and a picker for any other colour.
 /// </summary>
 internal sealed class ColorSetting : Setting<string>
 {
@@ -135,6 +139,8 @@ internal sealed class ColorSetting : Setting<string>
     public (string Name, string Hex)[] Swatches { get; init; } = Array.Empty<(string, string)>();
     /// <summary>What the empty value means, for its swatch ("Theme").</summary>
     public string EmptyLabel { get; init; } = "Default";
+    /// <summary>Headings for the swatches: each group starts at swatch index First. Code only, nothing stored.</summary>
+    public (string Label, int First)[]? Groups { get; init; }
 
     /// <summary>The stored colour; false when empty or unreadable.</summary>
     public bool TryGetColor(out Color color) => TryParse(Value, out color);
@@ -163,7 +169,7 @@ internal sealed class ColorSetting : Setting<string>
 }
 
 /// <summary>
-/// A name chosen from a list that can change while the game runs (themes from files), shown as a row of buttons. The
+/// A name chosen from a list that can change while the game runs (themes from files), shown as a dropdown. The
 /// list and any notes come from hooks the UI sets; a stored name missing from the list is kept, so it comes back with it.
 /// </summary>
 internal sealed class Pick : Setting<string>

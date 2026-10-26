@@ -60,6 +60,11 @@
     <Reference Include="Unity.Postprocessing.Runtime" HintPath="$(Il2Cpp)\Unity.Postprocessing.Runtime.dll" />
   </ItemGroup>
 
+  <!-- The top bar's logo, one per UI scale, loaded with ImageConversion.LoadImage. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Ui/Theme/Assets/logo-wordmark@*.png" LogicalName="EpochAssist.Logo.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- patchcheck (Dev/) decodes the game's native code with the Iced decoder MelonLoader already ships and loads. -->
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <Reference Include="Iced" HintPath="$(ML)\net6\Iced.dll" />

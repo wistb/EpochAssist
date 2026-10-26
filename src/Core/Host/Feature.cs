@@ -8,13 +8,6 @@ internal enum FeatureState { Stopped, Running, Faulted, Unavailable }
 // Where a feature draws; the host draws layers in this order, so the menu ends up on top.
 internal enum GuiLayer { None, World, Hud, Menu }
 
-/// <summary>A feature's page in the menu: sidebar title, place (lower first, ties in registration order) and its body.</summary>
-internal sealed record FeaturePage(string Title, int Order, Action Draw)
-{
-    /// <summary>The feature's master switch, shown in the page header; it must be a quick toggle (it runs that action).</summary>
-    public Toggle? Switch { get; init; }
-}
-
 /// <summary>
 /// One unit of the mod run by <see cref="FeatureHost"/>. Override only the hooks you need.
 /// Shutdown must undo everything the feature did to the game, so a reload or a fault leaves nothing behind.
@@ -44,8 +37,11 @@ internal abstract class Feature
     /// must be in Needs.</summary>
     public virtual PartNeed[] Parts => Array.Empty<PartNeed>();
 
-    /// <summary>The feature's menu page, or null for none. The body is drawn only while the feature is Running.</summary>
-    public virtual FeaturePage? Page => null;
+    /// <summary>The feature's place in the menu, or null for none. Read in every state, so a stopped feature keeps it.</summary>
+    public virtual MenuEntry? Menu => null;
+
+    /// <summary>The player can turn the whole feature off: it has an entry outside the Settings tab.</summary>
+    public bool CanTurnOff => Menu != null && Menu.Category != MenuCategory.Settings;
 
     /// <summary>A non-null name puts the feature on the HUD pill, showing its Status.</summary>
     public virtual string? StatusName => null;

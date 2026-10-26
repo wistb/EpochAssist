@@ -1,5 +1,4 @@
 using EpochAssist.Core;
-using EpochAssist.Ui;
 using Il2Cpp;
 using Feature = EpochAssist.Core.Feature;
 
@@ -13,12 +12,10 @@ internal sealed class AutoCastFeature : Feature
     public override string[] Needs => new[] { "game", "dispatch", "hotkeys", "player", "world" };
     // Reads its settings each frame, after the character's values are in place.
     public override string[] RunsAfter => new[] { "profiles" };
-    public override FeaturePage? Page => s_page;
+    public override MenuEntry? Menu => AutoCastMenu.Entry;
     public override string? StatusName => "Autocast";
     // It averages 0.28–0.35 ms, above the default.
     public override double BudgetMs => 0.7;
-
-    private static readonly FeaturePage s_page = new("Autocast", 10, AutoCastPage.Draw) { Switch = AutoCastSettings.Enabled };
 
     // The skill bar, cooldowns, form and enemies come from the models; sending, channel stops and retargeting are the
     // dispatcher's requirements. What is left is read here: the bar icons it tints and the cursor point it aims at.

@@ -1,3 +1,5 @@
+using EpochAssist.Core;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using UnityEngine;
 
 namespace EpochAssist.Ui;
@@ -19,8 +21,9 @@ internal static partial class Theme
         style.Draw(rect, false, false, false, false);
     }
 
-    // Square corners still need a slice wide enough for the edge; every rounded texture is cut at this border.
-    private static int Slice(int radius) => Math.Max(radius, 2);
+    // Small corners still need a slice wide enough for the edge (1.5 px and its anti-aliasing), or the edge's fade is
+    // stretched across the middle; every rounded texture is cut at this border.
+    private static int Slice(int radius) => Math.Max(radius, 3);
 
     // A 9-sliceable rounded rectangle with left and right corner radii (0 = square).
     private static Texture2D Rounded(int left, int right, Color fill, Color edge, float edgeWidth)
@@ -99,5 +102,60 @@ internal static partial class Theme
         texture.Apply();
         s_textures.Add(texture);
         return texture;
+    }
+
+    private static Texture2D? s_logo;
+    private static string? s_logoSize;
+    private static bool s_logoFailed;
+
+    /// <summary>The wordmark for the top bar at the current UI scale, or null (the bar shows the name as text).</summary>
+    public static Texture2D? Logo
+    {
+        get
+        {
+            if (s_skin != null && s_logoSize != LogoSize) LoadLogo();
+            return Game.Alive(s_logo) ? s_logo : null;
+        }
+    }
+
+    private static string LogoSize
+    {
+        get
+        {
+            float scale = LookSettings.UiScale.Value;
+            // The next size up, drawn smaller: a smaller image stretched to fit blurs.
+            return scale <= 1f ? "1x" : scale <= 1.5f ? "1.5x" : scale <= 2f ? "2x" : "4x";
+        }
+    }
+
+    // Picked by UI scale so it stays sharp; made with the skin and freed with it.
+    private static void LoadLogo()
+    {
+        string size = LogoSize;
+        s_logoSize = size;
+        if (s_logo != null)
+        {
+            s_textures.Remove(s_logo);
+            UnityEngine.Object.Destroy(s_logo);
+            s_logo = null;
+        }
+        if (s_logoFailed) return;
+        try
+        {
+            using var stream = typeof(Theme).Assembly.GetManifestResourceStream($"EpochAssist.Logo.logo-wordmark@{size}.png")
+                ?? throw new FileNotFoundException($"logo-wordmark@{size}.png isn't in the mod");
+            using var bytes = new MemoryStream();
+            stream.CopyTo(bytes);
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            s_textures.Add(texture);
+            if (!ImageConversion.LoadImage(texture, new Il2CppStructArray<byte>(bytes.ToArray()), true)) throw new InvalidOperationException("the image couldn't be read");
+            s_logo = texture;
+        }
+        catch (Exception e)
+        {
+            s_logoFailed = true;
+            s_logo = null;
+            Log.Warn($"Menu logo unavailable, showing the name instead: {e.Message}");
+        }
     }
 }

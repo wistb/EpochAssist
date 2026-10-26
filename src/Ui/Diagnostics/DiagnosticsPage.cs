@@ -5,9 +5,9 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// Diagnostics, shown as the Settings page's Diagnostics tab: the mod's build and mode, the log level, crash reports, one
-/// card per feature (state, errors, missing game members, frame time), problems, and a copy of it all as scrubbed text
-/// for a bug report. The feature owns the copy and open actions.
+/// Diagnostics, Settings › Diagnostics in the menu: the mod's build and mode with the log level (Overview), each feature's
+/// state with its switch (Features), crash reports (Reports), and a copy of it all as scrubbed text for a bug report.
+/// The feature owns the copy and open actions; the pages are the menu's blocks.
 /// </summary>
 internal sealed class DiagnosticsFeature : Feature
 {
@@ -17,7 +17,7 @@ internal sealed class DiagnosticsFeature : Feature
     public override void Start()
     {
         Actions.Register(Id, "diagnostics.copy", "Copy diagnostics", () => DiagnosticsPage.Copy(Diagnostics.Build().ToText(), "Diagnostics copied."));
-        Actions.Register(Id, "diagnostics.open", "Open diagnostics", () => Menu.OpenSettingsTab(Config.Diagnostics));
+        Actions.Register(Id, "diagnostics.open", "Open diagnostics", () => Ui.Menu.Open(MenuRoutes.Overview));
     }
 
     public override void Shutdown() => DiagnosticsPage.Reset();
@@ -55,41 +55,31 @@ internal static class DiagnosticsPage
         }
     }
 
-    private static readonly string[] s_tabs = { "Overview", "Features", "Reports", "Console" };
-    private const int ConsoleTab = 3;
-    private static int s_tab;
-
-    public static void ShowConsole() => Tab = ConsoleTab;
-
-    /// <summary>Diagnostics' own pages, listed under it in the sidebar while Settings is open.</summary>
-    public static IReadOnlyList<string> Tabs => s_tabs;
-
-    /// <summary>The page of Diagnostics shown.</summary>
-    public static int Tab
+    public static void Register()
     {
-        get => s_tab;
-        set
-        {
-            if (value == s_tab) return;
-            s_tab = Math.Clamp(value, 0, s_tabs.Length - 1);
-            s_clearing = false;
-        }
+        MenuBlocks.Register("diagnostics.overview", (rect, _) => Overview(rect), _ => OverviewLines(Snapshot()).Select(Plain), (_, width) => OverviewHeight(width));
+        MenuBlocks.Register("diagnostics.features", (rect, _) => Page(rect, Features), _ => Snapshot().Features.Select(f => $"feature {f.Id} {RowText.Quote(f.StateText)}"));
+        MenuBlocks.Register("diagnostics.reports", (rect, _) => Page(rect, ReportsCard), _ => Reports.List().Select(r => $"report {RowText.Quote(r.File)}"));
     }
 
-    /// <summary>The Settings page's Diagnostics: the page of it picked in the sidebar.</summary>
-    public static void DrawTab()
+    /// <summary>Opens the console's page.</summary>
+    public static void ShowConsole() => Menu.Open(MenuRoutes.Console);
+
+    // Rebuilt in a layout pass at most twice a second, so the passes of one frame draw the same thing.
+    private static DiagnosticsSnapshot Snapshot()
     {
-        if (s_tab == ConsoleTab)
+        if (s_snapshot == null || (Event.current?.type == EventType.Layout && Time.unscaledTime - s_builtAt >= RebuildSeconds))
         {
-            ConsolePage.Draw();
-            return;
+            s_snapshot = Diagnostics.Build();
+            s_builtAt = Time.unscaledTime;
         }
-        Menu.BeginScroll();
-        Draw();
-        Menu.EndScroll();
+        return s_snapshot;
     }
 
-    private static void Draw()
+    private static string Plain(string line) => RowText.StripTags(line);
+
+    // A full-page block: its rows laid out in a scroll view.
+    private static void Page(Rect rect, Action draw)
     {
         if (s_pending != null && Event.current.type == EventType.Layout)
         {
@@ -97,110 +87,114 @@ internal static class DiagnosticsPage
             s_pending = null;
             pending();
         }
-
-        // Rebuilt in a layout pass only, so the passes of one frame draw the same thing.
-        if (s_snapshot == null || (Event.current.type == EventType.Layout && Time.unscaledTime - s_builtAt >= RebuildSeconds))
-        {
-            s_snapshot = Diagnostics.Build();
-            s_builtAt = Time.unscaledTime;
-        }
-        var snapshot = s_snapshot;
-
-        switch (s_tab)
-        {
-            case 0:
-                ModCard(snapshot);
-                ProblemsCard(snapshot);
-                SettingsView.Card(Config.Diagnostics, "Logging");
-                break;
-            case 1:
-                foreach (var feature in snapshot.Features) FeatureCard(feature);
-                break;
-            default:
-                ReportsCard();
-                break;
-        }
+        GUILayout.BeginArea(rect);
+        Popups.PushOrigin(rect.position);
+        Menu.BeginScroll();
+        draw();
+        Menu.EndScroll();
+        Popups.PopOrigin();
+        GUILayout.EndArea();
     }
 
-    // The mod's own card, with Copy diagnostics on its title row.
-    private static void ModCard(DiagnosticsSnapshot s)
+    // ---- Overview: lines of text among the page's rows ----
+
+    private static List<string> OverviewLines(DiagnosticsSnapshot s)
     {
-        GUILayout.BeginVertical(Style(() => Theme.Card, GUI.skin.box));
-        GUILayout.BeginHorizontal();
-        GUILayout.Label(BuildInfo.Name.ToUpperInvariant(), Style(() => Theme.CardTitle, GUI.skin.label));
-        GUILayout.FlexibleSpace();
-        // Copies even while the diagnostics feature is down, when its action is gone.
-        if (Pressed(GUILayout.Button("Copy diagnostics", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)), "copy")
-            && Actions.Run("diagnostics.copy", "menu button").StartsWith("error"))
-            Copy(Diagnostics.Build().ToText(), "Diagnostics copied.");
-        GUILayout.EndHorizontal();
-        Hint($"Version {BuildInfo.Version}, build {Runtime.BuildId}{(Runtime.Hosted ? ", dev build" : string.Empty)}.");
-        Hint($"Tested game version: {s.TestedGameVersion}.");
-        Hint(s.Mode == "not in game" ? $"Not in game; scene '{s.Scene}'." : $"Playing {s.Mode} in '{s.Scene}' ({s.SceneKind}).");
-        Hint($"Frame time for the whole mod: {s.ModFrameText}.");
-        Hint($"Changes to the game: {s.ChangesText}.");
-        foreach (string edit in s.Edits) Hint(Colored(edit, Theme.Dim));
-        Hint($"Profile: {s.Profiles}.");
-        GUILayout.Space(4f);
-        Hint(Colored("Copy diagnostics puts all of these tabs on the clipboard for a bug report, without personal data.", Theme.Dim));
-        EndCard();
+        var lines = new List<string>
+        {
+            $"Version {BuildInfo.Version}, build {Runtime.BuildId}{(Runtime.Hosted ? ", dev build" : string.Empty)}.",
+            $"Tested game version: {s.TestedGameVersion}.",
+            s.Mode == "not in game" ? $"Not in game; scene '{s.Scene}'." : $"Playing {s.Mode} in '{s.Scene}' ({s.SceneKind}).",
+            $"Frame time for the whole mod: {s.ModFrameText}.",
+            $"Changes to the game: {s.ChangesText}.",
+        };
+        lines.AddRange(s.Edits.Select(e => Colored(e, Theme.Dim)));
+        lines.Add($"Profile: {s.Profiles}.");
+        foreach (string problem in s.SettingsFailures.Concat(s.ProblemFiles).Concat(MenuTree.Problems.Select(p => "Menu: " + p))) lines.Add(Colored(problem, Theme.Pause));
+        lines.Add(Colored("Copy diagnostics puts all of these pages on the clipboard for a bug report, without personal data.", Theme.Dim));
+        return lines;
     }
 
-    // Only when there is something to say: settings that couldn't be updated, file problems.
-    private static void ProblemsCard(DiagnosticsSnapshot s)
+    private static float OverviewHeight(float width) => OverviewLines(Snapshot()).Sum(line => Controls.HintHeight(line, width)) + 4f;
+
+    private static void Overview(Rect rect)
     {
-        if (s.SettingsFailures.Count == 0 && s.ProblemFiles.Count == 0) return;
-        BeginCard("PROBLEMS");
-        foreach (string line in s.SettingsFailures.Concat(s.ProblemFiles)) Hint(Colored(line, Theme.Pause));
-        EndCard();
+        if (Event.current.type != EventType.Repaint) return;
+        float y = rect.y;
+        foreach (string line in OverviewLines(Snapshot()))
+        {
+            float h = Controls.HintHeight(line, rect.width);
+            Widgets.Paint(new Rect(rect.x, y, rect.width, h), line, Style(() => Theme.Hint, GUI.skin.label));
+            y += h;
+        }
     }
 
-    // Newest first, each with its own copy button.
+    // ---- Features: one row each, with its switch where it can be turned off ----
+
+    private static void Features()
+    {
+        foreach (var feature in Snapshot().Features) FeatureRow(feature);
+    }
+
+    // Newest first, each with its own copy button. The note and Clear share the top row, Clear at the right in line with
+    // the Copy buttons; Clear asks there before deleting.
     private static void ReportsCard()
     {
         var reports = Reports.List();
-        if (reports.Count > 0) ClearRow(reports.Count);
-        BeginCard("CRASH REPORTS");
-        if (reports.Count == 0) Hint("No reports.");
+        TopRow(reports.Count);
+        if (reports.Count == 0) Note("No reports.");
         foreach (var report in reports)
         {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"{report.Time}  ·  {report.Feature}{(report.Count > 1 ? $"  ·  {report.Count} times" : string.Empty)}", Style(() => Theme.RowLabel, GUI.skin.label), GUILayout.Height(26f));
-            GUILayout.FlexibleSpace();
-            if (Pressed(GUILayout.Button("Copy", Style(() => Theme.SmallButton, GUI.skin.button), GUILayout.ExpandWidth(false)), "report." + report.File))
-                CopyReport(report.File);
-            GUILayout.EndHorizontal();
+            Rect row = GUILayoutUtility.GetRect(10f, RowLayout.ControlHeight + RowLayout.RowGap, GUILayout.ExpandWidth(true));
+            float w = Controls.ButtonWidth("Copy");
+            if (Event.current.type == EventType.Repaint)
+                Widgets.Paint(new Rect(row.x, row.y, row.width - w - 8f, RowLayout.ControlHeight),
+                    $"{report.Time}  ·  {report.Feature}{(report.Count > 1 ? $"  ·  {report.Count} times" : string.Empty)}", Style(() => Theme.Label, GUI.skin.label));
+            if (Controls.Button(new Rect(row.xMax - w, row.y, w, RowLayout.ControlHeight), "Copy", "report." + report.File)) CopyReport(report.File);
         }
-        EndCard();
     }
 
-    // Above the card, so it is in view however long the list is; Clear asks before deleting.
-    private static void ClearRow(int count)
+    private static void TopRow(int count)
     {
-        GUIStyle button = Style(() => Theme.SmallButton, GUI.skin.button);
-        GUILayout.BeginHorizontal();
-        if (!s_clearing)
+        Rect row = GUILayoutUtility.GetRect(10f, RowLayout.ControlHeight + RowLayout.RowGap + 4f, GUILayout.ExpandWidth(true));
+        var line = new Rect(row.x, row.y, row.width, RowLayout.ControlHeight);
+        string text = s_clearing
+            ? Colored($"Delete {(count == 1 ? "the report" : $"all {count} reports")}?", Theme.Pause) + " They can't be brought back."
+            : "Saved in UserData/EpochAssist/reports. Nothing is sent anywhere.";
+        float right = line.xMax;
+        if (count > 0 && !s_clearing)
         {
-            Hint("Saved in UserData/EpochAssist/reports. Nothing is sent anywhere.");
-            GUILayout.FlexibleSpace();
-            if (Pressed(GUILayout.Button("Clear", button, GUILayout.ExpandWidth(false)), "reports.clear")) s_clearing = true;
+            float clear = Controls.ButtonWidth("Clear");
+            right -= clear;
+            if (Controls.Button(new Rect(right, line.y, clear, line.height), "Clear", "reports.clear")) s_clearing = true;
         }
-        else
+        else if (count > 0)
         {
-            Hint(Colored($"Delete {(count == 1 ? "the report" : $"all {count} reports")}?", Theme.Pause) + "\nThey can't be brought back.");
-            GUILayout.FlexibleSpace();
+            float keep = Controls.ButtonWidth("Keep"), delete = Controls.ButtonWidth("Delete");
+            right -= keep;
+            if (Controls.Button(new Rect(right, line.y, keep, line.height), "Keep", "reports.clear.keep")) s_clearing = false;
+            right -= delete + 6f;
             // Run in the next layout pass, so this frame's passes still draw the same list.
-            if (Pressed(GUILayout.Button("Delete", button, GUILayout.ExpandWidth(false)), "reports.clear.confirm"))
+            if (Controls.Button(new Rect(right, line.y, delete, line.height), "Delete", "reports.clear.confirm", primary: true))
                 s_pending = () =>
                 {
                     s_clearing = false;
                     if (Reports.Clear(out string reason)) Toasts.Show("diagnostics", "Reports cleared.", ToastKind.Info);
                     else Toasts.Show("diagnostics", $"Reports not cleared: {reason}.", ToastKind.Warning);
                 };
-            if (Pressed(GUILayout.Button("Keep", button, GUILayout.ExpandWidth(false)), "reports.clear.keep")) s_clearing = false;
         }
-        GUILayout.EndHorizontal();
-        GUILayout.Space(6f);
+        if (Event.current.type != EventType.Repaint) return;
+        // Centred on the buttons' row.
+        float width = right - line.x - 8f, height = Controls.HintHeight(text, width);
+        Widgets.Paint(new Rect(line.x, Mathf.Round(line.center.y - height / 2f), width, height), text, Style(() => Theme.Hint, GUI.skin.label));
+    }
+
+    // Muted text across the block, not indented (Hint indents a feature's details under its name).
+    private static void Note(string text)
+    {
+        float width = PageView.BlockWidth;
+        Rect r = GUILayoutUtility.GetRect(width, Controls.HintHeight(text, width) + 4f, GUILayout.ExpandWidth(true));
+        if (Event.current.type == EventType.Repaint) Widgets.Paint(r, text, Style(() => Theme.Hint, GUI.skin.label));
     }
 
     private static void CopyReport(string file)
@@ -219,23 +213,55 @@ internal static class DiagnosticsPage
         Copy(text, "Report copied.");
     }
 
-    private static void FeatureCard(FeatureDiagnostics f)
+    private static void FeatureRow(FeatureDiagnostics f)
     {
         // Dev builds list the compat self-test, which fails on purpose; it must not read as a real problem.
         bool selfTest = f.Id == "selftest";
-        BeginCard(selfTest ? "COMPAT SELF-TEST (DEV BUILDS ONLY)" : f.Name.ToUpperInvariant());
-        if (selfTest) Hint("Nothing is wrong: this test asks for game members that don't exist, to show how a missing member is reported.");
+        var feature = FeatureHost.Find(f.Id);
         StatusState state = f.State == FeatureState.Running ? f.Status.State : StatusState.Off;
         Color color = f.State is FeatureState.Faulted or FeatureState.Unavailable ? Theme.Pause : Theme.StateColor(state);
-        GUILayout.BeginHorizontal();
-        Rect shape = GUILayoutUtility.GetRect(16f, 20f, GUILayout.Width(16f), GUILayout.Height(20f));
-        if (Themed && Event.current.type == EventType.Repaint) Menu.DrawState(new Rect(shape.x, shape.center.y - 4f, 8f, 8f), state, color);
-        GUILayout.Label(Colored(Capitalized(f.StateText), color), Style(() => Theme.Hint, GUI.skin.label));
-        GUILayout.EndHorizontal();
+        Rect row = GUILayoutUtility.GetRect(10f, RowLayout.ControlHeight + 2f, GUILayout.ExpandWidth(true));
+        float x = row.x;
+        if (Event.current.type == EventType.Repaint)
+        {
+            Menu.DrawState(new Rect(x, Mathf.Round(row.center.y - 4f), 8f, 8f), state, color);
+            Widgets.Paint(new Rect(x + 16f, row.y, 160f, RowLayout.ControlHeight), selfTest ? "Compat self-test (dev)" : f.Name, Style(() => Theme.Label, GUI.skin.label));
+            Widgets.Paint(new Rect(x + 180f, row.y, row.width - 330f, RowLayout.ControlHeight), Colored(Capitalized(f.StateText), color), Style(() => Theme.Label, GUI.skin.label));
+        }
+        float right = row.xMax;
+        if (feature != null && feature.CanTurnOff)
+        {
+            bool on = FeatureSwitches.IsOn(feature);
+            right -= Controls.SwitchWidth;
+            if (Controls.Switch(new Rect(right, row.y, Controls.SwitchWidth, RowLayout.ControlHeight), on, "feature." + f.Id, $"Turn {f.Name} on or off")  != on)
+                Actions.Run($"feature.toggle.{f.Id}", "menu features");
+        }
+        else if (Event.current.type == EventType.Repaint)
+        {
+            GUIStyle dim = Style(() => Theme.FieldDim, GUI.skin.label);
+            float w = TextCache.Width("always on", dim) + dim.padding.horizontal;
+            right -= w;
+            Widgets.Paint(new Rect(right, row.y, w, RowLayout.ControlHeight), "always on", dim);
+        }
+        // A restart can't bring back what the game no longer has, or a feature turned off or waiting for another.
+        if (feature != null && feature.State == FeatureState.Faulted)
+        {
+            float w = Controls.ButtonWidth("Restart");
+            right -= w + 8f;
+            if (Controls.Button(new Rect(right, row.y, w, RowLayout.ControlHeight), "Restart", "restart." + f.Id)) Actions.Run($"feature.restart.{f.Id}", "menu features");
+        }
+        if (selfTest) Hint("Nothing is wrong: this test asks for game members that don't exist, to show how a missing member is reported.");
         if (f.State == FeatureState.Running) Hint($"Frame time: {f.FrameText}.");
         foreach (string detail in f.Details) Hint(Colored(Capitalized(detail), Theme.Pause));
         foreach (string edit in f.Edits) Hint("Edit: " + edit);
-        EndCard();
+        GUILayout.Space(6f);
+    }
+
+    private static void Hint(string text)
+    {
+        float width = PageView.BlockWidth - 16f;
+        Rect r = GUILayoutUtility.GetRect(width, Controls.HintHeight(text, width), GUILayout.ExpandWidth(true));
+        if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(r.x + 16f, r.y, r.width - 16f, r.height), text, Style(() => Theme.Hint, GUI.skin.label));
     }
 
     private static string Capitalized(string text) => text.Length > 0 ? char.ToUpperInvariant(text[0]) + text.Substring(1) : text;

@@ -20,6 +20,7 @@ internal static class UiCommands
         {
             DevVerbs = new[] { "set", "check" },
         });
+        MenuCommands.Register();
     }
 
     private static void Add(Command command) => Commands.Register(command);

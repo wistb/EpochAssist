@@ -5,24 +5,20 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// A colour setting's row: swatches (the empty value first, then the named colours, then Custom) and, for Custom, a
-/// picker with a saturation and brightness square, a hue strip and a hex field. A drag applies when it is let go,
-/// because a new accent rebuilds the skin. The picker's textures are freed with the skin.
+/// A colour setting's control: a swatch dropdown (the empty value first, then the named colours, then Custom…, which
+/// opens the picker) and the picker as a popup: a saturation and brightness square, a hue strip, a preview and a hex
+/// field. A drag applies when it is let go, because a new accent rebuilds the skin. The picker's textures are freed with
+/// the skin.
 /// </summary>
 internal static class ColorPicker
 {
-    private const float SwatchSize = 26f;
-    private const float Gap = 6f;
+    /// <summary>Wide enough for the empty label or the longest swatch name, with room for the swatch.</summary>
+    public static float WidthFor(ColorSetting setting) => Mathf.Min(220f, Dropdown.WidthFor(Options(setting)) + 16f);
     private const int SquareTexture = 64;
-    private const string HexControl = "EpochAssistColorHex";
 
     private static Texture2D? s_hue;
     private static Texture2D? s_square;
     private static float s_squareHue = -1f;
-    // The setting whose picker is open, and the colour being edited there (hue, saturation, value; 0..1).
-    private static ColorSetting? s_open;
-    private static float s_h, s_s, s_v;
-    private static string? s_hexEdit;
 
     public static void Release()
     {
@@ -32,183 +28,169 @@ internal static class ColorPicker
         s_squareHue = -1f;
     }
 
-    public static void Row(ColorSetting setting)
+    /// <summary>The options as the dropdown lists them: the empty value, the swatches, then Custom….</summary>
+    public static List<string> Options(ColorSetting setting)
     {
-        GUILayout.Label(setting.Label, Style(() => Theme.RowLabel, GUI.skin.label), GUILayout.Height(26f));
-        if (!Themed)
-        {
-            GUILayout.Label(setting.Value.Length > 0 ? setting.Value : setting.EmptyLabel);
-            return;
-        }
+        var options = new List<string> { setting.EmptyLabel };
+        options.AddRange(setting.Swatches.Select(s => s.Name));
+        options.Add("Custom…");
+        return options;
+    }
 
+    /// <summary>The setting's value as the dropdown shows it: a swatch's name, the empty label or the hex.</summary>
+    public static string Shown(ColorSetting setting)
+    {
         string value = setting.Value;
         int named = Array.FindIndex(setting.Swatches, s => s.Hex == value);
-        bool custom = value.Length > 0 && named < 0;
-        var items = new List<(string Key, Color? Color, bool Selected, Action Pick)>
-        {
-            ("theme", Theme.ThemeAccent, value.Length == 0, () => Choose(setting, string.Empty)),
-        };
-        foreach (var (name, hex) in setting.Swatches)
-        {
-            ColorSetting.TryParse(hex, out Color c);
-            items.Add((name, c, value == hex, () => Choose(setting, hex)));
-        }
-        items.Add(("custom", custom && setting.TryGetColor(out Color own) ? own : null, custom || s_open == setting, () => Open(setting)));
+        return value.Length == 0 ? setting.EmptyLabel : named >= 0 ? setting.Swatches[named].Name : value;
+    }
 
-        int perRow = Mathf.Max(1, Mathf.FloorToInt((SettingsView.RowWidth + Gap) / (SwatchSize + Gap)));
-        for (int start = 0; start < items.Count; start += perRow)
+    // The colour the empty value ("Theme") stands for: the theme's own colour for that accent's role.
+    private static Color EmptyColor(ColorSetting setting) =>
+        setting == LookSettings.AccentSecondary ? Theme.ThemeHighlight : setting == LookSettings.AccentTertiary ? Theme.ThemeAccentText : Theme.ThemeAccent;
+
+    // The swatches' headings, moved past the empty value, then one for Custom….
+    private static (string Label, int First)[]? Groups(ColorSetting setting, int options) => setting.Groups?
+        .Select(g => (g.Label, g.First + 1)).Append(("Your own", options - 1)).ToArray();
+
+    public static void Draw(Rect r, string key, ColorSetting setting, string? tip = null)
+    {
+        var options = Options(setting);
+        var swatches = new List<Color?> { EmptyColor(setting) };
+        foreach (var (_, hex) in setting.Swatches) swatches.Add(ColorSetting.TryParse(hex, out Color c) ? c : null);
+        swatches.Add(setting.TryGetColor(out Color own) ? own : null);
+        string value = setting.Value;
+        int named = Array.FindIndex(setting.Swatches, s => s.Hex == value);
+        int selected = value.Length == 0 ? 0 : named >= 0 ? named + 1 : options.Count - 1;
+        Dropdown.Draw(r, key, options, selected, pick =>
         {
-            GUILayout.BeginHorizontal();
-            for (int i = start; i < Math.Min(start + perRow, items.Count); i++)
+            if (pick == 0) setting.Value = string.Empty;
+            else if (pick <= setting.Swatches.Length) setting.Value = setting.Swatches[pick - 1].Hex;
+            else Popups.Open(new ColorPickerPopup(setting, Popups.ToWindow(r)));
+        }, Groups(setting, options.Count), Shown(setting), swatches, tip);
+    }
+
+    // The picker body inside its popup's rect.
+    internal sealed class ColorPickerPopup : IPopup
+    {
+        private const string HexControl = "EpochAssistColorHex";
+        private const float Pad = 8f;
+        private readonly ColorSetting _setting;
+        private float _h, _s, _v;
+        private string? _hexEdit;
+        // What a press is dragging: 1 the square, 2 the hue strip.
+        private int _dragging;
+        // What the arrow keys change: 0 hue, 1 saturation, 2 brightness.
+        private int _channel;
+
+        public ColorPickerPopup(ColorSetting setting, Rect anchor)
+        {
+            _setting = setting;
+            Color start = setting.TryGetColor(out Color c) ? c : EmptyColor(setting);
+            ToHsv(start, out _h, out _s, out _v);
+            Rect = Popups.Place(new Vector2(240f, 160f), anchor);
+        }
+
+        public Rect Rect { get; }
+        private Rect Square => new(Rect.x + Pad, Rect.y + Pad, 150f, 110f);
+        private Rect Hue => new(Rect.x + Pad, Rect.y + Pad + 118f, 150f, 14f);
+        private Rect Preview => new(Rect.x + Pad + 160f, Rect.y + Pad, 64f, 40f);
+        private Rect Hex => new(Rect.x + Pad + 160f, Rect.y + Pad + 48f, 64f, 24f);
+
+        public void HandleEvent(Event e)
+        {
+            Vector2 at = e.mousePosition;
+            switch (e.type)
             {
-                var item = items[i];
-                if (i > start) GUILayout.Space(Gap);
-                Rect r = GUILayoutUtility.GetRect(SwatchSize, SwatchSize, GUILayout.Width(SwatchSize), GUILayout.Height(SwatchSize));
-                bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
-                if (Focus.Item("swatch." + item.Key, r) || clicked) item.Pick();
-                if (Event.current.type == EventType.Repaint) DrawSwatch(r, item.Color, item.Selected);
+                case EventType.MouseDown when e.button == 0:
+                    _dragging = Square.Contains(at) ? 1 : Hue.Contains(at) ? 2 : 0;
+                    if (Hex.Contains(at)) GUI.FocusControl(HexControl);
+                    break;
+                case EventType.MouseDrag when _dragging != 0:
+                    break;
+                case EventType.MouseUp when _dragging != 0:
+                    Move(at);
+                    _dragging = 0;
+                    Commit();
+                    return;
+                default:
+                    return;
             }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(Gap);
+            Move(at);
         }
 
-        string chosen = value.Length == 0 ? $"{setting.EmptyLabel}: the theme's own" : named >= 0 ? setting.Swatches[named].Name : $"Custom {value}";
-        Hint(chosen);
-        if (custom && s_open != setting) Open(setting);
-        if (s_open == setting) Picker(setting);
-    }
-
-    private static void Choose(ColorSetting setting, string hex)
-    {
-        setting.Value = hex;
-        if (s_open == setting) s_open = null;
-    }
-
-    // Opens the picker on the current colour (the theme's own when none is set).
-    private static void Open(ColorSetting setting)
-    {
-        s_open = setting;
-        Color start = setting.TryGetColor(out Color c) ? c : Theme.ThemeAccent;
-        ToHsv(start, out s_h, out s_s, out s_v);
-        s_hexEdit = null;
-    }
-
-    private static void DrawSwatch(Rect r, Color? color, bool selected)
-    {
-        bool hover = r.Contains(Event.current.mousePosition);
-        if (selected || hover)
+        private void Move(Vector2 at)
         {
-            Color ring = selected ? Theme.Text : Theme.Dim;
-            Tint(new Rect(r.x - 3f, r.y - 3f, r.width + 6f, r.height + 6f), Theme.SwatchRing, ring, Theme.ChipRadius + 3);
-        }
-        if (color is Color c)
-        {
-            Tint(r, Theme.Swatch, c, Theme.ChipRadius);
-            return;
-        }
-        // Custom with no colour yet: a control-coloured swatch with a plus.
-        Tint(r, Theme.Swatch, Theme.Values.Control, Theme.ChipRadius);
-        Widgets.Paint(r, "+", Theme.FieldClear);
-    }
-
-    private static void Picker(ColorSetting setting)
-    {
-        float width = Mathf.Min(SettingsView.RowWidth - 110f, 220f);
-        GUILayout.BeginHorizontal();
-        Rect square = GUILayoutUtility.GetRect(width, 110f, GUILayout.Width(width), GUILayout.Height(110f));
-        GUILayout.Space(12f);
-        GUILayout.BeginVertical();
-        Rect preview = GUILayoutUtility.GetRect(48f, 48f, GUILayout.Width(48f), GUILayout.Height(48f));
-        GUILayout.Space(8f);
-        HexField(setting);
-        GUILayout.EndVertical();
-        GUILayout.EndHorizontal();
-        GUILayout.Space(6f);
-        Rect hue = GUILayoutUtility.GetRect(width, 14f, GUILayout.Width(width), GUILayout.Height(14f));
-        GUILayout.Space(4f);
-
-        // Mouse: press and drag on the square or strip; the colour applies on release.
-        if (Drag(square, out Vector2 at, out bool released))
-        {
-            s_s = at.x;
-            s_v = 1f - at.y;
-            if (released) Commit(setting);
-        }
-        if (Drag(hue, out Vector2 along, out bool hueReleased))
-        {
-            s_h = Mathf.Clamp01(along.x);
-            if (hueReleased) Commit(setting);
-        }
-        // Keys: Left and Right change saturation on the square and hue on the strip.
-        Focus.Item("picker.square", square, out int saturation);
-        if (saturation != 0)
-        {
-            s_s = Mathf.Clamp01(s_s + saturation * 0.05f);
-            Commit(setting);
-        }
-        Focus.Item("picker.hue", hue, out int step);
-        if (step != 0)
-        {
-            s_h = Mathf.Repeat(s_h + step / 36f, 1f);
-            Commit(setting);
+            if (_dragging == 1)
+            {
+                _s = Mathf.Clamp01((at.x - Square.x) / Square.width);
+                _v = 1f - Mathf.Clamp01((at.y - Square.y) / Square.height);
+            }
+            else if (_dragging == 2)
+            {
+                _h = Mathf.Clamp01((at.x - Hue.x) / Hue.width);
+            }
         }
 
-        if (Event.current.type != EventType.Repaint) return;
-        GUI.DrawTexture(square, SquareFor(s_h));
-        Marker(new Vector2(square.x + s_s * square.width, square.yMax - s_v * square.height));
-        GUI.DrawTexture(hue, HueStrip());
-        Color previous = GUI.color;
-        GUI.color = Color.white;
-        GUI.DrawTexture(new Rect(hue.x + s_h * hue.width - 1.5f, hue.y - 2f, 3f, hue.height + 4f), Texture2D.whiteTexture);
-        GUI.color = previous;
-        Tint(preview, Theme.Swatch, FromHsv(s_h, s_s, s_v), Theme.ChipRadius);
-    }
+        public bool HandleKey(Event e) => false;
 
-    // #RRGGBB, applied as soon as what is typed is a whole colour.
-    private static void HexField(ColorSetting setting)
-    {
-        Rect r = GUILayoutUtility.GetRect(96f, 26f, GUILayout.Width(96f), GUILayout.Height(26f));
-        bool editing = GUI.GetNameOfFocusedControl() == HexControl;
-        if (!editing) s_hexEdit = null;
-        string shown = s_hexEdit ?? ColorSetting.Format(FromHsv(s_h, s_s, s_v));
-        GUI.SetNextControlName(HexControl);
-        string typed = GUI.TextField(r, shown, 7, GUI.skin.textField);
-        if (Focus.Item("picker.hex", r) || Focus.Arrived("picker.hex")) GUI.FocusControl(HexControl);
-        if (!editing || typed == shown) return;
-        s_hexEdit = typed;
-        string hex = (typed.StartsWith("#") ? typed : "#" + typed).ToUpperInvariant();
-        if (!ColorSetting.TryParse(hex, out Color c)) return;
-        ToHsv(c, out s_h, out s_s, out s_v);
-        setting.Value = hex;
-    }
-
-    private static void Commit(ColorSetting setting) => setting.Value = ColorSetting.Format(FromHsv(s_h, s_s, s_v));
-
-    // A press inside the rect starts a drag; the position (0..1 across and down) is reported while it lasts.
-    private static bool Drag(Rect r, out Vector2 at, out bool released)
-    {
-        int id = GUIUtility.GetControlID(FocusType.Passive);
-        Event e = Event.current;
-        at = Vector2.zero;
-        released = false;
-        if (!GUI.enabled) return false;
-        switch (e.type)
+        // Up and Down pick hue, saturation or brightness; Left and Right change it; Enter closes.
+        public bool HandleNav(MenuNav nav)
         {
-            case EventType.MouseDown when e.button == 0 && r.Contains(e.mousePosition):
-                GUIUtility.hotControl = id;
-                break;
-            case EventType.MouseDrag when GUIUtility.hotControl == id:
-                break;
-            case EventType.MouseUp when GUIUtility.hotControl == id:
-                GUIUtility.hotControl = 0;
-                released = true;
-                break;
-            default:
-                return false;
+            if (nav.Tab) return true;
+            if (nav.Move != 0) _channel = (_channel + nav.Move + 3) % 3;
+            if (nav.Adjust != 0)
+            {
+                if (_channel == 0) _h = Mathf.Repeat(_h + nav.Adjust / 36f, 1f);
+                else if (_channel == 1) _s = Mathf.Clamp01(_s + nav.Adjust * 0.05f);
+                else _v = Mathf.Clamp01(_v + nav.Adjust * 0.05f);
+                Commit();
+            }
+            if (nav.Activate) Popups.Close();
+            return false;
         }
-        e.Use();
-        at = new Vector2(Mathf.Clamp01((e.mousePosition.x - r.x) / r.width), Mathf.Clamp01((e.mousePosition.y - r.y) / r.height));
-        return true;
+
+        public void Closed(bool commit)
+        {
+            if (GUI.GetNameOfFocusedControl() == HexControl) GUIUtility.keyboardControl = 0;
+        }
+
+        private void Commit() => _setting.Value = ColorSetting.Format(FromHsv(_h, _s, _v));
+
+        public void Draw()
+        {
+            if (Event.current.type == EventType.Repaint)
+            {
+                Theme.DrawSliced(Rect, Theme.PopupBg, Theme.CardRadius);
+                GUI.DrawTexture(Square, SquareFor(_h));
+                Marker(new Vector2(Square.x + _s * Square.width, Square.yMax - _v * Square.height));
+                GUI.DrawTexture(Hue, HueStrip());
+                Color previous = GUI.color;
+                GUI.color = new Color(1f, 1f, 1f, previous.a);
+                GUI.DrawTexture(new Rect(Hue.x + _h * Hue.width - 1.5f, Hue.y - 2f, 3f, Hue.height + 4f), Texture2D.whiteTexture);
+                GUI.color = previous;
+                Tint(Preview, Theme.Swatch, FromHsv(_h, _s, _v), Theme.ChipRadius);
+                string channel = _channel == 0 ? "Hue" : _channel == 1 ? "Saturation" : "Brightness";
+                Widgets.Paint(new Rect(Hex.x, Hex.yMax + 6f, 70f, 16f), channel, Theme.Crumb);
+            }
+            HexField();
+        }
+
+        // #RRGGBB, applied as soon as what is typed is a whole colour.
+        private void HexField()
+        {
+            bool editing = GUI.GetNameOfFocusedControl() == HexControl;
+            if (!editing) _hexEdit = null;
+            string shown = _hexEdit ?? ColorSetting.Format(FromHsv(_h, _s, _v));
+            GUI.SetNextControlName(HexControl);
+            string typed = GUI.TextField(Hex, shown, 7, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
+            if (!editing || typed == shown) return;
+            _hexEdit = typed;
+            string hex = (typed.StartsWith("#") ? typed : "#" + typed).ToUpperInvariant();
+            if (!ColorSetting.TryParse(hex, out Color c)) return;
+            ToHsv(c, out _h, out _s, out _v);
+            _setting.Value = hex;
+        }
     }
 
     private static void Marker(Vector2 at)

@@ -25,7 +25,7 @@ internal sealed class ToastFeature : Feature
         if (Event.current.type != EventType.Repaint || !HudSettings.HudEnabled.Value) return;
         IReadOnlyList<Toast> toasts = Toasts.Visible;
         // Previewing the HUD settings shows where notifications go, with a sample when none are up.
-        if (toasts.Count == 0 && Menu.PreviewingHud) toasts = new[] { new Toast("preview", "Notifications show here.", ToastKind.Info, Time.unscaledTime) };
+        if (toasts.Count == 0 && Ui.Menu.PreviewingHud) toasts = new[] { new Toast("preview", "Notifications show here.", ToastKind.Info, Time.unscaledTime) };
         if (toasts.Count == 0) return;
         GUISkin? skin = Theme.Skin;
         if (skin == null) return;
@@ -90,7 +90,7 @@ internal sealed class ToastFeature : Feature
             var rect = new Rect(Mathf.Round(left), top, size.x, size.y);
             GUI.color = new Color(1f, 1f, 1f, Toasts.Alpha(toast, now) * Mathf.Clamp(HudSettings.HudOpacity.Value, 0.2f, 1f));
             Theme.DrawSliced(rect, Theme.Panel.normal.background, Theme.PanelRadius);
-            Menu.DrawDot(new Rect(rect.x + 12f, rect.center.y - 4f, 8f, 8f), toast.Kind == ToastKind.Warning ? Theme.Pause : Theme.AccentText);
+            Ui.Menu.DrawDot(new Rect(rect.x + 12f, rect.center.y - 4f, 8f, 8f), toast.Kind == ToastKind.Warning ? Theme.Pause : Theme.AccentText);
             Widgets.Paint(rect, content, style);
             top += size.y + Gap;
         }

@@ -8,7 +8,8 @@ namespace EpochAssist.Ui;
 /// with a key that stays the same from frame to frame. The order comes from the last repaint; the navigation keys move
 /// focus along it (wrapping) at the next layout pass, where the focused control also sees its activation or adjustment,
 /// so a change made by key lays out like a click. A control that disappears passes focus to the next one in order.
-/// Only while the menu draws; reset when it closes.
+/// Only while the menu draws; reset when it closes. An open popup holds the keys until it closes; the tree reads Left and
+/// Right on its rows to open and close nodes.
 /// </summary>
 internal static class Focus
 {
@@ -23,11 +24,15 @@ internal static class Focus
     private static int s_adjust;
     private static bool s_scrollTo;
     private static Rect? s_scrollTarget;
+    private static string s_scrollOwner = string.Empty;
     // The ring shows only while the keyboard is in use: from a navigation key until the next mouse click.
     private static bool s_showRing;
 
-    /// <summary>Set by the menu while it draws inside its scroll view, where control rects are in content space.</summary>
-    public static bool InScroll;
+    /// <summary>Set by the menu while it draws inside a scroll view, where control rects are in content space: the view's name.</summary>
+    public static string? InScroll;
+
+    /// <summary>Set while a field that reads Up and Down itself (the console's history) has the keyboard.</summary>
+    public static bool FieldKeepsArrows;
 
     /// <summary>Set by the menu while it draws; controls drawn elsewhere (the HUD panel) aren't focusable.</summary>
     public static bool Active;
@@ -51,7 +56,8 @@ internal static class Focus
         s_scrollTo = false;
         s_scrollTarget = null;
         s_showRing = false;
-        InScroll = false;
+        InScroll = null;
+        FieldKeepsArrows = false;
         FieldToFocus = null;
     }
 
@@ -99,19 +105,47 @@ internal static class Focus
         }
     }
 
-    /// <summary>Where a control just focused by key sits in the scroll view's content, once; null when nothing to scroll to.</summary>
-    public static Rect? TakeScrollTarget()
+    /// <summary>Where a control just focused by key sits in a scroll view's content, once; null when nothing to scroll to.</summary>
+    public static Rect? TakeScrollTarget(string view)
     {
+        if (s_scrollOwner != view) return null;
         Rect? target = s_scrollTarget;
         s_scrollTarget = null;
         return target;
     }
+
+    /// <summary>Whether the control shows the focus ring now (it was reached by key).</summary>
+    public static bool Ringed(string key) => s_showRing && s_focused != null && s_focused == Full(key);
+
+    /// <summary>A tree row's key, as the tree reports them.</summary>
+    public static bool IsTreeRow(string? key) => key != null && key.StartsWith(TreePrefix, StringComparison.Ordinal);
+
+    public const string TreePrefix = "tree/";
 
     /// <summary>True in the layout pass of the frame focus moved onto this control by key.</summary>
     public static bool Arrived(string key) => Event.current.type == EventType.Layout && FieldToFocus != null && FieldToFocus == Full(key);
 
     /// <summary>Makes a control focused, as a click on it does.</summary>
     public static void Take(string key) => s_focused = Full(key);
+
+    /// <summary>Makes a control focused by its full key (scope and key), with the ring and scrolled into view.</summary>
+    public static void TakeFull(string key)
+    {
+        s_focused = key;
+        s_showRing = true;
+        s_scrollTo = true;
+    }
+
+    /// <summary>The region of the focused control: top, tree, a page's path, search or foot.</summary>
+    public static string? Region => s_focused switch
+    {
+        null => null,
+        var key when key.StartsWith(TreePrefix, StringComparison.Ordinal) || key.StartsWith("tree.", StringComparison.Ordinal) => "tree",
+        var key when key.StartsWith("top/", StringComparison.Ordinal) => "top",
+        var key when key.StartsWith("foot/", StringComparison.Ordinal) => "footer",
+        var key when key.StartsWith("search/", StringComparison.Ordinal) => "search results",
+        _ => "page",
+    };
 
     /// <summary>Reports the control just drawn with GUILayout; true in the frame it is activated by key.</summary>
     public static bool Item(string key) => Item(key, null, out _);
@@ -135,7 +169,11 @@ internal static class Focus
                     if (s_scrollTo)
                     {
                         s_scrollTo = false;
-                        if (InScroll) s_scrollTarget = r;
+                        if (InScroll != null)
+                        {
+                            s_scrollTarget = r;
+                            s_scrollOwner = InScroll;
+                        }
                     }
                 }
                 return false;
@@ -166,6 +204,12 @@ internal static class Focus
     private static void Apply(MenuNav nav)
     {
         FieldToFocus = null;
+        // An open popup takes the keys; Tab closes it and moves on.
+        if (Popups.IsOpen)
+        {
+            if (!Popups.HandleNav(nav)) return;
+        }
+        if (FieldKeepsArrows && GUIUtility.keyboardControl != 0 && !nav.Tab) nav = nav with { Move = 0 };
         if (nav.Move != 0 || nav.Activate || nav.Adjust != 0) s_showRing = true;
         // Moving on leaves a text field. Set here, in a GUI pass: set from Update it doesn't stick.
         if (nav.Move != 0) GUIUtility.keyboardControl = 0;

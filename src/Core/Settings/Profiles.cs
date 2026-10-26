@@ -127,7 +127,7 @@ internal static partial class Profiles
         root["version"] = FormatVersion;
         root["name"] = info.Name;
         if (root["groups"] is not JsonObject groups) root["groups"] = groups = new JsonObject();
-        foreach (var group in SettingsRegistry.Groups.Where(g => !s_newerGroups.Contains(g.Id) || !current))
+        foreach (var group in SettingsRegistry.Groups.Where(g => !g.Shared && (!s_newerGroups.Contains(g.Id) || !current)))
         {
             if (groups[group.Id] is not JsonObject stored) groups[group.Id] = stored = new JsonObject();
             stored["version"] = group.Version;

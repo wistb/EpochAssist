@@ -26,6 +26,8 @@ internal abstract class Setting
     /// <summary>Settings sharing a fold are shown together under a collapsible header.</summary>
     public string? Fold { get; init; }
     public Func<bool>? VisibleWhen { get; init; }
+    /// <summary>What makes a hidden setting show ("Aim at closest enemy is on"), for search. Code only, nothing stored.</summary>
+    public string? ShownWhen { get; init; }
 
     public bool Visible => VisibleWhen?.Invoke() ?? true;
     public abstract bool IsDefault { get; }
@@ -82,7 +84,7 @@ internal abstract class Setting<T> : Setting
         get => _hasOverride ? _override : GlobalValue;
         set
         {
-            if (!Profiles.InProfile)
+            if (!Profiles.InProfile || Section.Group.Shared)
             {
                 GlobalValue = value;
                 return;
@@ -103,6 +105,7 @@ internal abstract class Setting<T> : Setting
 
     internal override bool TryApplyOverride(JsonNode? node)
     {
+        if (Section.Group.Shared) return false;
         if (node is not JsonValue json || !TryRead(json, out T value)) return false;
         _override = value;
         _hasOverride = true;

@@ -6,11 +6,12 @@ namespace EpochAssist.Core;
 
 /// <summary>
 /// The menu's navigation keys pressed this frame (fixed keys, not actions): Move from Tab/Shift+Tab and Down/Up,
-/// Activate from Enter and Space, Adjust from Left/Right, Page from PageUp/PageDown. Each is -1, 0 or +1.
+/// Activate from Enter and Space, Adjust from Left/Right, Page from PageUp/PageDown, Search from Ctrl+F. Each number is
+/// -1, 0 or +1. Tab marks a move by Tab, which leaves a text field; Down and Up in a field stay with it.
 /// </summary>
-internal readonly record struct MenuNav(int Move, bool Activate, int Adjust, int Page)
+internal readonly record struct MenuNav(int Move, bool Activate, int Adjust, int Page, bool Search = false, bool Tab = false)
 {
-    public bool Any => Move != 0 || Activate || Adjust != 0 || Page != 0;
+    public bool Any => Move != 0 || Activate || Adjust != 0 || Page != 0 || Search;
 }
 
 /// <summary>
@@ -126,14 +127,15 @@ internal static class Hotkeys
                 CancelCapture();
                 return;
             }
-            if (MenuOpen) Actions.Run("menu.close", "key Escape");
+            if (MenuOpen) Actions.Run("menu.escape", "key Escape");
         }
         if (Capturing != null)
         {
             UpdateCapture();
             return;
         }
-        // The menu's input lock keeps these from the game. In the menu's own field only Tab is ours (it leaves the field).
+        // The menu's input lock keeps these from the game. In the menu's own fields Tab, Up, Down and Enter are ours too;
+        // Space, Left and Right stay with the field.
         if (MenuOpen && !GameState.GameTyping) MenuNav = ReadMenuNav(fieldFocused: GameState.UiTyping);
         if (MenuNav.Any) MenuNavCount++;
         if (GameState.Typing) return;
@@ -169,14 +171,18 @@ internal static class Hotkeys
     private static MenuNav ReadMenuNav(bool fieldFocused)
     {
         bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
         int move = Input.GetKeyDown(KeyCode.Tab) ? (shift ? -1 : 1) : 0;
-        if (fieldFocused) return new MenuNav(move, false, 0, 0);
+        bool tab = move != 0;
         if (Input.GetKeyDown(KeyCode.DownArrow)) move = 1;
         else if (Input.GetKeyDown(KeyCode.UpArrow)) move = -1;
-        bool activate = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space);
-        int adjust = Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
+        bool enter = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+        bool search = ctrl && Input.GetKeyDown(KeyCode.F);
         int page = Input.GetKeyDown(KeyCode.PageDown) ? 1 : Input.GetKeyDown(KeyCode.PageUp) ? -1 : 0;
-        return new MenuNav(move, activate, adjust, page);
+        if (fieldFocused) return new MenuNav(move, enter, 0, page, search, tab);
+        bool activate = enter || Input.GetKeyDown(KeyCode.Space);
+        int adjust = Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
+        return new MenuNav(move, activate, adjust, page, search, tab);
     }
 
     private static bool MenuOpen => Actions.Get("menu.toggle") is { } toggle && Actions.StateOf(toggle) == true;

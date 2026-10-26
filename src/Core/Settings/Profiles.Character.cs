@@ -138,7 +138,7 @@ internal static partial class Profiles
 
         foreach (var group in SettingsRegistry.Groups)
         {
-            if (s_profile["groups"]?[group.Id] is not JsonObject stored) continue;
+            if (group.Shared || s_profile["groups"]?[group.Id] is not JsonObject stored) continue;
             int version = stored["version"] is JsonValue v && v.TryGetValue(out int n) ? n : group.Version;
             // Written by a newer build: its values may mean something else here. Older ones would migrate (none yet).
             if (version > group.Version)
