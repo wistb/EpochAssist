@@ -76,6 +76,18 @@ internal static class Draw
         GUI.color = previous;
     }
 
+    /// <summary>Text at a screen point (top-left), in the theme's label style tinted with the colour.</summary>
+    public static void ScreenLabel(Vector2 at, string text, Color color)
+    {
+        if (LabelStyle == null) return;
+        var content = new GUIContent(text);
+        Vector2 size = LabelStyle.CalcSize(content);
+        Color previous = GUI.color;
+        GUI.color = color;
+        GUI.Label(new Rect(at.x, at.y, size.x, size.y), content, LabelStyle);
+        GUI.color = previous;
+    }
+
     /// <summary>A diamond of the given size in screen pixels, centred on a world point.</summary>
     public static void WorldMarker(Vector3 point, Color color, float size)
     {

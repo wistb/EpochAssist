@@ -322,3 +322,36 @@ internal sealed class ListRow : MenuRow
     public Func<object, IReadOnlyList<MenuRow>?>? Details { get; init; }
     protected override string DefaultKey => "list." + MenuEntry.Slug(Label);
 }
+
+/// <summary>A row holding other rows (cards): search, reset and the bridge look inside it.</summary>
+internal interface IRowContainer
+{
+    IEnumerable<MenuRow> Children { get; }
+}
+
+/// <summary>A titled card: a title, a short description and its rows, drawn inside a framed panel.</summary>
+internal sealed class CardRow : MenuRow, IRowContainer
+{
+    public CardRow(string title, string? description, params MenuRow[] rows)
+    {
+        Title = title;
+        Description = description;
+        Rows = rows;
+    }
+
+    public string Title { get; }
+    public string? Description { get; }
+    public IReadOnlyList<MenuRow> Rows { get; }
+    public IEnumerable<MenuRow> Children => Rows;
+    protected override string DefaultKey => "card." + MenuEntry.Slug(Title);
+}
+
+/// <summary>Cards side by side, equal widths and the tallest's height (one column on a narrow page).</summary>
+internal sealed class CardColumns : MenuRow, IRowContainer
+{
+    public CardColumns(params CardRow[] cards) => Cards = cards;
+
+    public IReadOnlyList<CardRow> Cards { get; }
+    public IEnumerable<MenuRow> Children => Cards;
+    protected override string DefaultKey => "cards." + string.Join("-", Cards.Select(c => MenuEntry.Slug(c.Title)));
+}

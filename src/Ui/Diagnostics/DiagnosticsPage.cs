@@ -290,7 +290,7 @@ internal static class DiagnosticsPage
         {
             Menu.DrawState(new Rect(x, Mathf.Round(row.center.y - 4f), 8f, 8f), state, color);
             Widgets.Paint(new Rect(x + 16f, row.y, 160f, RowLayout.ControlHeight), selfTest ? "Compat self-test (dev)" : f.Name, Style(() => Theme.Label, GUI.skin.label));
-            Widgets.Paint(new Rect(x + 180f, row.y, row.width - 330f, RowLayout.ControlHeight), Colored(Capitalized(f.StateText), color), Style(() => Theme.Label, GUI.skin.label));
+            Widgets.Paint(new Rect(x + 180f, row.y, row.width - 330f, RowLayout.ControlHeight), Colored(Capitalized(f.StateText), Theme.LightText(color)), Style(() => Theme.Label, GUI.skin.label));
         }
         float right = row.xMax;
         if (feature != null && feature.CanTurnOff)

@@ -46,11 +46,13 @@ internal static class Toasts
         }
     }
 
-    public static void Show(string source, string text, ToastKind kind)
+    /// <summary>Shows a toast; the same text from the same source within RepeatSeconds is dropped unless repeats is set
+    /// (each one is news, as a debug trace's).</summary>
+    public static void Show(string source, string text, ToastKind kind, bool repeats = false)
     {
         float now = Time.unscaledTime;
         var key = (source, text);
-        if (s_lastShown.TryGetValue(key, out float at) && now - at < RepeatSeconds) return;
+        if (!repeats && s_lastShown.TryGetValue(key, out float at) && now - at < RepeatSeconds) return;
         foreach (var old in s_lastShown.Where(p => now - p.Value >= RepeatSeconds).Select(p => p.Key).ToList()) s_lastShown.Remove(old);
         s_lastShown[key] = now;
 
@@ -66,6 +68,9 @@ internal static class Toasts
     /// <summary>How far a toast has faded: 1 while shown, down to 0 over its last moments.</summary>
     public static float Alpha(Toast toast, float now) =>
         Mathf.Clamp01((toast.ShownAt + ShowSeconds + FadeSeconds - now) / FadeSeconds);
+
+    /// <summary>Where the toasts were last drawn, in screen pixels (empty when none were), so other overlays keep clear.</summary>
+    public static Rect ShownArea { get; set; }
 
     public static void Clear()
     {

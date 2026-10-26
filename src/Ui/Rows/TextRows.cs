@@ -124,7 +124,7 @@ internal static class TextRows
                 x += 14f;
             }
             Widgets.Paint(new Rect(x, parts.Label.y, parts.Label.xMax - x, parts.Label.height), row.Label, Widgets.Style(() => Theme.Label, GUI.skin.label));
-            Widgets.Paint(parts.Control, Widgets.Themed ? Widgets.Colored(text, color) : text, Widgets.Style(() => Theme.Label, GUI.skin.label));
+            Widgets.Paint(parts.Control, Widgets.Themed ? Widgets.Colored(text, state != null ? Theme.LightText(color) : color) : text, Widgets.Style(() => Theme.Label, GUI.skin.label));
         }
 
         protected override IEnumerable<string> Search(LiveText row) => new[] { row.Label };

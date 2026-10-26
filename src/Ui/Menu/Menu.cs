@@ -90,12 +90,30 @@ internal static class Menu
     {
         if (Popups.IsOpen) Popups.Close(commit: false);
         else if (Hotkeys.CaptureActive) Hotkeys.CancelCapture();
+        else if (s_search.Length == 0 && MenuRoutes.Page?.Node.Entry.Library is { } library && LibraryBack(library)) { }
         else if (s_search.Length > 0 && Focus.Current == "search")
         {
             s_search = string.Empty;
             TreeView.BlurSearch();
         }
         else Actions.Run("menu.close", "key Escape");
+    }
+
+    // Esc in the library: drops a rename, else closes the open editor.
+    private static bool LibraryBack(LibraryView library)
+    {
+        if (MenuRoutes.Page is { } page && page != page.Node.Pages[0])
+        {
+            MenuRoutes.Show(page.Node.Pages[0]);
+            return true;
+        }
+        if (library.Renaming != null)
+        {
+            library.Renaming = null;
+            GUIUtility.keyboardControl = 0;
+            return true;
+        }
+        return library.Back?.Invoke() == true;
     }
 
     public static void OnGUI()
@@ -213,13 +231,15 @@ internal static class Menu
 
         var top = new Rect(0f, 0f, w, TopBar.Height);
         var foot = new Rect(0f, h - Footer.Height, w, Footer.Height);
-        var tree = new Rect(0f, top.yMax, TreeView.Width, foot.y - top.yMax);
+        // The library layout has its own tree, so the menu's gives it the room (search results keep the usual layout).
+        bool library = s_search.Trim().Length == 0 && MenuRoutes.Page?.Node.Entry.Layout == MenuLayout.Library;
+        var tree = new Rect(0f, top.yMax, library ? 0f : TreeView.Width, foot.y - top.yMax);
         var page = new Rect(tree.xMax, top.yMax, w - tree.xMax - 1f, foot.y - top.yMax);
 
-        if (Widgets.Themed) Theme.Fill(new Rect(tree.xMax - 1f, tree.y, 1f, tree.height), Theme.DividerColor);
+        if (Widgets.Themed && !library) Theme.Fill(new Rect(tree.xMax - 1f, tree.y, 1f, tree.height), Theme.DividerColor);
         // In reading order, which is the order keys move along.
         TopBar.Draw(top);
-        TreeView.Draw(tree);
+        if (!library) TreeView.Draw(tree);
         PageView.Draw(page);
         Footer.Draw(foot);
         Popups.DrawLast();
@@ -355,8 +375,16 @@ internal static class Menu
 
     public static void DrawDot(Rect r, Color color) => DrawTinted(r, Theme.Dot, color);
 
-    /// <summary>A state's own shape in a colour (usually the state's).</summary>
-    public static void DrawState(Rect r, StatusState state, Color color) => DrawTinted(r, Theme.StateShape(state), color);
+    /// <summary>
+    /// A state's own shape in a colour (usually the state's): the crisp state icons, at least 9 px, centred on the
+    /// rect given and on whole pixels.
+    /// </summary>
+    public static void DrawState(Rect r, StatusState state, Color color)
+    {
+        float size = Mathf.Max(9f, Mathf.Max(r.width, r.height));
+        var at = new Rect(Mathf.Round(r.center.x - size / 2f), Mathf.Round(r.center.y - size / 2f), size, size);
+        DrawTinted(at, Theme.StateIcon(state), color);
+    }
 
     private static void DrawTinted(Rect r, Texture2D texture, Color color)
     {

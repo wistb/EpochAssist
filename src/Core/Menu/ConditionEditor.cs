@@ -11,7 +11,7 @@ namespace EpochAssist.Core;
 /// </summary>
 internal static class ConditionEditor
 {
-    public const string LimitReason = "10 conditions at most";
+    public const string LimitReason = "30 conditions at most";
 
     /// <summary>
     /// The editor for one list of a setting. key is read each draw (a form change shows at once); context gives the
@@ -70,30 +70,95 @@ internal static class ConditionEditor
 
     // ---- Enemy ranges the open page shows ----
 
-    private static readonly Dictionary<ConditionSetting, (float At, List<float> Ranges)> s_shown = new();
+    private static readonly Dictionary<ConditionSetting, (float At, List<TallyKey> Ranges)> s_shown = new();
     private const float ShownSeconds = 0.5f;
 
     /// <summary>Adds the ranges of switched-on enemy conditions on a shown editor page of this setting (drawn in the
     /// last half second), so the owner's next count includes them.</summary>
-    public static void ShownEnemyRanges(ConditionSetting setting, List<float> into)
+    public static void ShownEnemyRanges(ConditionSetting setting, List<TallyKey> into)
     {
         if (!s_shown.TryGetValue(setting, out var shown) || Time.unscaledTime - shown.At > ShownSeconds) return;
-        foreach (float range in shown.Ranges)
+        foreach (var key in shown.Ranges)
         {
-            if (!into.Contains(range)) into.Add(range);
+            if (!into.Contains(key)) into.Add(key);
         }
     }
 
-    /// <summary>Adds the ranges of switched-on, valid enemy conditions in a list.</summary>
-    public static void EnemyRanges(ConditionList list, List<float> into)
+    /// <summary>Adds the enemies that switched-on, valid enemy-subject conditions in a tree are about.</summary>
+    public static void EnemySubjects(ConditionList list, List<SubjectKey> into)
     {
         if (list.Invalid != null) return;
-        foreach (var entry in list.Entries)
+        var nodes = list.Nodes;
+        for (int i = 0; i < nodes.Length; i++)
         {
-            if (!entry.On || entry.Invalid != null || entry.KindDef is not { Scanned: true, Range: { } range }) continue;
-            float r = range(entry.Values);
-            if (!into.Contains(r)) into.Add(r);
+            var entry = nodes[i];
+            if (!entry.On)
+            {
+                if (entry.IsGroup) i = list.End(i) - 1;
+                continue;
+            }
+            if (entry.IsGroup || entry.Invalid != null || entry.KindDef?.Picks is not { } subject) continue;
+            var key = subject(entry.Values);
+            if (!into.Contains(key)) into.Add(key);
         }
+    }
+
+    /// <summary>Adds the counts that switched-on, valid enemy conditions in a tree need (inside switched-on groups).</summary>
+    public static void EnemyRanges(ConditionList list, List<TallyKey> into)
+    {
+        if (list.Invalid != null) return;
+        var nodes = list.Nodes;
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            var entry = nodes[i];
+            if (!entry.On)
+            {
+                // Nothing under a switched-off group counts.
+                if (entry.IsGroup) i = list.End(i) - 1;
+                continue;
+            }
+            if (entry.IsGroup || entry.Invalid != null || entry.KindDef?.KeyFor(entry.Values) is not { } key) continue;
+            if (!into.Contains(key)) into.Add(key);
+        }
+    }
+
+    /// <summary>The buff picker's options: ids, labels and group headings.</summary>
+    public sealed class BuffOptions
+    {
+        public float BuiltAt;
+        public readonly List<int> Ids = new();
+        public readonly List<string> Labels = new();
+        public (string Label, int First)[] Groups = Array.Empty<(string, int)>();
+    }
+
+    private static BuffOptions? s_buffs;
+
+    /// <summary>The buff picker's options (active now, seen this session, all buffs), built at most once a second.</summary>
+    public static BuffOptions SharedBuffs()
+    {
+        if (s_buffs != null && Time.unscaledTime - s_buffs.BuiltAt < 1f) return s_buffs;
+        var options = s_buffs ?? new BuffOptions();
+        options.BuiltAt = Time.unscaledTime;
+        options.Ids.Clear();
+        options.Labels.Clear();
+        var groups = new List<(string, int)>();
+        void Group(string heading, IEnumerable<int> ids)
+        {
+            int first = options.Ids.Count;
+            foreach (int id in ids)
+            {
+                if (options.Ids.Contains(id)) continue;
+                options.Ids.Add(id);
+                options.Labels.Add(ConditionKinds.BuffName(id));
+            }
+            if (options.Ids.Count > first) groups.Add((heading, first));
+        }
+        Group("Active now", PlayerModel.Buffs?.Where(b => b.IsBuff != false).Select(b => b.Id) ?? Enumerable.Empty<int>());
+        Group("Seen this session", PlayerModel.SeenBuffs.OrderBy(ConditionKinds.BuffName));
+        Group("All buffs", GameData.AllBuffs().OrderBy(ConditionKinds.BuffName));
+        options.Groups = groups.ToArray();
+        s_buffs = options;
+        return options;
     }
 
     // ---- One editor ----
@@ -133,7 +198,7 @@ internal static class ConditionEditor
 
         private void NoteShownRanges(ConditionList list)
         {
-            if (!s_shown.TryGetValue(_setting, out var shown)) s_shown[_setting] = shown = (0f, new List<float>());
+            if (!s_shown.TryGetValue(_setting, out var shown)) s_shown[_setting] = shown = (0f, new List<TallyKey>());
             shown.Ranges.Clear();
             EnemyRanges(list, shown.Ranges);
             s_shown[_setting] = (Time.unscaledTime, shown.Ranges);
@@ -218,7 +283,8 @@ internal static class ConditionEditor
                 return rows;
             }
             rows.Add(new ValueText("Kind", () => List.Entries.ElementAtOrDefault(index) is { } e ? e.Label ?? e.KindDef?.Label ?? e.Kind : string.Empty) { Key = "kind", Width = 84f });
-            foreach (var arg in kind.Args) rows.Add(ArgRow(index, arg));
+            // The macro suite's optional args (comparisons, centre, own weights) are set in its rule editor.
+            foreach (var arg in kind.Args.Where(a => !a.Optional)) rows.Add(ArgRow(index, arg));
             rows.Add(new ActionButton("⋯", "details")
             {
                 Key = "details",
@@ -293,7 +359,7 @@ internal static class ConditionEditor
                 case ArgKind.Choice:
                 case ArgKind.Rarity:
                     var options = arg.Options;
-                    var shown = arg.Kind == ArgKind.Rarity ? options.Select(RarityLabel).ToList() : options.ToList();
+                    var shown = arg.Kind == ArgKind.Rarity ? options.Select(RarityLabel).ToList() : options.Select(ArgSpec.OptionWords).ToList();
                     return new ValueChoice(label, () => Array.IndexOf(options, StoredText(index, arg)), i =>
                     {
                         if (i >= 0 && i < options.Length) SetArg(index, arg.Name, JsonValue.Create(options[i]));
@@ -306,6 +372,12 @@ internal static class ConditionEditor
                     };
                 case ArgKind.Buff:
                     return BuffPicker(index, arg, label);
+                case ArgKind.Skill:
+                    return new ValueChoice(label, () => ConditionKinds.SkillOptions(StoredText(index, arg)).FindIndex(o => o.Id == StoredText(index, arg)), i =>
+                    {
+                        var skills = ConditionKinds.SkillOptions(StoredText(index, arg));
+                        if (i >= 0 && i < skills.Count) SetArg(index, arg.Name, JsonValue.Create(skills[i].Id));
+                    }, () => ConditionKinds.SkillOptions(StoredText(index, arg)).Select(o => o.Name).ToList()) { Key = "arg." + arg.Name, Width = 140f };
                 default:
                     return new ValueKey(label, () => StoredText(index, arg), chord => SetArg(index, arg.Name, JsonValue.Create(chord)))
                     {
@@ -333,47 +405,14 @@ internal static class ConditionEditor
             "slot" => "Slot",
             "buff" => "Buff",
             "key" => "Key",
+            "skill" => "Skill",
             _ => arg.Name,
         };
 
         // The buff picker: active buffs first, then the ones seen this session, then every buff the game has; built at
         // most once a second while shown. The stored id shows by name, or "Buff #id" when game data can't name it.
-        private BuffOptions? _buffs;
 
-        private sealed class BuffOptions
-        {
-            public float BuiltAt;
-            public readonly List<int> Ids = new();
-            public readonly List<string> Labels = new();
-            public (string Label, int First)[] Groups = Array.Empty<(string, int)>();
-        }
-
-        private BuffOptions Buffs()
-        {
-            if (_buffs != null && Time.unscaledTime - _buffs.BuiltAt < 1f) return _buffs;
-            var options = _buffs ?? new BuffOptions();
-            options.BuiltAt = Time.unscaledTime;
-            options.Ids.Clear();
-            options.Labels.Clear();
-            var groups = new List<(string, int)>();
-            void Group(string heading, IEnumerable<int> ids)
-            {
-                int first = options.Ids.Count;
-                foreach (int id in ids)
-                {
-                    if (options.Ids.Contains(id)) continue;
-                    options.Ids.Add(id);
-                    options.Labels.Add(ConditionKinds.BuffName(id));
-                }
-                if (options.Ids.Count > first) groups.Add((heading, first));
-            }
-            Group("Active now", PlayerModel.Buffs?.Where(b => b.IsBuff != false).Select(b => b.Id) ?? Enumerable.Empty<int>());
-            Group("Seen this session", PlayerModel.SeenBuffs.OrderBy(ConditionKinds.BuffName));
-            Group("All buffs", GameData.AllBuffs().OrderBy(ConditionKinds.BuffName));
-            options.Groups = groups.ToArray();
-            _buffs = options;
-            return options;
-        }
+        private BuffOptions Buffs() => SharedBuffs();
 
         private MenuRow BuffPicker(int index, ArgSpec arg, string label) => new ValueChoice(label, () =>
         {
@@ -388,7 +427,7 @@ internal static class ConditionEditor
             Key = "arg." + arg.Name,
             Width = 140f,
             Groups = () => Buffs().Groups,
-            Shown = () => StoredArg(index, arg.Name) is JsonValue v && v.TryGetValue(out double id) ? ConditionKinds.BuffName((int)Math.Round(id)) : "Pick a buff",
+            Shown = () => StoredArg(index, arg.Name) is JsonValue v && v.TryGetValue(out double id) ? ConditionKinds.BuffName((int)Math.Round(id)) : "Select buff",
         };
 
         private static string Clip(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";

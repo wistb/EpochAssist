@@ -62,6 +62,7 @@ internal static partial class Theme
     public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, ToastText = null!;
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
     public static Texture2D Chevron = null!, ChevronRight = null!;
+    public static Texture2D IconDot = null!, IconRing = null!, IconSquare = null!, IconBars = null!, IconDash = null!;
     public static Texture2D Swatch = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
     public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
@@ -168,7 +169,8 @@ internal static partial class Theme
         // No left margin, so layout labels line up with the switch rows, which draw their label at the row's edge.
         RowLabel = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleLeft, margin = new RectOffset(0, 4, 0, 0) };
         Hint = new GUIStyle(skin.label) { fontSize = v.FontSmall, fontStyle = FontStyle.Normal, wordWrap = true, margin = new RectOffset(0, 0, 2, 4) };
-        TextColor(Hint, v.Dim);
+        // Hints in the secondary text colour: dim grey on the grey window was hard to read.
+        TextColor(Hint, v.Secondary);
         Value = new GUIStyle(skin.label) { alignment = TextAnchor.MiddleRight, margin = new RectOffset(4, 0, 0, 0) };
 
         skin.textField = new GUIStyle(skin.textField)
@@ -225,6 +227,12 @@ internal static partial class Theme
         Square = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 4f))));
         Bars = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(Mathf.Min(RectDistance(x + 0.5f, y + 0.5f, 3f, 5f, 1.2f, 4.5f), RectDistance(x + 0.5f, y + 0.5f, 7f, 5f, 1.2f, 4.5f)))));
         Dash = Paint(10, 10, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4f, 1.2f))));
+        // The same shapes for state pills, painted at 20 px and shown at 10 so they stay crisp and bold at any UI scale.
+        IconDot = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(CircleDistance(x + 0.5f, y + 0.5f, 10f, 10f, 8f))));
+        IconRing = Paint(20, 20, (x, y) => Shade(Color.white, Mathf.Clamp01(Coverage(CircleDistance(x + 0.5f, y + 0.5f, 10f, 10f, 8.5f)) - Coverage(CircleDistance(x + 0.5f, y + 0.5f, 10f, 10f, 4.5f)))));
+        IconSquare = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 10f, 10f, 7f, 7f))));
+        IconBars = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(Mathf.Min(RectDistance(x + 0.5f, y + 0.5f, 6f, 10f, 2.5f, 8f), RectDistance(x + 0.5f, y + 0.5f, 14f, 10f, 2.5f, 8f)))));
+        IconDash = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 10f, 10f, 8f, 2.5f))));
         FocusRing = Rounded(rControl + 2, rControl + 2, Color.clear, v.Focus, 2f);
         // Colour swatches: white, tinted when drawn; the ring marks the chosen one.
         Swatch = Rounded(rChip, rChip, Color.white, Color.white, 0f);
@@ -311,6 +319,12 @@ internal static partial class Theme
         _ => s_values.StateOff,
     };
 
+    /// <summary>A state's colour for text: lightened enough to read on the window, on badges and on tinted pills.</summary>
+    public static Color StateText(StatusState state) => LightText(StateColor(state));
+
+    /// <summary>A colour lightened for text on the dark menu (the state and warning colours are made for shapes).</summary>
+    public static Color LightText(Color colour) => Color.Lerp(colour, Color.white, 0.55f);
+
     /// <summary>The selected theme's own accent, before the player's Accent setting.</summary>
     public static Color ThemeAccent { get; private set; } = ThemeValues.Presets[0].Values.Accent;
 
@@ -334,7 +348,6 @@ internal static partial class Theme
             v.ChipOn = Color.Lerp(window, secondary, 0.25f);
         }
         v.HighlightText = Readable(v.Highlight);
-        v.OnHighlight = Contrast(Color.white, v.Highlight) >= Contrast(window, v.Highlight) ? Color.white : window;
         if (LookSettings.AccentTertiary.TryGetColor(out Color tertiary)) v.AccentText = Readable(tertiary);
     }
 
@@ -378,6 +391,16 @@ internal static partial class Theme
         StatusState.Holding => Square,
         StatusState.Paused => Bars,
         _ => Dash,
+    };
+
+    /// <summary>A state's shape for a pill: the same shapes as StateShape, larger and bolder.</summary>
+    public static Texture2D StateIcon(StatusState state) => state switch
+    {
+        StatusState.Active => IconDot,
+        StatusState.Waiting => IconRing,
+        StatusState.Holding => IconSquare,
+        StatusState.Paused => IconBars,
+        _ => IconDash,
     };
 
     public static int FocusRadius => s_values.RadiusControl + 2;

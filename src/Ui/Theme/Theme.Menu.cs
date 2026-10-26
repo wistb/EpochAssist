@@ -14,7 +14,6 @@ internal static partial class Theme
     /// <summary>The secondary accent: where you are (selection, list highlight, search matches, chips on).</summary>
     public static Color Highlight => s_values.Highlight;
     public static Color HighlightText => s_values.HighlightText;
-    public static Color OnHighlight => s_values.OnHighlight;
     public static Color Window => s_values.Window;
     public static Color SidebarColor => s_values.Sidebar;
     public static int ControlRadius => s_values.RadiusControl;
@@ -25,7 +24,7 @@ internal static partial class Theme
 
     public static GUIStyle Brand = null!, Version = null!, Tab = null!, TabOn = null!, Crumb = null!, Tag = null!;
     public static GUIStyle TreeRow = null!, TreeNode = null!, TreeNumber = null!, TreeFilter = null!;
-    public static GUIStyle Label = null!, FieldText = null!, FieldDim = null!, Heading = null!, BannerText = null!, KeyText = null!;
+    public static GUIStyle Label = null!, FieldText = null!, FieldDim = null!, FieldHint = null!, Heading = null!, BannerText = null!, KeyText = null!;
     public static GUIStyle ButtonText = null!, PrimaryText = null!, OptionText = null!, OptionHeading = null!, Tooltip = null!;
     public static GUIStyle FooterLabel = null!, FooterHint = null!, LiveValue = null!, Glyph = null!;
     // Fills drawn by the menu: flat, so they meet the window's own edge cleanly.
@@ -67,6 +66,9 @@ internal static partial class Theme
         FieldText = new GUIStyle(Label) { fontStyle = FontStyle.Normal, padding = new RectOffset(7, 7, 0, 1), clipping = TextClipping.Clip };
         FieldDim = new GUIStyle(FieldText);
         TextColor(FieldDim, v.Dim);
+        // A field's placeholder: readable, in the secondary text colour.
+        FieldHint = new GUIStyle(FieldText);
+        TextColor(FieldHint, v.Secondary);
         TreeFilter = new GUIStyle(skin.textField)
         {
             fontSize = v.FontSmall, fixedHeight = 0f, padding = new RectOffset(7, 22, 0, 1), margin = Offset(0), alignment = TextAnchor.MiddleLeft,
@@ -81,13 +83,15 @@ internal static partial class Theme
         KeyText = new GUIStyle(Label) { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, padding = new RectOffset(8, 8, 0, 1) };
         TextColor(KeyText, v.AccentText);
         ButtonText = new GUIStyle(Label) { fontSize = v.FontSmall, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, padding = new RectOffset(10, 10, 0, 1) };
-        TextColor(ButtonText, v.Secondary);
+        // Button labels in the main text colour: grey on a grey button was hard to read.
+        TextColor(ButtonText, v.Text);
         ButtonText.hover.textColor = v.Text;
         PrimaryText = new GUIStyle(ButtonText);
         TextColor(PrimaryText, v.OnAccent);
         OptionText = new GUIStyle(FieldText) { padding = new RectOffset(8, 22, 0, 1) };
         OptionHeading = new GUIStyle(Heading) { padding = new RectOffset(6, 6, 0, 0) };
-        TextColor(OptionHeading, v.Faint);
+        // Headings in a list are quieter than its options but must stay readable on the popup (faint is for lines).
+        TextColor(OptionHeading, v.Dim);
         Tooltip = new GUIStyle(skin.label) { fontSize = v.FontSmall, fontStyle = FontStyle.Normal, wordWrap = true, padding = new RectOffset(8, 8, 5, 6) };
         TextColor(Tooltip, v.Secondary);
         FooterLabel = new GUIStyle(Label) { fontSize = v.FontSmall, fontStyle = FontStyle.Normal };
@@ -109,7 +113,8 @@ internal static partial class Theme
         ButtonHover = Rounded(rControl, rControl, buttonHover, buttonHover, 0f);
         PrimaryBg = Rounded(rControl, rControl, v.Accent, v.Accent, 0f);
         PrimaryHover = Rounded(rControl, rControl, v.AccentHover, v.AccentHover, 0f);
-        HighlightBg = Rounded(rControl, rControl, v.Highlight, v.Highlight, 0f);
+        // A list's hovered or focused item: the muted selection colour, as the tree's selected row, not the bright highlight.
+        HighlightBg = Rounded(rControl, rControl, v.Selection, v.Selection, 0f);
         SelectionBg = Rounded(rCard, rCard, v.Selection, v.Selection, 0f);
         HoverBg = Rounded(rCard, rCard, v.NavHover, v.NavHover, 0f);
 

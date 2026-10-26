@@ -26,7 +26,7 @@ internal sealed class ThemeValues
     // The secondary accent ("where you are": selection, list highlight, search matches, chips on). Its text and
     // on-colours are made from it when the skin is built.
     public Color Highlight;
-    public Color HighlightText, OnHighlight;
+    public Color HighlightText;
     public float Opacity = 1f;
     public int RadiusWindow, RadiusCard, RadiusControl, RadiusChip;
     public int CardPad, CardGap;

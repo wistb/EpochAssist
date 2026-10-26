@@ -248,7 +248,8 @@ internal sealed class DropdownPopup : IPopup
             var field = new Rect(r.x + Pad, r.y + Pad, r.width - Pad * 2f, FilterHeight);
             if (Widgets.Themed) Theme.DrawSliced(field, Theme.InputFocus, Theme.ControlRadius);
             bool empty = _filter.Length == 0;
-            GUIStyle style = Widgets.Style(() => empty ? Theme.FieldDim : Theme.FieldText, GUI.skin.label);
+            // The placeholder in the secondary text colour: readable, still plainly not typed text.
+            GUIStyle style = Widgets.Style(() => empty ? Theme.FieldHint : Theme.FieldText, GUI.skin.label);
             // A caret after what is typed, blinking.
             string caret = Time.unscaledTime % 1f < 0.5f ? "|" : " ";
             Widgets.Paint(field, empty ? "Type to filter" : _filter + caret, style);
@@ -293,7 +294,7 @@ internal sealed class DropdownPopup : IPopup
         bool lit = hover || option == _highlight;
         if (lit && Widgets.Themed) Theme.DrawSliced(item, Theme.HighlightBg, Theme.ControlRadius);
         Color previous = GUI.contentColor;
-        if (Widgets.Themed) GUI.contentColor = lit ? Theme.OnHighlight : option == _selected ? Theme.AccentText : previous;
+        if (Widgets.Themed) GUI.contentColor = lit ? Theme.Values.Text : option == _selected ? Theme.AccentText : previous;
         var label = item;
         if (_swatches != null)
         {

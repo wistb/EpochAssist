@@ -91,7 +91,7 @@ internal static class MenuSearch
             foreach (var page in node.Pages)
             {
                 if (!node.Leaf) index.Add(new Entry(new SearchHit(node, page, null), new[] { page.Page.Title }));
-                foreach (var row in page.Rows)
+                foreach (var row in Flatten(page.Rows))
                 {
                     if (PageNode.SettingsOf(row).Any(s => s.Section.Group.Shared) || RowKinds.For(row) is not { } renderer) continue;
                     var texts = Safe.Call(() => renderer.Search(row).Where(t => !string.IsNullOrEmpty(t)).ToArray(), Array.Empty<string>(), row.Key + ".search");
@@ -101,6 +101,10 @@ internal static class MenuSearch
         }
         s_index = index;
     }
+
+    // A page's rows with containers (cards) opened, so each setting in a card is its own hit.
+    private static IEnumerable<MenuRow> Flatten(IEnumerable<MenuRow> rows) =>
+        rows.SelectMany(row => row is IRowContainer container ? Flatten(container.Children) : new[] { row });
 
     /// <summary>The hits for a query, in tree order: nodes, pages and rows whose texts match every word.</summary>
     public static IReadOnlyList<SearchHit> Query(string query)

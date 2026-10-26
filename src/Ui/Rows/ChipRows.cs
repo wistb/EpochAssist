@@ -64,7 +64,7 @@ internal static class ChipRows
         protected override void Draw(NumberGroup row, Rect rect, RowContext ctx)
         {
             // Measured and drawn in the same style, so a label is never cut.
-            GUIStyle label = Widgets.Style(() => Theme.FieldDim, GUI.skin.label);
+            GUIStyle label = Widgets.Style(() => Theme.FieldHint, GUI.skin.label);
             float x = rect.x;
             foreach (var number in Shown(row))
             {

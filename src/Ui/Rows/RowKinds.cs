@@ -102,6 +102,8 @@ internal static class RowKinds
         TextRows.Register();
         ChipRows.Register();
         CheckTreeRows.Register();
+        RuleTreeRowKinds.Register();
+        CardRows.Register();
         ListRows.Register();
     }
 }
@@ -119,6 +121,18 @@ internal static class Safe
         {
             Log.ErrorThrottled("menu:" + what, $"Menu row {what} failed: {e.Message}");
             return fallback;
+        }
+    }
+
+    public static void Run(Action f, string what)
+    {
+        try
+        {
+            f();
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("menu:" + what, $"Menu action {what} failed: {e.Message}");
         }
     }
 

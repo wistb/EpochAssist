@@ -1,3 +1,4 @@
+using EpochAssist.Core;
 using UnityEngine;
 
 namespace EpochAssist.Ui;
@@ -49,6 +50,41 @@ internal static class Controls
         }
         Popups.Tip(r, tip, key);
         return Focus.Item(key, r) || clicked;
+    }
+
+    private const float StatePillMax = 130f;
+
+    /// <summary>A state pill's width for its text (with room for the shape), at most 130 px.</summary>
+    public static float StatePillWidth(string text) =>
+        Mathf.Min(StatePillMax, TextCache.Width(text, Widgets.Style(() => Theme.FieldText, GUI.skin.label)) + 26f);
+
+    /// <summary>
+    /// A live value or state as a small pill, left-aligned in the rect: a faint tint of the state's colour, its shape,
+    /// and the text in that colour lightened enough to read on the tint.
+    /// </summary>
+    public static void StatePill(Rect at, string text, StatusState state)
+    {
+        if (Event.current.type != EventType.Repaint) return;
+        float w = Mathf.Min(StatePillWidth(text), at.width);
+        if (w < 20f) return;
+        GUIStyle style = Widgets.Style(() => Theme.FieldText, GUI.skin.label);
+        var pill = new Rect(at.x, at.y + 3f, w, at.height - 6f);
+        Color colour = Theme.StateColor(state);
+        if (Widgets.Themed)
+        {
+            Color previous = GUI.color;
+            GUI.color = new Color(colour.r, colour.g, colour.b, 0.16f * previous.a);
+            Theme.DrawSliced(pill, Theme.Flat, Theme.ChipRadius);
+            GUI.color = previous;
+        }
+        Color readable = Theme.StateText(state);
+        // The icon centred on the pill's own middle, on whole pixels.
+        const float icon = 10f;
+        var iconRect = Menu.PixelSnap(new Rect(pill.x + 7f, pill.center.y - icon / 2f, icon, icon));
+        if (Widgets.Themed) Theme.Tinted(iconRect, Theme.StateIcon(state), readable);
+        else Menu.DrawState(iconRect, state, readable);
+        var words = new Rect(iconRect.xMax + 5f, pill.y, pill.xMax - iconRect.xMax - 7f, pill.height);
+        Widgets.Paint(words, Widgets.Colored(Fit(text, style, words.width), readable), style);
     }
 
     /// <summary>A key binding's box: the display in the accent colour, or the capture prompt.</summary>

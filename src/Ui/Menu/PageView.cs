@@ -73,6 +73,11 @@ internal static class PageView
     private static void DrawPage(PageNode page, Rect inner)
     {
         var node = page.Node;
+        if (node.Entry.Layout == MenuLayout.Library && node.Entry.Library is { } library)
+        {
+            LibraryLayout.Draw(page, library, inner);
+            return;
+        }
         Feature? feature = node.Feature;
         float y = inner.y;
         if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(inner.x, y, inner.width, 14f), page.Crumb, Widgets.Style(() => Theme.Crumb, GUI.skin.label));
@@ -99,6 +104,23 @@ internal static class PageView
         var top = new RowContext { Path = page.Path, Live = node.Live };
         var rows = top.With(enabled: enabled);
         if (Event.current.type == EventType.Layout || s_layout.Count == 0) Lay(node.Entry.Top, page.Rows, top, rows, body.width - 12f);
+        DrawRows(body);
+    }
+
+    /// <summary>Forgets the laid-out rows and the scroll (another editor opened in the library layout).</summary>
+    public static void ResetRows()
+    {
+        s_layout.Clear();
+        s_scroll = Vector2.zero;
+    }
+
+    /// <summary>Rows given by a layout (the library's open editor) drawn as a page's rows, in a rect of the page.</summary>
+    public static void DrawRowList(PageNode page, IReadOnlyList<MenuRow> rows, Rect body)
+    {
+        var node = page.Node;
+        bool enabled = node.Entry.ContentEnabled == null || Safe.Call(node.Entry.ContentEnabled, true, node.Path + ".enabled");
+        var ctx = new RowContext { Path = page.Path, Live = node.Live }.With(enabled: enabled);
+        if (Event.current.type == EventType.Layout || s_layout.Count == 0) Lay(Array.Empty<MenuRow>(), rows, ctx, ctx, body.width - 12f);
         DrawRows(body);
     }
 
@@ -236,7 +258,8 @@ internal static class PageView
         float w = TextCache.Width(status.Text, style) + style.padding.horizontal;
         var r = new Rect(at.x, at.y, w, at.height);
         if (Event.current.type != EventType.Repaint) return w;
-        Color color = Theme.StateColor(status.State);
+        // On the state's badge, its shape and text in the lightened state colour, so they read on the tint.
+        Color color = Theme.StateText(status.State);
         if (Widgets.Themed)
         {
             Theme.DrawSliced(r, Theme.BadgeFor(status.State), Math.Min(11, Theme.ChipRadius + 2));

@@ -347,7 +347,7 @@ internal static class SettingRows
             GUIStyle style = Widgets.Style(() => Theme.Label, GUI.skin.label);
             var area = new Rect(x, r.y, r.xMax - x, r.height);
             string fitted = Controls.Fit(text, style, area.width);
-            Widgets.Paint(area, Widgets.Themed ? Widgets.Colored(fitted, color) : fitted, style);
+            Widgets.Paint(area, Widgets.Themed ? Widgets.Colored(fitted, Theme.LightText(color)) : fitted, style);
         }
 
         protected override IEnumerable<string> Search(ValueReadout row) => Array.Empty<string>();

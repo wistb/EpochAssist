@@ -105,6 +105,16 @@ internal static class MenuCommands
         foreach (string line in page.Page.Block != null ? MenuBlocks.Bridge(page.Page.Block, null) : Enumerable.Empty<string>()) lines.Add("    " + line);
         bool enabled = node.Entry.ContentEnabled == null || Safe.Call(node.Entry.ContentEnabled, true, node.Path + ".enabled");
         var top = new RowContext { Path = page.Path, Live = node.Live };
+        if (node.Entry.Layout == MenuLayout.Library && node.Entry.Library is { } library && page == node.Pages[0])
+        {
+            foreach (string line in LibraryLayout.BridgeLines(library)) lines.Add("  " + line);
+            // An open editor's rows, as a page's.
+            if (Safe.Call(library.Editor, null, node.Path + ".editor") is { } editor)
+            {
+                foreach (var row in Safe.Call(editor.Rows, Array.Empty<MenuRow>(), node.Path + ".editor.rows")) AddRow(lines, row, top.With(enabled: enabled));
+            }
+            return string.Join("\n", lines);
+        }
         foreach (var row in node.Entry.Top) AddRow(lines, row, top);
         foreach (var row in page.Rows) AddRow(lines, row, top.With(enabled: enabled));
         return string.Join("\n", lines);

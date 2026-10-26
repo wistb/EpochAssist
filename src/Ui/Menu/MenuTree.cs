@@ -76,6 +76,7 @@ internal sealed class PageNode
     {
         SettingRow s => new[] { s.Setting },
         NumberGroup g => g.Numbers,
+        IRowContainer c => c.Children.SelectMany(SettingsOf),
         _ => Array.Empty<Setting>(),
     };
 
@@ -93,7 +94,7 @@ internal static class MenuTree
 {
     private static readonly (string Id, string Title)[] s_tabs =
     {
-        (MenuCategory.Combat, "Config"), (MenuCategory.Sessions, "Session"), (MenuCategory.Overlays, "Overlays"), (MenuCategory.Map, "Map"),
+        (MenuCategory.Combat, "Config"), (MenuCategory.Macros, "Macros"), (MenuCategory.Sessions, "Session"), (MenuCategory.Overlays, "Overlays"), (MenuCategory.Map, "Map"),
         (MenuCategory.Visuals, "Visuals"), (MenuCategory.Stats, "Stats"),
     };
 
@@ -170,6 +171,7 @@ internal static class MenuTree
             var node = new MenuNode(tab, entry, feature, title);
             if (entry.Switch != null && entry.Switch.QuickLabel == null) Problem($"{title}: its switch {entry.Switch.Id} has no quick label");
             if (entry.Pages.Count == 0) Problem($"{title}: no pages");
+            if (entry.Layout == MenuLayout.Library && entry.Library == null) Problem($"{title}: library layout without its view");
             foreach (var page in entry.Pages) node.Pages.Add(new PageNode(node, page));
             // Paths read the node's leaf state, which needs every page added first.
             foreach (var page in node.Pages) page.Path = node.Leaf ? node.Path : $"{node.Path}/{MenuEntry.Slug(page.Page.Title)}";

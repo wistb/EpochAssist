@@ -5,6 +5,8 @@ internal static class MenuCategory
 {
     /// <summary>The Config tab (the id is from when it was called Combat).</summary>
     public const string Combat = "combat";
+    /// <summary>The macro library (the Macros feature's second entry).</summary>
+    public const string Macros = "macros";
     public const string Sessions = "session";
     public const string Overlays = "overlays";
     public const string Map = "map";
@@ -42,6 +44,11 @@ internal sealed class MenuEntry
     public Func<bool>? ContentEnabled { get; init; }
     /// <summary>Rows above every page of this entry.</summary>
     public List<MenuRow> Top { get; } = new();
+    /// <summary>How the page area is laid out; Library draws Library instead of the pages' rows (and hides the menu's
+    /// tree while one of its pages shows).</summary>
+    public MenuLayout Layout { get; init; } = MenuLayout.Pages;
+    /// <summary>The library layout's data, for Layout Library.</summary>
+    public LibraryView? Library { get; init; }
     /// <summary>Tree-only groups of items, shown before the pages.</summary>
     public List<TreeGroup> Groups { get; } = new();
     public List<MenuPage> Pages { get; } = new();

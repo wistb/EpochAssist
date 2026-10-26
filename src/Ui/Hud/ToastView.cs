@@ -30,7 +30,9 @@ internal sealed class ToastFeature : Feature
 
     public override void OnGUI()
     {
-        if (Event.current.type != EventType.Repaint || !HudSettings.HudEnabled.Value) return;
+        if (Event.current.type != EventType.Repaint) return;
+        Toasts.ShownArea = Rect.zero;
+        if (!HudSettings.HudEnabled.Value) return;
         IReadOnlyList<Toast> toasts = Toasts.Visible;
         // Previewing the HUD settings shows where notifications go and how many stack, with samples when none are up.
         if (toasts.Count == 0 && Ui.Menu.PreviewingHud)
@@ -96,6 +98,7 @@ internal sealed class ToastFeature : Feature
             if (spot.Vertical > 0) items.Reverse();
         }
 
+        Toasts.ShownArea = new Rect(area.x * scale, area.y * scale, area.width * scale, area.height * scale);
         float top = area.y;
         foreach (var (toast, content, size) in items)
         {
