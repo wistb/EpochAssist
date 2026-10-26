@@ -22,8 +22,8 @@ internal sealed class MenuFeature : Feature
         Actions.Register(Id, "menu.profiles", "Open Profiles", Menu.OpenProfiles);
         // The theme choice lists presets and player files, which the core setting can't know about.
         Themes.Rescan();
-        Config.Theme.Options = () => Themes.Names;
-        Config.Theme.Notes = () => Themes.NotesFor(Config.Theme.Value);
+        LookSettings.Theme.Options = () => Themes.Names;
+        LookSettings.Theme.Notes = () => Themes.NotesFor(LookSettings.Theme.Value);
         Diagnostics.ThemeProblems = () => Themes.Problems;
     }
 
@@ -33,8 +33,8 @@ internal sealed class MenuFeature : Feature
     public override void Shutdown()
     {
         Menu.Close();
-        Config.Theme.Options = null;
-        Config.Theme.Notes = null;
+        LookSettings.Theme.Options = null;
+        LookSettings.Theme.Notes = null;
         Diagnostics.ThemeProblems = null;
         InputGate.Menu = false;
         GameState.UiTyping = false;

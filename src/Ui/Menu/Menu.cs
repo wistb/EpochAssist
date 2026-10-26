@@ -36,7 +36,7 @@ internal static class Menu
     {
         get
         {
-            float scale = Mathf.Clamp(Config.UiScale.Value, 0.5f, 3f);
+            float scale = Mathf.Clamp(LookSettings.UiScale.Value, 0.5f, 3f);
             return new Rect(s_rect.x * scale, s_rect.y * scale, s_rect.width * scale, s_rect.height * scale);
         }
     }
@@ -85,7 +85,7 @@ internal static class Menu
 
         // The hotkey layer runs menu.toggle and menu.close; while it is down, the menu still answers its key and Esc.
         if (FeatureHost.Find("hotkeys")?.State != FeatureState.Running
-            && (Hotkeys.FallbackPressed(Config.MenuKey) || (Visible && Hotkeys.FallbackEscape())))
+            && (Hotkeys.FallbackPressed(KeySettings.MenuKey) || (Visible && Hotkeys.FallbackEscape())))
         {
             SetVisible(!Visible);
         }
@@ -105,7 +105,7 @@ internal static class Menu
         Themed = skin != null;
         if (skin != null) GUI.skin = skin;
 
-        float scale = Mathf.Clamp(Config.UiScale.Value, 0.5f, 3f);
+        float scale = Mathf.Clamp(LookSettings.UiScale.Value, 0.5f, 3f);
         GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
         s_rect.x = Mathf.Clamp(s_rect.x, 0f, Mathf.Max(0f, Screen.width / scale - s_rect.width));
         s_rect.y = Mathf.Clamp(s_rect.y, 0f, Mathf.Max(0f, Screen.height / scale - 40f));
@@ -180,7 +180,7 @@ internal static class Menu
 
     private static void DrawContents()
     {
-        float opacity = Mathf.Clamp(Config.MenuOpacity.Value, 0.2f, 1f);
+        float opacity = Mathf.Clamp(LookSettings.MenuOpacity.Value, 0.2f, 1f);
         if (Themed && Event.current.type == EventType.Repaint)
         {
             Color color = GUI.color;
@@ -339,7 +339,7 @@ internal static class Menu
         if (Themed && Event.current.type == EventType.Repaint)
         {
             float target = settings && !Closing ? 1f : 0f;
-            float step = Config.Animations.Value ? Time.unscaledDeltaTime * Mathf.Clamp(Config.AnimationSpeed.Value, 0.25f, 4f) / GearSeconds : 1f;
+            float step = LookSettings.Animations.Value ? Time.unscaledDeltaTime * Mathf.Clamp(LookSettings.AnimationSpeed.Value, 0.25f, 4f) / GearSeconds : 1f;
             s_gear = Mathf.MoveTowards(s_gear, target, step);
             float ease = s_gear * s_gear * (3f - 2f * s_gear);
             bool hover = icon.Contains(Event.current.mousePosition);
@@ -348,7 +348,7 @@ internal static class Menu
             DrawTinted(new Rect(icon.center.x - 8f, icon.center.y - 8f, 16f, 16f), Theme.GearFrames.Length > 0 ? Theme.GearFrames[frame] : Theme.Gear, Color.Lerp(rest, Theme.AccentText, ease));
         }
         GUILayout.Space(6f);
-        GUILayout.Label($"{Config.MenuKey.Display} or Esc closes", Style(() => Theme.NavHint, GUI.skin.label));
+        GUILayout.Label($"{KeySettings.MenuKey.Display} or Esc closes", Style(() => Theme.NavHint, GUI.skin.label));
         GUILayout.EndHorizontal();
     }
 
@@ -541,7 +541,7 @@ internal static class Menu
 
     // Animation time since a moment, scaled by the Animation speed setting; with animations off, long past.
     private static float Elapsed(float since) =>
-        Config.Animations.Value ? (Time.unscaledTime - since) * Mathf.Clamp(Config.AnimationSpeed.Value, 0.25f, 4f) : 1e6f;
+        LookSettings.Animations.Value ? (Time.unscaledTime - since) * Mathf.Clamp(LookSettings.AnimationSpeed.Value, 0.25f, 4f) : 1e6f;
 
     // 0 to 1 over the slide, easing out.
     private static float NavEase()
@@ -676,9 +676,9 @@ internal static class Menu
     private static float PagesOpen(bool target)
     {
         float goal = target ? 1f : 0f;
-        if (s_pagesOpen < 0f || !Config.Animations.Value) s_pagesOpen = goal;
+        if (s_pagesOpen < 0f || !LookSettings.Animations.Value) s_pagesOpen = goal;
         else if (Event.current.type == EventType.Layout)
-            s_pagesOpen = Mathf.MoveTowards(s_pagesOpen, goal, Time.unscaledDeltaTime * Mathf.Clamp(Config.AnimationSpeed.Value, 0.25f, 4f) / PagesSeconds);
+            s_pagesOpen = Mathf.MoveTowards(s_pagesOpen, goal, Time.unscaledDeltaTime * Mathf.Clamp(LookSettings.AnimationSpeed.Value, 0.25f, 4f) / PagesSeconds);
         float t = s_pagesOpen;
         return t * t * (3f - 2f * t);
     }
@@ -976,7 +976,7 @@ internal static class Menu
 
     /// <summary>The Settings page's Mini HUD tab is open, so the HUD shows behind the menu as a preview.</summary>
     public static bool PreviewingHud => Visible && Current == SettingsPage && s_search.Trim().Length == 0
-        && Tabs[Math.Clamp(s_settingsTab, 0, Tabs.Count - 1)].Section == Config.Hud;
+        && Tabs[Math.Clamp(s_settingsTab, 0, Tabs.Count - 1)].Section == HudSettings.Hud;
 
     // One full-width field, with a greyed placeholder while empty and a clear button inside its right end.
     private static void SearchField(float width)

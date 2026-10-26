@@ -62,6 +62,10 @@ public static class Runtime
     {
         Hosted = hosted;
         LoadedAt = DateTime.Now;
+        // The UI layer's sections of the General group, declared before it registers.
+        HudSettings.Declare();
+        LookSettings.Declare();
+        KeySettings.Declare();
         Config.Init();
         Edits.RecoverSaved();
         CoreCommands.Register();

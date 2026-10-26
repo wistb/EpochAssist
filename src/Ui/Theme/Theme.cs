@@ -31,7 +31,7 @@ internal static partial class Theme
     // centre at any Corners setting; at most half the slot (a circle). Where the pill's corner is smaller than the gap
     // the slots keep a slight rounding (maintainer), unless Corners is 0% (square).
     private const int MinPipRadius = 2;
-    public static int PipRadius => Config.Corners.Value <= 0f
+    public static int PipRadius => LookSettings.Corners.Value <= 0f
         ? 0
         : Math.Clamp(PillRadius - Mathf.RoundToInt(Hud.PipInset), MinPipRadius, Mathf.FloorToInt(Hud.PipSize / 2f));
     public static int PanelRadius => Math.Min(12, s_values.RadiusCard + 2);
@@ -48,7 +48,7 @@ internal static partial class Theme
     private static int s_builtFont = -1;
     private static float s_builtCorners = -1f;
     private static string? s_builtAccent;
-    // Config.Font options: game font asset names; null keeps Unity's built-in font. The game owns these, never destroy them.
+    // LookSettings.Font options: game font asset names; null keeps Unity's built-in font. The game owns these, never destroy them.
     private static readonly string?[] s_gameFonts = { null, "PretendardVariable", "NotoSansJP-Regular" };
     private static FontStyle s_body = FontStyle.Normal;
     private static readonly List<Texture2D> s_textures = new();
@@ -77,9 +77,9 @@ internal static partial class Theme
         get
         {
             if (s_failed) return null;
-            var theme = Themes.Resolve(Config.Theme.Value);
-            if (s_skin != null && (s_builtWeight != Config.FontWeight.Value || s_builtFont != Config.Font.Value || s_builtIdentity != theme.Identity
-                || s_builtCorners != Config.Corners.Value || s_builtAccent != Config.Accent.Value)) Release();
+            var theme = Themes.Resolve(LookSettings.Theme.Value);
+            if (s_skin != null && (s_builtWeight != LookSettings.FontWeight.Value || s_builtFont != LookSettings.Font.Value || s_builtIdentity != theme.Identity
+                || s_builtCorners != LookSettings.Corners.Value || s_builtAccent != LookSettings.Accent.Value)) Release();
             if (s_skin != null) return s_skin;
             try
             {
@@ -98,7 +98,7 @@ internal static partial class Theme
     private static void Build(ResolvedTheme theme)
     {
         // The player's Corners setting scales the theme's radii, within the range theme files may use.
-        s_builtCorners = Config.Corners.Value;
+        s_builtCorners = LookSettings.Corners.Value;
         var v = theme.Values.Clone();
         int Round(int radius) => Math.Clamp(Mathf.RoundToInt(radius * s_builtCorners), 0, 16);
         v.RadiusWindow = Round(v.RadiusWindow);
@@ -106,8 +106,8 @@ internal static partial class Theme
         v.RadiusControl = Round(v.RadiusControl);
         v.RadiusChip = Round(v.RadiusChip);
         ThemeAccent = v.Accent;
-        s_builtAccent = Config.Accent.Value;
-        if (Config.Accent.TryGetColor(out Color accent)) ApplyAccent(v, accent);
+        s_builtAccent = LookSettings.Accent.Value;
+        if (LookSettings.Accent.TryGetColor(out Color accent)) ApplyAccent(v, accent);
         s_values = v;
         // Core draws and counts with what the theme hands it.
         Draw.DefaultBars = new(new Color(Off.r * 0.3f, Off.g * 0.3f, Off.b * 0.3f, 0.75f), Good, Accent);
@@ -115,8 +115,8 @@ internal static partial class Theme
         s_builtIdentity = theme.Identity;
         var skin = UnityEngine.Object.Instantiate((UnityEngine.Object)GUI.skin).Cast<GUISkin>();
         skin.hideFlags = HideFlags.HideAndDontSave;
-        s_builtWeight = Config.FontWeight.Value;
-        s_builtFont = Config.Font.Value;
+        s_builtWeight = LookSettings.FontWeight.Value;
+        s_builtFont = LookSettings.Font.Value;
         Font? gameFont = FindGameFont(s_builtFont);
         if (gameFont != null) skin.font = gameFont;
         s_body = s_builtWeight == 1 ? FontStyle.Bold : FontStyle.Normal;

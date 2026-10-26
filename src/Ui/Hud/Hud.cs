@@ -49,7 +49,7 @@ internal static class Hud
 
     // A feature that isn't running keeps its section, greyed; with no section at all there is no pill.
     // While the menu is open only as a preview, on the Settings page's Mini HUD tab.
-    private static bool Shown => Config.HudEnabled.Value && (!Menu.Visible || Menu.PreviewingHud) && Player.Exists && StatusFeatures.Any();
+    private static bool Shown => HudSettings.HudEnabled.Value && (!Menu.Visible || Menu.PreviewingHud) && Player.Exists && StatusFeatures.Any();
 
     public static void OnUpdate()
     {
@@ -71,7 +71,7 @@ internal static class Hud
         Matrix4x4 previousMatrix = GUI.matrix;
         GUI.skin = skin;
         Themed = true;
-        float scale = Mathf.Clamp(Config.UiScale.Value, 0.5f, 3f);
+        float scale = Mathf.Clamp(LookSettings.UiScale.Value, 0.5f, 3f);
         GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
         try
         {
@@ -90,7 +90,7 @@ internal static class Hud
     private static void Draw(float scale)
     {
         float screenW = Screen.width / scale, screenH = Screen.height / scale;
-        ScreenSpot spot = Config.HudSpot;
+        ScreenSpot spot = HudSettings.HudSpot;
 
         var sections = Layout(screenW - Margin * 2f, out Vector2 size);
         var pill = Offset(spot.Place(size, screenW, screenH, Margin), screenW, screenH);
@@ -112,7 +112,7 @@ internal static class Hud
         Color previousColor = GUI.color;
         // The preview shows the opacity setting and takes no clicks.
         bool preview = Menu.Visible;
-        GUI.color = new Color(1f, 1f, 1f, hover && !preview ? 1f : Mathf.Clamp(Config.HudOpacity.Value, 0.2f, 1f));
+        GUI.color = new Color(1f, 1f, 1f, hover && !preview ? 1f : Mathf.Clamp(HudSettings.HudOpacity.Value, 0.2f, 1f));
         try
         {
             DrawPill(pill, sections);
@@ -199,7 +199,7 @@ internal static class Hud
             if (Switch(toggle.QuickLabel!, toggle.Value) != toggle.Value) Actions.Run(SettingsRegistry.ToggleAction(toggle), "HUD quick toggle");
         }
         GUILayout.Space(6f);
-        if (GUILayout.Button($"Open full menu  ·  {Config.MenuKey.Display}", Theme.SmallButton))
+        if (GUILayout.Button($"Open full menu  ·  {KeySettings.MenuKey.Display}", Theme.SmallButton))
         {
             s_panelOpen = false;
             Actions.Run($"menu.page.{Menu.PageNames.First()}", "HUD open full menu");
@@ -210,8 +210,8 @@ internal static class Hud
     /// <summary>A rect moved by the player's offsets, then kept on screen.</summary>
     public static Rect Offset(Rect r, float screenW, float screenH)
     {
-        r.x = Mathf.Clamp(r.x + Config.HudOffsetX.Value, 0f, Mathf.Max(0f, screenW - r.width));
-        r.y = Mathf.Clamp(r.y + Config.HudOffsetY.Value, 0f, Mathf.Max(0f, screenH - r.height));
+        r.x = Mathf.Clamp(r.x + HudSettings.HudOffsetX.Value, 0f, Mathf.Max(0f, screenW - r.width));
+        r.y = Mathf.Clamp(r.y + HudSettings.HudOffsetY.Value, 0f, Mathf.Max(0f, screenH - r.height));
         return r;
     }
 

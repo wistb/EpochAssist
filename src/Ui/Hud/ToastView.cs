@@ -20,7 +20,7 @@ internal sealed class ToastFeature : Feature
 
     public override void OnGUI()
     {
-        if (Event.current.type != EventType.Repaint || !Config.HudEnabled.Value) return;
+        if (Event.current.type != EventType.Repaint || !HudSettings.HudEnabled.Value) return;
         IReadOnlyList<Toast> toasts = Toasts.Visible;
         // Previewing the HUD settings shows where notifications go, with a sample when none are up.
         if (toasts.Count == 0 && Menu.PreviewingHud) toasts = new[] { new Toast("preview", "Notifications show here.", ToastKind.Info, Time.unscaledTime) };
@@ -33,7 +33,7 @@ internal sealed class ToastFeature : Feature
         Matrix4x4 previousMatrix = GUI.matrix;
         Color previousColor = GUI.color;
         GUI.skin = skin;
-        float scale = Mathf.Clamp(Config.UiScale.Value, 0.5f, 3f);
+        float scale = Mathf.Clamp(LookSettings.UiScale.Value, 0.5f, 3f);
         GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
         try
         {
@@ -60,8 +60,8 @@ internal sealed class ToastFeature : Feature
         }).ToList();
         var block = new Vector2(items.Max(i => i.Size.x), items.Sum(i => i.Size.y) + Gap * (items.Count - 1));
 
-        ScreenSpot? own = Config.ToastSpot;
-        ScreenSpot spot = own ?? Config.HudSpot;
+        ScreenSpot? own = HudSettings.ToastSpot;
+        ScreenSpot spot = own ?? HudSettings.HudSpot;
         Rect area;
         if (own != null)
         {
@@ -86,7 +86,7 @@ internal sealed class ToastFeature : Feature
         {
             float left = spot.Horizontal < 0 ? area.x : spot.Horizontal > 0 ? area.xMax - size.x : area.center.x - size.x / 2f;
             var rect = new Rect(Mathf.Round(left), top, size.x, size.y);
-            GUI.color = new Color(1f, 1f, 1f, Toasts.Alpha(toast, now) * Mathf.Clamp(Config.HudOpacity.Value, 0.2f, 1f));
+            GUI.color = new Color(1f, 1f, 1f, Toasts.Alpha(toast, now) * Mathf.Clamp(HudSettings.HudOpacity.Value, 0.2f, 1f));
             Theme.DrawSliced(rect, Theme.Panel.normal.background, Theme.PanelRadius);
             Menu.DrawDot(new Rect(rect.x + 12f, rect.center.y - 4f, 8f, 8f), toast.Kind == ToastKind.Warning ? Theme.Pause : Theme.AccentText);
             Widgets.Paint(rect, content, style);

@@ -53,10 +53,17 @@ internal sealed class SettingsGroup
     public List<Section> Sections { get; } = new();
     public IEnumerable<Setting> All => Sections.SelectMany(s => s.Settings);
 
+    /// <summary>Section ids in the order they show and are stored, whichever class declares its section first (a group
+    /// declared across layers); ids not listed go after them in declaration order. Null: declaration order.</summary>
+    public string[]? SectionOrder { get; init; }
+
     public Section Section(string id, string title)
     {
         var section = new Section(this, id, title);
-        Sections.Add(section);
+        int place = SectionOrder == null ? -1 : Array.IndexOf(SectionOrder, id);
+        int before = place < 0 ? -1 : Sections.FindIndex(s => Array.IndexOf(SectionOrder!, s.Id) > place);
+        if (before < 0) Sections.Add(section);
+        else Sections.Insert(before, section);
         return section;
     }
 

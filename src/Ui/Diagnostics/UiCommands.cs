@@ -33,8 +33,8 @@ internal static class UiCommands
 
     private static string ThemeText()
     {
-        var theme = Themes.Resolve(Config.Theme.Value);
-        return theme.Fallback ? $"{Config.Theme.Value} (fallback {theme.Name})" : theme.Name;
+        var theme = Themes.Resolve(LookSettings.Theme.Value);
+        return theme.Fallback ? $"{LookSettings.Theme.Value} (fallback {theme.Name})" : theme.Name;
     }
 
     // theme list | reload | problems. The dev verbs set and check are in src/Dev; the registry answers them as unknown
@@ -44,7 +44,7 @@ internal static class UiCommands
         switch (verb)
         {
             case "list":
-                string selected = Themes.Resolve(Config.Theme.Value).Name;
+                string selected = Themes.Resolve(LookSettings.Theme.Value).Name;
                 return "ok themes: " + string.Join(", ", Themes.All.Select(t =>
                     $"{t.Name} ({(t.IsPreset ? "preset" : "file")}{(t.Name == selected ? ", selected" : string.Empty)}{(t.Problems.Count > 0 ? $", problems {t.Problems.Count}" : string.Empty)})"));
             case "reload":

@@ -15,7 +15,7 @@ internal static class ThemeVerbs
         {
             string name = call.Rest(2);
             if (Themes.Find(name) is not { } theme) return new CommandResult($"error unknown theme {name}") { Settle = SettleFrames };
-            Config.Theme.Value = theme.Name;
+            LookSettings.Theme.Value = theme.Name;
             return new CommandResult($"ok theme {theme.Name}") { Settle = SettleFrames };
         });
         Commands.AddDevVerb("theme", "check", owner, _ =>
