@@ -1,43 +1,51 @@
-[size=5][b]Epoch Assist[/b][/size]
+[center]{{image:logo}}
+[size=3]Macros, autocast and session tracking for Last Epoch, in one clean in-game menu.[/size]
+[size=2][color=#8e96a4]Version {{version}} · tested with Last Epoch {{game_version}} · a [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod · open source[/color][/size]
 
-A [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod suite for Last Epoch. Version {{version}}, tested with Last Epoch {{game_version}}.
+[b][color=#ee5396]Using mods online is against Last Epoch's terms of service.[/color][/b]
 
-[b]Using mods online is against Last Epoch's terms of service.[/b]
-
-[size=4][b]Install[/b][/size]
+{{image:macros}}
+[/center]
+[line]
+[size=5][b][color=#5ba8a4]Macros[/color][/b][/size]
+Everything automated lives on the [b]Macros[/b] tab.
+[list]
+[*][b][color=#25be6a]Slots[/color][/b]: [font=Courier New]Left Ctrl[/font] + a skill's key turns that slot on or off. Each slot has its own conditions, and [b]Shared Conditions[/b] (such as the enemy gate) apply to all of them.
+[*][b][color=#25be6a]Macros[/color][/b]: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until, or show a message.
+[*][b][color=#25be6a]Conditions[/color][/b]: health, mana, ward, buffs, skills, potions, enemies (nearest or under the cursor, their health, mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
+[*][b][color=#25be6a]Sharing[/color][/b]: [b]Copy share code[/b] puts a set on the clipboard; [b]Import set[/b] adds one, switched off.
+[*][b][color=#25be6a]Potions[/color][/b]: a ready-made Auto potion drinks when a whole potion's heal is missing or health is low. It comes switched off.
+[*][b][color=#25be6a]Debugging[/color][/b]: the footer switches show each macro's state, the enemy ranges in use, and a notification naming the line that started each macro.
+[/list]
+{{media:macro-editor}}
+[line]
+[size=5][b][color=#5ba8a4]Session[/color][/b][/size]
+The [b]Session[/b] tab shows this session's XP and gold per hour, drops by rarity, the drops your loot filter shows, deaths and echoes, and your past sessions. [b]Export CSV[/b] writes them as two spreadsheet files.
+[line]
+[size=5][b][color=#5ba8a4]Config[/color][/b][/size]
+Open the [b]Config[/b] tab at the top of the menu. The search box there finds any setting.
+[list]
+[*][b][color=#25be6a]Mini HUD[/color][/b]: shows the macros' state and slots while the menu is closed. Click it for quick toggles. Its notifications have their own position, duration, how many show at once, which kinds and order.
+{{media:hud}}
+{{media:settings-hud}}
+[*][b][color=#25be6a]Appearance[/color][/b]: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations. [b]Colour vision[/b] picks rarity and danger colours that stay apart for deuteranopia, protanopia or tritanopia in the mod's own overlays.
+{{media:appearance}}
+[*][b][color=#25be6a]Keybinds[/color][/b]: change any key.
+{{media:keybinds}}
+[*][b][color=#25be6a]Diagnostics[/color][/b]: [b]Copy diagnostics[/b] puts the mod's state on the clipboard for a bug report, without names or folder paths. [b]Mods[/b] lists the other mods loaded and where they patch the same game code. Nothing is sent anywhere.
+{{media:diagnostics}}
+[*][b][color=#25be6a]Profiles[/color][/b]: one setup per character. Export and import to share.
+{{media:profiles}}
+[/list]
+[line]
+[size=5][b][color=#5ba8a4]Install[/color][/b][/size]
 [list=1]
 [*]Install the [url=https://github.com/LavaGang/MelonLoader/releases/latest]latest MelonLoader[/url] into the game folder and start the game once.
 [*]Extract the zip into your Last Epoch folder (where [font=Courier New]Last Epoch.exe[/font] is).
 [*]In game, press [b]F2[/b] to open the menu.
 [/list]
-[size=4][b]Features[/b][/size]
-[list]
-[*][b]Macros[/b]: everything automated lives on the Macros tab.
-[list]
-[*][b]Slots[/b]: [font=Courier New]Left Ctrl[/font] + a skill's key turns that slot on or off. Each slot has its own conditions, and [b]Shared Conditions[/b] (such as the enemy gate) apply to all of them.
-[*][b]Macros[/b]: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until, or show a message.
-[*][b]Conditions[/b]: health, mana, ward, buffs, skills, potions, enemies (nearest or under the cursor, their health, mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
-[*][b]Sharing[/b]: [b]Copy share code[/b] puts a set on the clipboard; [b]Import set[/b] adds one, switched off.
-[*][b]Potions[/b]: a ready-made Auto potion drinks when a whole potion's heal is missing or health is low. It comes switched off.
-[*][b]Debugging[/b]: the footer switches show each macro's state, the enemy ranges in use, and a notification naming the line that started each macro.
-[/list]
-{{media:macros}}
-{{media:macro-editor}}
-[*][b]Session[/b]: the Session tab shows this session's XP and gold per hour, drops by rarity, the drops your loot filter shows, deaths and echoes, and your past sessions. [b]Export CSV[/b] writes them as two spreadsheet files.
-[/list][size=4][b]Settings[/b][/size]
-Open the Config tab at the top of the menu. The search box there finds any setting.
-[list]
-[*][b]Mini HUD[/b]: shows the macros' state and slots while the menu is closed. Click it for quick toggles. Its notifications have their own position, duration, how many show at once, which kinds and order.
-{{media:hud}}
-{{media:settings-hud}}
-[*][b]Appearance[/b]: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts and animations. [b]Colour vision[/b] picks rarity and danger colours that stay apart for deuteranopia, protanopia or tritanopia in the mod's own overlays.
-{{media:appearance}}
-[*][b]Keybinds[/b]: change any key.
-{{media:keybinds}}
-[*][b]Diagnostics[/b]: [b]Copy diagnostics[/b] puts the mod's state on the clipboard for a bug report, without names or folder paths. [b]Mods[/b] lists the other mods loaded and where they patch the same game code. Nothing is sent anywhere.
-{{media:diagnostics}}
-[*][b]Profiles[/b]: one setup per character. Export and import to share.
-{{media:profiles}}
-[/list]
-
 The mod saves everything in [font=Courier New]UserData/EpochAssist/[/font] in the game folder.
+[line]
+[size=5][b][color=#5ba8a4]Bug reports and source[/color][/b][/size]
+[b]Config › General › Diagnostics › Copy diagnostics[/b], then paste it into an [url=https://github.com/wistb/EpochAssist/issues]issue on GitHub[/url]. Crash reports are in [font=Courier New]UserData/EpochAssist/reports/[/font].
+Source code and builds are [url=https://github.com/wistb/EpochAssist]on GitHub[/url] (GPL-3.0).

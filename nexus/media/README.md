@@ -12,7 +12,7 @@ under the feature's line in the README:
   </details>
 ```
 
-On Nexus, `tools/fill-nexus.sh` turns `{{media:<name>}}` into an image linked from GitHub (at the release tag, or at the
+A `{{image:<name>}}` line shows the image in place instead of in a spoiler (the page's lead image). On Nexus, `tools/fill-nexus.sh` turns `{{media:<name>}}` into an image linked from GitHub (at the release tag, or at the
 exact commit for a page-only or dry run) and leaves the line out while `<name>.png` doesn't exist. The links only load
 for visitors while the repository is public.
 
@@ -23,6 +23,7 @@ is drawn (`tools/shot.sh …`; shots land in `UserData/EpochAssist/dev/shots/`):
 
 | Name | Shows | Take it with |
 |---|---|---|
+| `logo` | The nebula wordmark, the page's title (not a screenshot) | a copy of `src/Ui/Theme/Assets/logo-wordmark@4x.png` |
 | `macros` | Macros › Library with Slots, Potions and a filled-out example set (made for the shot, removed after; slots 1 and 5 ticked) | `menu open macros/library/library`, `wait 90`, `shot menu macros matte` |
 | `macro-editor` | One macro's editor with an all-of tree, a nested any-of group and live values | `macro edit <set>/<macro>`, `wait 90`, `shot menu macro-editor matte` |
 | `hud` | The mini HUD with its quick toggles open (slots 1 and 3 ticked for the shot) | `run autocast.slot.1`, `run autocast.slot.3`, `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close`, the two slots off again |
