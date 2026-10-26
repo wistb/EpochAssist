@@ -16,7 +16,7 @@ internal sealed class MenuTab
     public List<MenuNode> Nodes { get; } = new();
 }
 
-/// <summary>A node in the tree: a feature's entry (or one of the Settings tab's), with its pages.</summary>
+/// <summary>A node in the tree: a feature's entry (or one of General's), with its pages.</summary>
 internal sealed class MenuNode
 {
     public MenuNode(MenuTab tab, MenuEntry entry, Feature? feature, string title)
@@ -25,15 +25,24 @@ internal sealed class MenuNode
         Entry = entry;
         Feature = feature;
         Title = title;
-        Path = $"{tab.Id}/{MenuEntry.Slug(title)}";
+        FolderPath = entry.Folder != null ? $"{tab.Id}/{MenuEntry.Slug(entry.Folder)}" : null;
+        Path = $"{FolderPath ?? tab.Id}/{MenuEntry.Slug(title)}";
     }
 
     public MenuTab Tab { get; }
     public MenuEntry Entry { get; }
-    /// <summary>The feature the entry belongs to; null for the menu's own Settings entries.</summary>
+    /// <summary>The feature the entry belongs to; null for the menu's own entries.</summary>
     public Feature? Feature { get; }
     public string Title { get; }
     public string Path { get; }
+    /// <summary>The folder the node sits in (General), or null.</summary>
+    public string? Folder => Entry.Folder;
+    /// <summary>The folder's path (its tree key), or null.</summary>
+    public string? FolderPath { get; }
+    /// <summary>"Config › General", the node's place without its own title.</summary>
+    public string Place => Folder != null ? $"{Tab.Title} › {Folder}" : Tab.Title;
+    /// <summary>"Config › General › Interface".</summary>
+    public string Crumb => $"{Place} › {Title}";
     public List<PageNode> Pages { get; } = new();
     /// <summary>One page with the node's own title: the node is the page, with nothing to expand.</summary>
     public bool Leaf => Pages.Count == 1 && Entry.Groups.Count == 0 && Pages[0].Page.Title == Title;
@@ -70,25 +79,22 @@ internal sealed class PageNode
         _ => Array.Empty<Setting>(),
     };
 
-    /// <summary>"Combat › Autocast", for the breadcrumb.</summary>
-    public string Crumb => Node.Leaf ? Node.Tab.Title : $"{Node.Tab.Title} › {Node.Title}";
+    /// <summary>"Config › Autocast", for the breadcrumb.</summary>
+    public string Crumb => Node.Leaf ? Node.Place : Node.Crumb;
 }
 
 /// <summary>
-/// The menu's tree, built from every feature's <see cref="Feature.Menu"/> and the Settings tab's own declarations, in the
-/// fixed tab order. Paths are tab/node/page slugs. Declaration problems (a duplicate path, an unknown tab or block, a
-/// row kind with no renderer, a section from another group, a switch without a quick label) are logged once, listed in
-/// Diagnostics and shown on the page they break; every other page works.
+/// The menu's tree, built from every feature's <see cref="Feature.Menu"/> and General's own declarations, in the
+/// fixed tab order. Paths are tab/node/page slugs (tab/folder/node/page in a folder). Declaration problems (a duplicate
+/// path, an unknown tab or block, a row kind with no renderer, a section from another group, a switch without a quick
+/// label) are logged once, listed in Diagnostics and shown on the page they break; every other page works.
 /// </summary>
 internal static class MenuTree
 {
     private static readonly (string Id, string Title)[] s_tabs =
     {
-        (MenuCategory.Combat, "Combat"), (MenuCategory.Sessions, "Session"), (MenuCategory.Overlays, "Overlays"), (MenuCategory.Map, "Map"), (MenuCategory.Visuals, "Visuals"),
-        (MenuCategory.Stats, "Stats"), (MenuCategory.Settings, "Settings"),
-#if DEV
-        (MenuCategory.Dev, "Dev"),
-#endif
+        (MenuCategory.Combat, "Config"), (MenuCategory.Sessions, "Session"), (MenuCategory.Overlays, "Overlays"), (MenuCategory.Map, "Map"),
+        (MenuCategory.Visuals, "Visuals"), (MenuCategory.Stats, "Stats"),
     };
 
     private static List<MenuTab> s_built = new();
@@ -98,7 +104,7 @@ internal static class MenuTree
     private static readonly HashSet<string> s_logged = new();
     private static int s_generation;
 
-    /// <summary>Tabs with nodes (Settings always), in order.</summary>
+    /// <summary>Tabs with nodes, in order.</summary>
     public static IReadOnlyList<MenuTab> Tabs
     {
         get
@@ -149,7 +155,10 @@ internal static class MenuTree
         var entries = FeatureHost.All.Where(f => f.Menu != null).Select(f => (Entry: f.Menu!, Feature: (Feature?)f, Title: f.Menu!.Title ?? f.Name))
             .Concat(SettingsContent.Entries.Select(e => (Entry: e, Feature: (Feature?)null, Title: e.Title ?? string.Empty)))
             .Select((e, index) => (e.Entry, e.Feature, e.Title, Index: index))
-            .OrderBy(e => e.Entry.Order).ThenBy(e => e.Index);
+            .OrderBy(e => e.Entry.Order).ThenBy(e => e.Index)
+            // A folder's entries sit together, at its first entry's place.
+            .GroupBy(e => e.Entry.Folder != null ? $"{e.Entry.Category}/{e.Entry.Folder}" : $"#{e.Index}")
+            .SelectMany(g => g);
         foreach (var (entry, feature, title, _) in entries)
         {
             var tab = tabs.FirstOrDefault(t => t.Id == entry.Category);
@@ -175,7 +184,7 @@ internal static class MenuTree
             if (!paths.Add(page.Path)) PageProblem(page, $"another page has the path {page.Path}");
             pages.Add(page);
         }
-        s_built = tabs.Where(t => t.Nodes.Count > 0 || t.Id == MenuCategory.Settings).ToList();
+        s_built = tabs.Where(t => t.Nodes.Count > 0).ToList();
         s_pages = s_built.SelectMany(t => t.Nodes).SelectMany(n => n.Pages).ToList();
     }
 

@@ -3,15 +3,13 @@ namespace EpochAssist.Core;
 /// <summary>The menu's top tabs, by id. Their order and titles are the menu's; a feature names one in its entry.</summary>
 internal static class MenuCategory
 {
+    /// <summary>The Config tab (the id is from when it was called Combat).</summary>
     public const string Combat = "combat";
     public const string Sessions = "session";
     public const string Overlays = "overlays";
     public const string Map = "map";
     public const string Visuals = "visuals";
     public const string Stats = "stats";
-    public const string Settings = "settings";
-    /// <summary>Dev builds only.</summary>
-    public const string Dev = "dev";
 }
 
 /// <summary>
@@ -21,6 +19,9 @@ internal static class MenuCategory
 /// </summary>
 internal sealed class MenuEntry
 {
+    /// <summary>The Config tab's folder for the menu's own entries (Profiles, Interface, Diagnostics).</summary>
+    public const string General = "General";
+
     public MenuEntry(string category, int order = 0)
     {
         Category = category;
@@ -32,6 +33,9 @@ internal sealed class MenuEntry
     public int Order { get; }
     /// <summary>The tree node's text; null for the feature's name.</summary>
     public string? Title { get; init; }
+    /// <summary>A folder in the tab's tree to sit in (General); null for none. A folder's entries sit together, at its
+    /// first entry's place.</summary>
+    public string? Folder { get; init; }
     /// <summary>The feature's master switch, shown by the node's dot; it must have a QuickLabel (it runs that action).</summary>
     public Toggle? Switch { get; init; }
     /// <summary>When false, the pages' rows draw dimmed and take no input.</summary>

@@ -40,8 +40,8 @@ internal abstract class Feature
     /// <summary>The feature's place in the menu, or null for none. Read in every state, so a stopped feature keeps it.</summary>
     public virtual MenuEntry? Menu => null;
 
-    /// <summary>The player can turn the whole feature off: it has an entry outside the Settings tab.</summary>
-    public bool CanTurnOff => Menu != null && Menu.Category != MenuCategory.Settings;
+    /// <summary>The player can turn the whole feature off: it has an entry outside General.</summary>
+    public bool CanTurnOff => Menu != null && Menu.Folder != MenuEntry.General;
 
     /// <summary>A non-null name puts the feature on the HUD pill, showing its Status.</summary>
     public virtual string? StatusName => null;

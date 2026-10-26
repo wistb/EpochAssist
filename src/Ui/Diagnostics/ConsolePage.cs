@@ -5,7 +5,7 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// The console, Settings › Diagnostics › Console in the menu: type a command from the registry (help lists them) and read
+/// The console, General › Diagnostics › Console in the menu: type a command from the registry (help lists them) and read
 /// its reply. Dev commands answer only under the dev loader. Opened from the tab or by console.open (the console key),
 /// which also puts the keyboard in its input line.
 /// </summary>

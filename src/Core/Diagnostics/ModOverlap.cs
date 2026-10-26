@@ -104,7 +104,7 @@ internal static class ModOverlap
             foreach (var known in report.Known) Log.Info($"Known overlap: {known.Line}");
             foreach (string problem in report.Problems) Log.Warn($"Mod overlap check: {problem}");
             if (!report.ToastWorthy) return;
-            Toasts.Show("host", $"{JoinNames(report.OverlappingNames())} overlap{(report.OverlappingNames().Count == 1 ? "s" : string.Empty)} {BuildInfo.Name}; see Settings › Diagnostics › Mods.", ToastKind.Warning);
+            Toasts.Show("host", $"{JoinNames(report.OverlappingNames())} overlap{(report.OverlappingNames().Count == 1 ? "s" : string.Empty)} {BuildInfo.Name}; see Config › General › Diagnostics › Mods.", ToastKind.Warning);
         }
         catch (Exception e)
         {

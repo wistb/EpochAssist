@@ -12,7 +12,7 @@ internal static class KeySettings
     };
     public static readonly Hotkey ConsoleKey = new(Keys, "ConsoleKey", "Console key", string.Empty, HotkeyKind.Press, HotkeyScope.Global)
     {
-        Clearable = true, Action = "console.open", Help = "Opens Settings → Diagnostics → Console, ready to type.",
+        Clearable = true, Action = "console.open", Help = "Opens General → Diagnostics → Console, ready to type.",
     };
 
     // Explicit, so every field is set by the time Declare reads the section, before the group registers.

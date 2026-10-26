@@ -5,7 +5,7 @@ using static UnityEngine.GUI;
 namespace EpochAssist.Ui;
 
 // The full menu: tabs and search along the top, the tree on the left, the page on the right and the quick toggles at
-// the bottom. Features declare what it shows (Feature.Menu); the Settings tab is declared in SettingsContent.
+// the bottom. Features declare what it shows (Feature.Menu); General is declared in SettingsContent.
 internal static class Menu
 {
     private const int WindowId = 0x45417373;
@@ -58,7 +58,7 @@ internal static class Menu
     public static void Open(PageNode? page)
     {
         // Theme files may have changed since the list was read.
-        if (page?.Node.Tab.Id == MenuCategory.Settings && (!Visible || page != MenuRoutes.Page)) Themes.Rescan();
+        if (page?.Node.Folder == MenuEntry.General && (!Visible || page != MenuRoutes.Page)) Themes.Rescan();
         if (page != null) MenuRoutes.Show(page);
         SetVisible(true);
     }
@@ -244,17 +244,17 @@ internal static class Menu
     /// <summary>The Mini HUD page is shown with no search, so the HUD shows behind the menu as a preview.</summary>
     public static bool PreviewingHud => Visible && s_search.Trim().Length == 0 && MenuRoutes.Path == MenuRoutes.MiniHud;
 
-    /// <summary>Opens the menu on the Settings page of a General section.</summary>
+    /// <summary>Opens the menu on the page of a General group section.</summary>
     public static void OpenSettingsTab(Section section)
     {
         s_search = string.Empty;
         Open(MenuTree.Pages.FirstOrDefault(p => p.Page.Section == section || p.Rows.OfType<SettingRow>().Any(r => r.Setting.Section == section)));
     }
 
-    /// <summary>Opens the menu on Settings.</summary>
+    /// <summary>Opens the menu on General.</summary>
     public static void OpenSettings() => Open(MenuRoutes.Settings());
 
-    /// <summary>Opens the menu on Settings › Profiles.</summary>
+    /// <summary>Opens the menu on General › Profiles.</summary>
     public static void OpenProfiles()
     {
         s_search = string.Empty;
@@ -272,7 +272,7 @@ internal static class Menu
         FocusConsoleField = true;
     }
 
-    /// <summary>Shows one of the old Settings tabs, by index: Mini HUD, Appearance, Keybinds, Diagnostics, Profiles.</summary>
+    /// <summary>Shows one of the old Settings tabs' pages, by index: Mini HUD, Appearance, Keybinds, Diagnostics, Profiles.</summary>
     public static void SetSettingsTab(int tab)
     {
         s_search = string.Empty;

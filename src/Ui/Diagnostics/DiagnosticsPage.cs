@@ -5,7 +5,7 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// Diagnostics, Settings › Diagnostics in the menu: the mod's build and mode with the log level (Overview), each feature's
+/// Diagnostics, General › Diagnostics in the menu: the mod's build and mode with the log level (Overview), each feature's
 /// state with its switch (Features), other mods and where they overlap ours (Mods), crash reports (Reports), and a copy of
 /// it all as scrubbed text for a bug report.
 /// The feature owns the copy and open actions; the pages are the menu's blocks.

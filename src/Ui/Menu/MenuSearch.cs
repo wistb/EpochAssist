@@ -122,10 +122,10 @@ internal static class MenuSearch
         s_results = new List<SearchHit>();
     }
 
-    /// <summary>A hit's path line: tab › node › page, with (off) or (unavailable) for features in those states.</summary>
+    /// <summary>A hit's path line: tab › folder › node › page, with (off) or (unavailable) for features in those states.</summary>
     public static string PathLine(SearchHit hit)
     {
-        string line = hit.Page != null && !hit.Node.Leaf ? $"{hit.Node.Tab.Title} › {hit.Node.Title} › {hit.Page.Page.Title}" : $"{hit.Node.Tab.Title} › {hit.Node.Title}";
+        string line = hit.Page != null && !hit.Node.Leaf ? $"{hit.Node.Crumb} › {hit.Page.Page.Title}" : hit.Node.Crumb;
         return hit.Node.Feature is { } feature ? line + StateNote(feature) : line;
     }
 

@@ -44,8 +44,8 @@ internal sealed class CrashTestFeature : Feature
     }
     private static DispatchClient? s_uiClient;
 
-    // A dev-only page in the Dev tab: a list row over an in-memory list (nothing saved), for checking the list row by
-    // mouse, keys, search and the bridge.
+    // Dev-only pages, under Dev in the Config tab: a list row over an in-memory list (nothing saved), for checking the
+    // list row by mouse, keys, search and the bridge.
     public override MenuEntry? Menu => s_menu;
 
     private sealed class TestEntry
@@ -75,8 +75,9 @@ internal sealed class CrashTestFeature : Feature
 
     private static float Weight(Rarity rarity) => rarity switch { Rarity.Boss => 20f, Rarity.Rare => 5f, Rarity.Magic => 2f, _ => 1f };
 
-    private static readonly MenuEntry s_menu = new(MenuCategory.Dev, order: 90)
+    private static readonly MenuEntry s_menu = new(MenuCategory.Combat, order: 90)
     {
+        Title = "Dev",
         Pages =
         {
             new MenuPage("Conditions")

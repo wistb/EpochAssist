@@ -2,9 +2,9 @@ using EpochAssist.Core;
 
 namespace EpochAssist.Ui;
 
-// The menu's own entries, declared like a feature's: the Settings tab (Profiles, Interface with the General group's look,
-// HUD and key sections, and Diagnostics) and the Session tab (current session, past sessions, history and export).
-// Section ids, order and stored values are the General group's, unchanged.
+// The menu's own entries, declared like a feature's: Config › General (Profiles, Interface with the General
+// group's look, HUD and key sections, and Diagnostics) and the Session tab (current session, past sessions, history and
+// export). Section ids, order and stored values are the General group's, unchanged.
 internal static class SettingsContent
 {
     private static Section Section(string id) => Config.Group.Sections.First(s => s.Id == id);
@@ -18,14 +18,16 @@ internal static class SettingsContent
 
     private static List<MenuEntry> Build() => new()
     {
-        new MenuEntry(MenuCategory.Settings, order: 0)
+        new MenuEntry(MenuCategory.Combat, order: 80)
         {
             Title = "Profiles",
+            Folder = MenuEntry.General,
             Pages = { new MenuPage("Profiles") { Block = "profiles", Resettable = false } },
         },
-        new MenuEntry(MenuCategory.Settings, order: 1)
+        new MenuEntry(MenuCategory.Combat, order: 81)
         {
             Title = "Interface",
+            Folder = MenuEntry.General,
             Pages = { new MenuPage(HudSettings.Hud), Appearance(), new MenuPage(Section("keys")) },
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)
@@ -43,9 +45,10 @@ internal static class SettingsContent
             Title = "History",
             Pages = { SessionHistory() },
         },
-        new MenuEntry(MenuCategory.Settings, order: 2)
+        new MenuEntry(MenuCategory.Combat, order: 82)
         {
             Title = "Diagnostics",
+            Folder = MenuEntry.General,
             Pages =
             {
                 Overview(),

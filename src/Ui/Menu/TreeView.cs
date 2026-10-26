@@ -3,10 +3,11 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// The compact tree on the left (200 px): the menu's search, then the shown tab's nodes, each with its groups, items and
-// pages on 20 px rows. The search shows its results across every tab on the page and narrows the tree to the names that
-// match. A node carries its feature's on/off dot; a node that isn't running is dimmed and shows its state's shape.
-// The page shown has the selection fill. Left and Right close and open nodes, or move to the parent or first child.
+// The compact tree on the left (200 px): the menu's search, then the shown tab's folders and nodes, each node with its
+// groups, items and pages on 20 px rows. The search shows its results across every tab on the page and narrows the tree
+// to the names that match. A node carries its feature's on/off dot; a node that isn't running is dimmed and shows its
+// state's shape. The page shown has the selection fill. Left and Right close and open folders and nodes, or move to the
+// parent or first child.
 internal static class TreeView
 {
     public const float Width = 200f;
@@ -21,7 +22,7 @@ internal static class TreeView
 
     public static bool SearchFocused => GUI.GetNameOfFocusedControl() == SearchControl;
 
-    private enum Kind { Node, Group, Item, Page }
+    private enum Kind { Folder, Node, Group, Item, Page }
 
     private sealed record Row(Kind Kind, int Depth, string Key, string Label, MenuNode Node, PageNode? Page, TreeItem? Item, string? Parent, float Open);
 
@@ -36,11 +37,12 @@ internal static class TreeView
         s_open.Clear();
     }
 
-    /// <summary>On opening the menu: the shown page's node opens.</summary>
+    /// <summary>On opening the menu: the shown page's node (and its folder) opens.</summary>
     public static void Reveal(PageNode? page)
     {
         if (page == null) return;
         s_closed.Remove(page.Node.Path);
+        if (page.Node.FolderPath is { } folder) s_closed.Remove(folder);
     }
 
     private static bool Closed(string key) => s_closed.Contains(key) && Menu.Search.Length == 0;
@@ -59,30 +61,48 @@ internal static class TreeView
     {
         string[] words = MenuSearchText.Words(Menu.Search);
         var rows = new List<Row>();
+        // Each folder's openness, read once per pass (reading it eases it).
+        var folders = new Dictionary<string, float>();
         foreach (var node in tab.Nodes)
         {
-            bool nodeMatch = MenuSearchText.Matches(node.Title, words);
+            // A folder's name matching shows all its nodes.
+            bool nodeMatch = MenuSearchText.Matches(node.Title, words) || (node.Folder != null && MenuSearchText.Matches(node.Folder, words));
             var items = node.Entry.Groups.Select(g => (Group: g, Items: Safe.Call(g.Items, Array.Empty<TreeItem>(), node.Path + "." + g.Title))).ToList();
             var pages = node.Leaf ? new List<PageNode>() : node.Pages.Where(p => p.Page.InTree && (nodeMatch || MenuSearchText.Matches(p.Page.Title, words))).ToList();
             var groups = items.Select(g => (g.Group, Items: g.Items.Where(i => nodeMatch || MenuSearchText.Matches(g.Group.Title, words)
                 || MenuSearchText.Matches(i.Label, words)).ToList())).Where(g => g.Items.Count > 0 || nodeMatch).ToList();
             if (!nodeMatch && pages.Count == 0 && groups.All(g => g.Items.Count == 0)) continue;
 
+            // A node in a folder sits one level in, under the folder's row (added with its first shown node).
+            int depth = 0;
+            float folderOpen = 1f;
+            string? folderKey = node.FolderPath;
+            if (folderKey != null)
+            {
+                if (!folders.TryGetValue(folderKey, out folderOpen))
+                {
+                    rows.Add(new Row(Kind.Folder, 0, folderKey, node.Folder!, node, null, null, null, 1f));
+                    folders[folderKey] = folderOpen = Openness(folderKey);
+                }
+                depth = 1;
+                if (folderOpen <= 0.01f) continue;
+            }
+
             string nodeKey = node.Path;
-            rows.Add(new Row(Kind.Node, 0, nodeKey, node.Title, node, node.Leaf ? node.Pages[0] : null, null, null, 1f));
+            rows.Add(new Row(Kind.Node, depth, nodeKey, node.Title, node, node.Leaf ? node.Pages[0] : null, null, folderKey, folderOpen));
             if (node.Leaf) continue;
-            float open = Openness(nodeKey);
+            float open = folderOpen * Openness(nodeKey);
             if (open <= 0.01f) continue;
             foreach (var (group, groupItems) in groups)
             {
                 string groupKey = $"{nodeKey}/{MenuEntry.Slug(group.Title)}";
-                rows.Add(new Row(Kind.Group, 1, groupKey, group.Title, node, null, null, nodeKey, open));
+                rows.Add(new Row(Kind.Group, depth + 1, groupKey, group.Title, node, null, null, nodeKey, open));
                 float groupOpen = open * Openness(groupKey);
                 if (groupOpen <= 0.01f) continue;
                 for (int i = 0; i < groupItems.Count; i++)
-                    rows.Add(new Row(Kind.Item, 2, $"{groupKey}/{i + 1}", groupItems[i].Label, node, null, groupItems[i], groupKey, groupOpen));
+                    rows.Add(new Row(Kind.Item, depth + 2, $"{groupKey}/{i + 1}", groupItems[i].Label, node, null, groupItems[i], groupKey, groupOpen));
             }
-            foreach (var page in pages) rows.Add(new Row(Kind.Page, 1, page.Path, page.Page.Title, node, page, null, nodeKey, open));
+            foreach (var page in pages) rows.Add(new Row(Kind.Page, depth + 1, page.Path, page.Page.Title, node, page, null, nodeKey, open));
         }
         return rows;
     }
@@ -186,7 +206,7 @@ internal static class TreeView
         MenuNode node = row.Node;
         bool selected = row.Page != null && row.Page.Path == current;
         float x = r.x + 2f + row.Depth * Indent;
-        bool expandable = row.Kind == Kind.Group || (row.Kind == Kind.Node && !node.Leaf);
+        bool expandable = row.Kind is Kind.Folder or Kind.Group || (row.Kind == Kind.Node && !node.Leaf);
         var chevron = new Rect(x, r.y, 12f, r.height);
         bool chevronClicked = expandable && GUI.Button(chevron, GUIContent.none, GUIStyle.none);
         bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
@@ -207,7 +227,7 @@ internal static class TreeView
         }
 
         if (Event.current.type != EventType.Repaint) return;
-        bool live = node.Feature == null || node.Feature.State == FeatureState.Running;
+        bool live = row.Kind == Kind.Folder || node.Feature == null || node.Feature.State == FeatureState.Running;
         Color previous = GUI.color;
         if (!live && row.Kind != Kind.Page) GUI.color = new Color(previous.r, previous.g, previous.b, previous.a * 0.45f);
         if (Widgets.Themed)
@@ -217,7 +237,8 @@ internal static class TreeView
             if (expandable) Theme.Tinted(new Rect(chevron.x + 2f, Mathf.Round(r.center.y - 4f), 8f, 8f), Closed(row.Key) ? Theme.TreeChevronRight : Theme.TreeChevron, Theme.Dim);
         }
         x += 16f;
-        GUIStyle style = Widgets.Style(() => row.Kind == Kind.Node ? Theme.TreeNode : Theme.TreeRow, GUI.skin.label);
+        bool heading = row.Kind is Kind.Folder or Kind.Node;
+        GUIStyle style = Widgets.Style(() => heading ? Theme.TreeNode : Theme.TreeRow, GUI.skin.label);
         if (row.Item is { } item && item.Number != null)
         {
             bool on = item.State != StatusState.Off;
@@ -225,7 +246,7 @@ internal static class TreeView
             Widgets.Paint(new Rect(x - 2f, r.y, 12f, r.height), Widgets.Themed ? Widgets.Colored(item.Number, number) : item.Number, Widgets.Style(() => Theme.TreeNumber, GUI.skin.label));
             x += 14f;
         }
-        Color text = selected ? Theme.Text : row.Kind == Kind.Node ? Theme.Text : row.Item is { State: StatusState.Off } ? Theme.Dim : Theme.Secondary;
+        Color text = selected ? Theme.Text : heading ? Theme.Text : row.Item is { State: StatusState.Off } ? Theme.Dim : Theme.Secondary;
         float dotRoom = 18f;
         Widgets.Paint(new Rect(x, r.y, r.xMax - x - dotRoom, r.height), Controls.Fit(row.Label, style, r.xMax - x - dotRoom),
             Widgets.Themed && (selected || row.Item is { State: StatusState.Off }) ? Recoloured(style, text) : style);
@@ -265,11 +286,13 @@ internal static class TreeView
         if (!s_closed.Remove(key)) s_closed.Add(key);
     }
 
-    // A node opens its last or first page (and opens in the tree); a group opens and closes; an item opens its page.
+    // A node opens its last or first page (and opens in the tree); a folder or group opens and closes; an item opens its
+    // page.
     private static void Pick(Row row)
     {
         switch (row.Kind)
         {
+            case Kind.Folder:
             case Kind.Group:
                 Toggle(row.Key);
                 return;

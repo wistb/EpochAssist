@@ -6,10 +6,10 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// Settings › Profiles, the menu's profiles block: the profile in use (the playing character's in game, the one being
-/// edited out of it) with New, Duplicate, Rename and Delete; export as a checkbox tree of every setting; import from the
-/// clipboard or an export file, into the profile in use or a new one. Every setting on every page belongs to the profile
-/// in use.
+/// Config › General › Profiles, the menu's profiles block: the profile in use (the playing character's in game, the one
+/// being edited out of it) with New, Duplicate, Rename and Delete; export as a checkbox tree of every setting; import
+/// from the clipboard or an export file, into the profile in use or a new one. Every setting on every page belongs to the
+/// profile in use.
 /// </summary>
 internal static class ProfilesPage
 {
