@@ -25,12 +25,12 @@ is drawn (`tools/shot.sh …`; shots land in `UserData/EpochAssist/dev/shots/`):
 |---|---|---|
 | `macros` | Macros › Library with Slots, Potions and a filled-out example set (made for the shot, removed after; slots 1 and 5 ticked) | `menu open macros/library/library`, `wait 90`, `shot menu macros matte` |
 | `macro-editor` | One macro's editor with an all-of tree, a nested any-of group and live values | `macro edit <set>/<macro>`, `wait 90`, `shot menu macro-editor matte` |
-| `hud` | The mini HUD with its quick toggles open | `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close` |
-| `profiles` | Settings › Profiles | `run menu.profiles`, `wait 90`, `shot menu profiles matte` |
-| `appearance` | Settings › Interface › Appearance | `menu open settings 1`, `wait 90`, `shot menu appearance matte` |
-| `keybinds` | Settings › Interface › Keybinds | `menu open settings 2`, `wait 90`, `shot menu keybinds matte` |
-| `diagnostics` | Settings › Diagnostics › Overview (a dev build's summary says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time) | `run diagnostics.open`, `wait 900`, `shot menu diagnostics matte` |
-| `settings-hud` | Config › General › Interface › Mini HUD, second image under Mini HUD (the HUD preview can poke a few pixels past the menu's left edge; trim the image to the menu's 1600 px) | `menu open settings 0`, `wait 90`, `shot menu settings-hud matte` |
+| `hud` | The mini HUD with its quick toggles open (slots 1 and 3 ticked for the shot) | `run autocast.slot.1`, `run autocast.slot.3`, `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close`, the two slots off again |
+| `profiles` | Config › General › Profiles | `menu open combat/general/profiles`, `wait 90`, `shot menu profiles matte` |
+| `appearance` | Config › General › Interface › Appearance | `menu open combat/general/interface/appearance`, `wait 90`, `shot menu appearance matte` |
+| `keybinds` | Config › General › Interface › Keybinds | `menu open combat/general/interface/keybinds`, `wait 90`, `shot menu keybinds matte` |
+| `diagnostics` | Config › General › Diagnostics › Overview, offline (the summary names the mode; a dev build's says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time; an unfocused game runs few frames a second, so the wait takes longer) | `menu open combat/general/diagnostics/overview`, `wait 900`, `shot menu diagnostics matte` |
+| `settings-hud` | Config › General › Interface › Mini HUD, second image under Mini HUD (the HUD preview pokes 4 px past the menu's left and top edges; trim the image to the menu's 1600 × 1360) | `menu open combat/general/interface/mini-hud`, `wait 90`, `shot menu settings-hud matte` |
 
-A dev build shows a Dev tab in the menu; players don't have it. Not shipped in the zip. The Nexus gallery images and the page header and banner (`../banner-1300x372.png`,
+A dev build lists a Dev section in the Config tree; players don't have it: `menu devpages off` hides it for the shots (`menu devpages on` after). Not shipped in the zip. The Nexus gallery images and the page header and banner (`../banner-1300x372.png`,
 `../header-1920x1080.png`) are uploaded by hand.
