@@ -61,19 +61,16 @@ internal static partial class AutoCast
         // The run's jobs, made in Start; the host drops them with the feature.
         public Job? SlotRefresh, EnemyScan;
 
-        // Enemies near the player from the world model, counted a few times a second while the enemy gate is on.
-        public int EnemiesInRange;
-        public float EnemyWeightInRange;
-        public bool EnemyGateOpen = true;
+        // Enemies near the player from the world model, counted a few times a second for the ranges conditions use.
+        public readonly WorldTally Tally = new();
+        public readonly List<float> Ranges = new();
         // Closest enemy within aim range as of the last count; checked again (not gone, not dead) before aiming.
         public WorldEntry? ClosestEnemy;
+        public readonly Verdicts Verdicts = new();
     }
 
     private static Run? s_run;
 
-    public static int EnemiesInRange => s_run?.EnemiesInRange ?? 0;
-    public static float EnemyWeightInRange => s_run?.EnemyWeightInRange ?? 0f;
-    public static bool EnemyGateOpen => s_run?.EnemyGateOpen ?? true;
 
     /// <summary>The closest enemy within aim range as of the last count and its distance, or null (for the dev gate verb).</summary>
     internal static (string? Name, float Distance)? ClosestEnemy =>
@@ -147,6 +144,7 @@ internal static partial class AutoCast
         }
 
         UpdateEnemyGate(run);
+        CheckEvery(run);
         RequestCasts(run);
 
         // Cosmetic only: a failure here must never stop casting.
@@ -160,17 +158,18 @@ internal static partial class AutoCast
         }
     }
 
-    /// <summary>Draws the enemy-gate range as a ring on the ground around the player.</summary>
+    /// <summary>Draws the enemy gate's range as a ring on the ground around the player, while the gate entry is on.</summary>
     public static void OnGUI()
     {
         var run = s_run;
-        if (run == null || !run.Active || !S.RequireEnemies.Value || !S.ShowRangeRing.Value) return;
+        if (run == null || !run.Active || !S.ShowRangeRing.Value) return;
         if (Event.current == null || Event.current.type != EventType.Repaint) return;
+        if (GateIndex(out var gate) is not int index || !gate!.On || gate.Invalid != null) return;
         if (Player.Transform is not Transform player) return;
 
         Vector3 center = player.position;
-        float radius = S.EnemyRange.Value;
-        Color color = run.EnemyGateOpen ? s_rangeRingCastingColor : s_rangeRingHoldingColor;
+        float radius = gate.Values.Number("range");
+        Color color = Conditions.Counts(gate, run.Verdicts.Every[index]) ? s_rangeRingCastingColor : s_rangeRingHoldingColor;
 
         Draw.WorldCircle(center, radius, color, RangeRingWidth, RangeRingSegments);
     }
@@ -198,8 +197,8 @@ internal static partial class AutoCast
             // Restoring a character's slots never starts casting by itself.
             new PauseRule("entry-pause", "press any skill to resume", RuleKind.Latched, () => run.EntryPaused),
             new PauseRule("hold-key", () => S.HoldToPauseKey.Display + " held", RuleKind.Momentary, () => Hotkeys.Held(S.HoldToPauseKey)),
-            new PauseRule("enemy-gate", "not enough enemies in range", RuleKind.Momentary,
-                () => S.RequireEnemies.Value && !run.EnemyGateOpen),
+            // The every-slot list in the old enemy gate's place; with the gate failing its reason reads as before.
+            new PauseRule("every-slot", () => run.Verdicts.Reason, RuleKind.Momentary, () => run.Active && !run.Verdicts.EveryVerdict.Passed),
         })
         {
             Slots = CurrentToggles,
@@ -223,6 +222,9 @@ internal static partial class AutoCast
             if (s_run == run && S.Enabled.Value) LogStatusChanges(run);
         });
 
+        RegisterConditionTargets(feature);
+        // Toggle keys in conditions start off with every run.
+        ConditionToggles.Clear();
         Actions.Register(feature.Id, "autocast.toggle", "Autocast", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
         for (int i = 0; i < SlotCount; i++)
         {
@@ -288,6 +290,8 @@ internal static partial class AutoCast
     public static void Shutdown()
     {
         Hotkeys.SetSlotChords(null, null);
+        ConditionTargets.Remove("autocast");
+        ConditionKeys.Remove("autocast");
         var run = s_run;
         if (run == null) return;
         if (run.Client != null) Dispatcher.Unregister(run.Client);
@@ -324,8 +328,8 @@ internal static partial class AutoCast
     {
         run.SlotRefresh?.Due();
         run.EnemyScan?.Due();
-        run.EnemiesInRange = 0;
-        run.EnemyWeightInRange = 0f;
+        run.Tally.Clear();
+        run.Verdicts.Clear();
         run.ClosestEnemy = null;
         Array.Clear(run.ToggleKeyDown);
         for (int i = 0; i < SlotCount; i++)
@@ -384,6 +388,14 @@ internal static partial class AutoCast
         {
             ref Slot slot = ref run.Slots[i];
             if (!toggles[i])
+            {
+                run.Verdicts.Waiting[i] = false;
+                Dispatcher.Request(client, i, PressIntent.None, targetPosition, hitTransform);
+                continue;
+            }
+
+            // A slot whose own conditions fail is let go, as an untoggled one is: conditions only hold slots back.
+            if (!CheckSlot(run, i))
             {
                 Dispatcher.Request(client, i, PressIntent.None, targetPosition, hitTransform);
                 continue;
