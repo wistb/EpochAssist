@@ -92,6 +92,8 @@ internal static partial class DevCommands
             CommandResult.Ok($"profile: {Profiles.Describe()}"));
         Add("player", "player", "Shows how the player is found: the finder, the player objects, their components and actors.", _ =>
             CommandResult.Ok($"player: {PlayerFacts()}"));
+        Add("cond", ConditionCommands.CondUsage, "Lists, edits and checks condition lists by name.", ConditionCommands.Cond);
+        Add("why", ConditionCommands.WhyUsage, "Shows why each autocast slot casts or waits: its conditions' values and results.", ConditionCommands.Why);
         Add("model", ModelCommands.Usage, "Shows the player and world models, looks up game data, or simulates a missing model part.", ModelCommands.Run);
         Add("edits", ClientCommands.EditsUsage, "Applies, lists and removes test game edits (owned by the crash test feature), or writes a value past the registry.", ClientCommands.EditsCommand);
         Add("look", ClientCommands.LookUsage, "Outlines or tints the nearest enemies, recolours effects near the player, or changes an outline group's colour.", ClientCommands.LookCommand);
@@ -238,13 +240,15 @@ internal static partial class DevCommands
         return new CommandResult(panel.StartsWith("ok") ? $"ok {call.Line}" : panel) { Settle = SettleFrames };
     }
 
-    // gate: autocast's enemy gate as it decides, for comparing its gate transitions and aim across builds; the name is
-    // the one the nameplate shows.
+    // gate: autocast's enemy gate (the every-slot list's gate entry) as it decides, for comparing its transitions and aim
+    // across builds; the name is the one the nameplate shows.
     private static CommandResult Gate()
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         string closest = Features.AutoCast.ClosestEnemy is var (name, distance) ? $"\"{name ?? "?"}\" {distance.ToString("F1", inv)}m" : "none";
-        return CommandResult.Ok($"gate: open {Features.AutoCast.EnemyGateOpen}, count {Features.AutoCast.EnemiesInRange}, "
-            + $"weight {Features.AutoCast.EnemyWeightInRange.ToString("0.##", inv)}, closest {closest}, t {Time.unscaledTime.ToString("F2", inv)}");
+        var gate = Features.AutoCast.GateNow;
+        string counted = gate.Counted ? string.Empty : " (not counted)";
+        return CommandResult.Ok($"gate: open {gate.Open}, {(gate.On ? "on" : "off")}, range {gate.Range.ToString("0.##", inv)}, count {gate.Count}, "
+            + $"weight {gate.Weight.ToString("0.##", inv)}{counted}, closest {closest}, t {Time.unscaledTime.ToString("F2", inv)}");
     }
 }

@@ -64,11 +64,19 @@ internal static partial class Dispatcher
     /// <summary>Key-downs sent since ResetPressCounts.</summary>
     public static int PressesSinceReset { get; private set; }
 
-    /// <summary>Clears the peak and the total (dev `jobs reset`, for a baseline run).</summary>
+    /// <summary>Key-downs sent per slot since ResetPressCounts, with the spacing between a slot's presses (seconds).</summary>
+    public static readonly int[] SlotPresses = new int[SlotCount];
+    public static readonly float[] SlotGapSum = new float[SlotCount];
+    public static readonly float[] SlotMinGap = Enumerable.Repeat(float.MaxValue, SlotCount).ToArray();
+
+    /// <summary>Clears the peak and the totals (dev `jobs reset`, for a baseline run).</summary>
     public static void ResetPressCounts()
     {
         PeakPressesPerSecond = 0;
         PressesSinceReset = 0;
+        Array.Clear(SlotPresses);
+        Array.Clear(SlotGapSum);
+        Array.Fill(SlotMinGap, float.MaxValue);
     }
 
     private static int PressesSince(float since)
@@ -89,6 +97,17 @@ internal static partial class Dispatcher
         if (s_pressStored < PressRing) s_pressStored++;
         PressesSinceReset++;
         PeakPressesPerSecond = Math.Max(PeakPressesPerSecond, PressesSince(now - 1f));
+    }
+
+    private static void CountSlotPress(int slot, float now)
+    {
+        if (SlotPresses[slot] > 0)
+        {
+            float gap = now - LastPressAt[slot];
+            SlotGapSum[slot] += gap;
+            SlotMinGap[slot] = Math.Min(SlotMinGap[slot], gap);
+        }
+        SlotPresses[slot]++;
     }
 
     public static DispatchClient Register(DispatchClient client)
@@ -201,6 +220,7 @@ internal static partial class Dispatcher
                             SendBarCommand(i, keyDown: true, client.Target, client.Hit);
                             pressed = true;
                             client.Held[i] = true;
+                            CountSlotPress(i, now);
                             LastPressAt[i] = now;
                             LastPressFrame[i] = Time.frameCount;
                         }

@@ -59,10 +59,35 @@ internal sealed class CrashTestFeature : Feature
         new() { Kind = 0, Value = 40f }, new() { Kind = 1, Value = 25f }, new() { Kind = 2, Value = 10f },
     };
 
+    // A condition list of its own, the layer's second user: kept out of profiles and exports (shared), checked on its
+    // page with its own enemy tally, and reachable as the dev cond list "crashtest".
+    private static readonly SettingsGroup s_conditionGroup = new("EpochAssist_CrashTest", "Crash test") { ActionKey = "crashtest", Shared = true };
+    private static readonly ConditionSetting s_conditions = new(s_conditionGroup.Section("conditions", "Conditions"), "DevConditions", "Conditions", "{\"v\":1,\"lists\":{}}");
+    private const string ConditionKey = "crashtest";
+    private static readonly WorldTally s_tally = new();
+    private static readonly List<float> s_ranges = new();
+    private static readonly ConditionResult[] s_results = new ConditionResult[16];
+    private static ListVerdict s_verdict = ListVerdict.Pass;
+    private static bool s_running;
+
+    private static ConditionContext Context() => new(-1, s_running ? s_tally : null, Clock.Now);
+
+    private static float Weight(Rarity rarity) => rarity switch { Rarity.Boss => 20f, Rarity.Rare => 5f, Rarity.Magic => 2f, _ => 1f };
+
     private static readonly MenuEntry s_menu = new(MenuCategory.Dev, order: 90)
     {
         Pages =
         {
+            new MenuPage("Conditions")
+            {
+                Rows =
+                {
+                    new HintRow(() => "A dev condition list with its own enemy count, checked every frame while the crash test feature runs."),
+                    ConditionEditor.List(s_conditions, () => ConditionKey, Context, "Conditions", () => s_running),
+                    new LiveText("Verdict", () => s_verdict.Passed ? ("pass", StatusState.Active)
+                        : ($"fail (entry {s_verdict.FirstFailing + 1})", StatusState.Holding)),
+                },
+            },
             new MenuPage("List row")
             {
                 Rows =
@@ -89,8 +114,21 @@ internal sealed class CrashTestFeature : Feature
 
     public static void ArmHandler(int calls) => s_handlerThrows = calls;
 
+    public override void RegisterSettings() => s_conditionGroup.Register();
+
     public override void Start()
     {
+        s_running = true;
+        s_tally.Clear();
+        ConditionTargets.Register(new ConditionTargets.Target(Id, "crashtest", s_conditions, () => new[] { ConditionKey },
+            name => name == ConditionKey ? ConditionKey : null, _ => Context()));
+        ConditionKeys.Register(Id, s_conditions, _ => "crash test condition");
+        Scheduler.Every(this, "enemy count", 0.15f, () =>
+        {
+            s_ranges.Clear();
+            ConditionEditor.EnemyRanges(s_conditions.List(ConditionKey), s_ranges);
+            if (s_ranges.Count > 0) s_tally.Refresh(s_ranges, s_weight);
+        }, startNow: true);
         // An empty repeat job, so `jobs` can show a fault dropping it.
         Scheduler.Every(this, "tick", 1f, () => { });
         s_uiClient = Dispatcher.Register(new DispatchClient(this, PriorityClass.Skills, s_uiOn, Array.Empty<PauseRule>()));
@@ -105,8 +143,11 @@ internal sealed class CrashTestFeature : Feature
         throw new InvalidOperationException(message);
     }
 
+    private static readonly Func<Rarity, float> s_weight = Weight;
+
     public override void Update()
     {
+        s_verdict = Conditions.Check(s_conditions.List(ConditionKey), Context(), s_results);
         if (s_updateThrows <= 0) return;
         s_updateThrows--;
         throw new InvalidOperationException("crash test fault");
@@ -114,6 +155,11 @@ internal sealed class CrashTestFeature : Feature
 
     public override void Shutdown()
     {
+        s_running = false;
+        s_tally.Clear();
+        s_verdict = ListVerdict.Pass;
+        ConditionTargets.Remove(Id);
+        ConditionKeys.Remove(Id);
         s_updateThrows = s_handlerThrows = 0;
         if (s_uiClient != null) Dispatcher.Unregister(s_uiClient);
         s_uiClient = null;

@@ -37,6 +37,7 @@ internal static class EventCommands
         var lines = new List<string> { $"ok jobs: {featureJobs} jobs, {hostJobs} host job{(hostJobs == 1 ? string.Empty : "s")}, t={Clock.Now.ToString("F2", s_inv)}" };
         lines.AddRange(rows);
         lines.Add(PressesLine());
+        lines.Add(SlotsLine());
         return new CommandResult(DevOutput.Reply("jobs", lines));
     }
 
@@ -163,4 +164,15 @@ internal static class EventCommands
 
     private static string PressesLine() =>
         $"presses    last 1s {Dispatcher.PressesLastSecond}, peak {Dispatcher.PeakPressesPerSecond}/s, total {Dispatcher.PressesSinceReset} since reset, cap {Dispatcher.MaxPressesPerSecond}/s";
+
+    private static string SlotsLine() =>
+        "slots      " + string.Join("  ", Enumerable.Range(0, Dispatcher.SlotCount).Select(SlotPressText));
+
+    // "2: 41 presses, spacing mean 1.42 s min 0.61 s" since the last reset.
+    private static string SlotPressText(int i)
+    {
+        int n = Dispatcher.SlotPresses[i];
+        if (n < 2) return $"{i + 1}: {n}";
+        return $"{i + 1}: {n}, spacing mean {(Dispatcher.SlotGapSum[i] / (n - 1)).ToString("F2", s_inv)} s min {Dispatcher.SlotMinGap[i].ToString("F2", s_inv)} s";
+    }
 }
