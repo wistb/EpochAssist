@@ -7,7 +7,7 @@ namespace EpochAssist.Ui;
 internal static class MenuCommands
 {
     private const int SettleFrames = 2;
-    private const string Usage = "menu open <path>|<feature id>|settings [tab] | close | search [text] | tree [tab] | page | rows <path> | find <text>";
+    private const string Usage = "menu open <path>|<feature id>|settings [tab] | close | search [text] | tree [tab] | page | rows <path> | find <text> | devpages on|off";
 
     public static void Register() => Commands.Register(new Command("menu", Usage,
         "Opens, closes or searches the menu, or prints its tree, a page or search results as text.", CommandMark.Release, "host", Run));
@@ -28,6 +28,9 @@ internal static class MenuCommands
                 return CommandResult.Ok($"menu search: {count} results") with { Settle = SettleFrames };
             case "tree":
                 return new CommandResult(Tree(call.Lower(2)));
+            case "devpages" when call.Lower(2) is "on" or "off":
+                TreeView.HideDevPages = call.Lower(2) == "off";
+                return CommandResult.Ok($"menu devpages {call.Lower(2)}") with { Settle = SettleFrames };
             case "page":
                 return MenuRoutes.Page is { } shown ? new CommandResult(Page(shown, "page")) : CommandResult.Error("menu: no page");
             case "rows":

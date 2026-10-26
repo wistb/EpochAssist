@@ -57,6 +57,11 @@ internal static class TreeView
         return open * open * (3f - 2f * open);
     }
 
+    /// <summary>Leaves dev-only features' entries out of the tree (dev builds, for screenshots players would see).</summary>
+    internal static bool HideDevPages;
+
+    private static bool DevOnly(MenuNode node) => node.Feature?.GetType().Namespace == "EpochAssist.Dev";
+
     private static List<Row> Rows(MenuTab tab)
     {
         string[] words = MenuSearchText.Words(Menu.Search);
@@ -65,6 +70,7 @@ internal static class TreeView
         var folders = new Dictionary<string, float>();
         foreach (var node in tab.Nodes)
         {
+            if (HideDevPages && DevOnly(node)) continue;
             // A folder's name matching shows all its nodes.
             bool nodeMatch = MenuSearchText.Matches(node.Title, words) || (node.Folder != null && MenuSearchText.Matches(node.Folder, words));
             var items = node.Entry.Groups.Select(g => (Group: g, Items: Safe.Call(g.Items, Array.Empty<TreeItem>(), node.Path + "." + g.Title))).ToList();
