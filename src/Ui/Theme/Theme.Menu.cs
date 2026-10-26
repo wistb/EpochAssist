@@ -126,7 +126,7 @@ internal static partial class Theme
         TickMark = Paint(12, 12, (x, y) => Shade(Color.white, Tick(x, y)));
         // The tree's expanders: a smaller chevron than the dropdowns', drawn at its own size so it stays sharp.
         TreeChevron = Paint(8, 8, (x, y) => Shade(Color.white, SmallChevron(x + 0.5f, y + 0.5f)));
-        TreeChevronRight = Paint(8, 8, (x, y) => Shade(Color.white, SmallChevron(7.5f - y + 0.5f - 0.5f, x + 0.5f)));
+        TreeChevronRight = Paint(8, 8, (x, y) => Shade(Color.white, SmallChevron(x + 0.5f, y + 0.5f, right: true)));
         // Stepper arrows, white and tinted when drawn: small triangles (the game's fonts have no arrow glyphs).
         StepUp = Paint(8, 5, (x, y) => Shade(Color.white, Mathf.Clamp01(Triangle(x + 0.5f, y + 0.5f, up: true))));
         StepDown = Paint(8, 5, (x, y) => Shade(Color.white, Mathf.Clamp01(Triangle(x + 0.5f, y + 0.5f, up: false))));
@@ -166,8 +166,8 @@ internal static partial class Theme
         return Mathf.Clamp01(1.4f - d);
     }
 
-    // A down chevron in an 8 x 8 texture: two strokes meeting low in the middle (rows count from the bottom).
-    private static float SmallChevron(float px, float py)
+    // A chevron in an 8 x 8 texture: two strokes meeting low in the middle, or at the right (rows count from the bottom).
+    private static float SmallChevron(float px, float py, bool right = false)
     {
         static float Segment(float px, float py, float ax, float ay, float bx, float by)
         {
@@ -176,7 +176,9 @@ internal static partial class Theme
             float ex = px - (ax + t * dx), ey = py - (ay + t * dy);
             return Mathf.Sqrt(ex * ex + ey * ey);
         }
-        float d = Mathf.Min(Segment(px, py, 1.5f, 5.5f, 4f, 3f), Segment(px, py, 4f, 3f, 6.5f, 5.5f));
+        float d = right
+            ? Mathf.Min(Segment(px, py, 2.5f, 6.5f, 5f, 4f), Segment(px, py, 5f, 4f, 2.5f, 1.5f))
+            : Mathf.Min(Segment(px, py, 1.5f, 5.5f, 4f, 3f), Segment(px, py, 4f, 3f, 6.5f, 5.5f));
         return Mathf.Clamp01(1.25f - d);
     }
 
