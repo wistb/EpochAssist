@@ -2,8 +2,8 @@ using EpochAssist.Core;
 
 namespace EpochAssist.Ui;
 
-// The menu's own entries, declared like a feature's: the Settings tab (Interface with the General group's look, HUD and
-// key sections, Profiles and Diagnostics) and the Session tab (current session, past sessions, history and export).
+// The menu's own entries, declared like a feature's: the Settings tab (Profiles, Interface with the General group's look,
+// HUD and key sections, and Diagnostics) and the Session tab (current session, past sessions, history and export).
 // Section ids, order and stored values are the General group's, unchanged.
 internal static class SettingsContent
 {
@@ -20,13 +20,13 @@ internal static class SettingsContent
     {
         new MenuEntry(MenuCategory.Settings, order: 0)
         {
-            Title = "Interface",
-            Pages = { new MenuPage(HudSettings.Hud), Appearance(), new MenuPage(Section("keys")) },
+            Title = "Profiles",
+            Pages = { new MenuPage("Profiles") { Block = "profiles", Resettable = false } },
         },
         new MenuEntry(MenuCategory.Settings, order: 1)
         {
-            Title = "Profiles",
-            Pages = { new MenuPage("Profiles") { Block = "profiles", Resettable = false } },
+            Title = "Interface",
+            Pages = { new MenuPage(HudSettings.Hud), Appearance(), new MenuPage(Section("keys")) },
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)
         {

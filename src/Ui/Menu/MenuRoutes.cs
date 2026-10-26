@@ -93,12 +93,12 @@ internal static class MenuRoutes
         FeatureHost.Find(featureId) is { } feature && MenuTree.NodeOf(feature) is { } node ? First(node) : null;
 
     /// <summary>The Settings tab's last page shown, else Mini HUD.</summary>
-    public static PageNode? Settings() => (s_lastSettings != null ? MenuTree.Find(s_lastSettings) : null) ?? MenuTree.Find(MiniHud);
+    public static PageNode? Settings() => (s_lastSettings != null ? MenuTree.Find(s_lastSettings) : null) ?? MenuTree.Find(Profiles);
 
     /// <summary>An old Settings tab index (0–4).</summary>
     public static PageNode? SettingsTab(int index) => MenuTree.Find(s_settingsTabs[Math.Clamp(index, 0, s_settingsTabs.Length - 1)]);
 
-    /// <summary>A tab's last page shown, else its first node's first page (Mini HUD for Settings).</summary>
+    /// <summary>A tab's last page shown, else its first node's first page (Profiles for Settings).</summary>
     public static PageNode? ForTab(MenuTab tab)
     {
         if (s_lastByTab.TryGetValue(tab.Id, out string? last) && MenuTree.Find(last) is { } page) return page;
