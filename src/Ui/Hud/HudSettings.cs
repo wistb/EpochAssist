@@ -16,6 +16,8 @@ internal readonly record struct ScreenSpot(int Horizontal, int Vertical)
 // The mini HUD's settings, the hud section of the General group (Config).
 internal static class HudSettings
 {
+    private const string Notifications = "Notifications";
+
     public static readonly Section Hud = Config.Group.Section("hud", "Mini HUD");
     public static readonly Toggle HudEnabled = new(Hud, "HudEnabled", "Show the mini HUD", true)
     {
@@ -38,10 +40,26 @@ internal static class HudSettings
         Step = 0.01f, Percent = true, Help = "Full opacity while the cursor is over it.",
     };
     // 8 keeps notifications next to the mini HUD; 0-7 are the same places as the HUD's.
-    public static readonly Choice<int> ToastPlacement = new(Hud, "ToastPosition", "Notifications", 8,
+    public static readonly Choice<int> ToastPlacement = new(Hud, "ToastPosition", "Position", 8,
         (0, "Top left"), (4, "Top"), (1, "Top right"), (6, "Left"), (8, "Next to HUD"), (7, "Right"), (2, "Bottom left"), (5, "Bottom"), (3, "Bottom right"))
     {
-        Help = "Where notifications show. They follow the mini HUD's switch and opacity.",
+        Fold = Notifications, Help = "Where notifications show. They follow the mini HUD's switch and opacity.",
+    };
+    public static readonly Number ToastDuration = new(Hud, "ToastDuration", "Duration", Toasts.DefaultShowSeconds, 1f, 30f)
+    {
+        Fold = Notifications, Step = 0.5f, Unit = " s", Help = "How long each notification stays before it fades.",
+    };
+    public static readonly Number ToastStack = new(Hud, "ToastStack", "At once", Toasts.DefaultMaxShown, 1f, 8f)
+    {
+        Fold = Notifications, Help = "How many show together; a new one replaces the oldest.",
+    };
+    public static readonly Choice<int> ToastKinds = new(Hud, "ToastKinds", "Show", 0, (0, "All"), (1, "Warnings only"))
+    {
+        Fold = Notifications, Help = "Warnings say something stopped or needs a look. Every notification is still written to the log.",
+    };
+    public static readonly Choice<int> ToastOrder = new(Hud, "ToastOrder", "Order", 0, (0, "Oldest first"), (1, "Newest first"))
+    {
+        Fold = Notifications, Help = "Newest first puts the latest notification at the top, or nearest the mini HUD.",
     };
 
     private static readonly ScreenSpot[] s_spots =

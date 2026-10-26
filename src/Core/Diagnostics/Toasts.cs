@@ -9,25 +9,39 @@ internal sealed record Toast(string Source, string Text, ToastKind Kind, float S
 
 /// <summary>
 /// Short messages any feature can show; the toasts feature in the UI draws them. The same source and text show at most
-/// once per 10 s, at most three are on screen (a new one replaces the oldest), and each goes after about 4 s. Nothing is
-/// stored; every toast is also logged.
+/// once per 10 s, a few are on screen at once (a new one replaces the oldest), and each goes after a few seconds; the
+/// player's Notifications settings set how many, how long and which kinds, through the hooks the toast view sets. Nothing
+/// is stored; every toast is also logged, shown or not.
 /// </summary>
 internal static class Toasts
 {
     public const float RepeatSeconds = 10f;
-    public const float ShowSeconds = 4f;
+    public const float DefaultShowSeconds = 4f;
     public const float FadeSeconds = 0.3f;
-    private const int MaxShown = 3;
+    public const int DefaultMaxShown = 3;
 
     private static readonly List<Toast> s_shown = new();
     private static readonly Dictionary<(string Source, string Text), float> s_lastShown = new();
 
-    /// <summary>Shown toasts, oldest first; on the unscaled clock, like every time here.</summary>
+    /// <summary>The player's duration, stack limit and kinds shown, set by the toast view while it runs.</summary>
+    public static Func<float>? ShowSecondsSetting { get; set; }
+    public static Func<int>? MaxShownSetting { get; set; }
+    public static Func<ToastKind, bool>? ShowsKind { get; set; }
+
+    /// <summary>Seconds a toast stays before it fades.</summary>
+    public static float ShowSeconds => Mathf.Clamp(ShowSecondsSetting?.Invoke() ?? DefaultShowSeconds, 0.5f, 60f);
+
+    /// <summary>Toasts on screen at once.</summary>
+    public static int MaxShown => Math.Clamp(MaxShownSetting?.Invoke() ?? DefaultMaxShown, 1, 20);
+
+    /// <summary>Shown toasts, oldest first, at most MaxShown; on the unscaled clock, like every time here.</summary>
     public static IReadOnlyList<Toast> Visible
     {
         get
         {
             Expire(Time.unscaledTime);
+            // The limit can be lowered while toasts are up: the newest stay.
+            while (s_shown.Count > MaxShown) s_shown.RemoveAt(0);
             return s_shown;
         }
     }
@@ -40,9 +54,12 @@ internal static class Toasts
         foreach (var old in s_lastShown.Where(p => now - p.Value >= RepeatSeconds).Select(p => p.Key).ToList()) s_lastShown.Remove(old);
         s_lastShown[key] = now;
 
-        Expire(now);
-        if (s_shown.Count >= MaxShown) s_shown.RemoveAt(0);
-        s_shown.Add(new Toast(source, text, kind, now));
+        if (ShowsKind?.Invoke(kind) != false)
+        {
+            Expire(now);
+            while (s_shown.Count >= MaxShown) s_shown.RemoveAt(0);
+            s_shown.Add(new Toast(source, text, kind, now));
+        }
         Log.Info($"toast ({source}): {text}");
     }
 

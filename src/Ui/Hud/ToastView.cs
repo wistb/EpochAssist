@@ -4,9 +4,10 @@ using UnityEngine;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// Draws the toast queue where the Notifications setting puts it: next to the mini HUD (stacked away from the pill and
-/// its open panel, oldest nearest), or at one of the screen's corners or edges (oldest on top). Toasts follow the HUD:
-/// none while it is switched off, and faded by its opacity. Only labels and textures, never a control, so a toast can't
+/// Draws the toast queue where the Notifications settings put it: next to the mini HUD (stacked away from the pill and
+/// its open panel, oldest nearest), or at one of the screen's corners or edges (oldest on top); Order puts the newest
+/// there instead. Duration, the stack size and the kinds shown are handed to Toasts while this runs. Toasts follow the
+/// HUD: none while it is switched off, and faded by its opacity. Only labels and textures, never a control, so a toast can't
 /// take focus or a click from the game, the HUD or the menu.
 /// </summary>
 internal sealed class ToastFeature : Feature
@@ -20,12 +21,23 @@ internal sealed class ToastFeature : Feature
     public override string[] RunsAfter => new[] { "profiles", "hud" };
     public override GuiLayer Layer => GuiLayer.Hud;
 
+    public override void Start()
+    {
+        Toasts.ShowSecondsSetting = () => HudSettings.ToastDuration.Value;
+        Toasts.MaxShownSetting = () => Mathf.RoundToInt(HudSettings.ToastStack.Value);
+        Toasts.ShowsKind = kind => HudSettings.ToastKinds.Value == 0 || kind == ToastKind.Warning;
+    }
+
     public override void OnGUI()
     {
         if (Event.current.type != EventType.Repaint || !HudSettings.HudEnabled.Value) return;
         IReadOnlyList<Toast> toasts = Toasts.Visible;
-        // Previewing the HUD settings shows where notifications go, with a sample when none are up.
-        if (toasts.Count == 0 && Ui.Menu.PreviewingHud) toasts = new[] { new Toast("preview", "Notifications show here.", ToastKind.Info, Time.unscaledTime) };
+        // Previewing the HUD settings shows where notifications go and how many stack, with samples when none are up.
+        if (toasts.Count == 0 && Ui.Menu.PreviewingHud)
+        {
+            int count = Toasts.MaxShown;
+            toasts = Enumerable.Range(1, count).Select(i => new Toast("preview", count == 1 ? "Notifications show here." : $"Notification {i} of {count}", ToastKind.Info, Time.unscaledTime)).ToList();
+        }
         if (toasts.Count == 0) return;
         GUISkin? skin = Theme.Skin;
         if (skin == null) return;
@@ -60,6 +72,7 @@ internal sealed class ToastFeature : Feature
             float width = Mathf.Min(Mathf.Ceil(style.CalcSize(content).x) + 1f, MaxWidth);
             return (Toast: t, Content: content, Size: new Vector2(width, style.CalcHeight(content, width)));
         }).ToList();
+        if (HudSettings.ToastOrder.Value == 1) items.Reverse();
         var block = new Vector2(items.Max(i => i.Size.x), items.Sum(i => i.Size.y) + Gap * (items.Count - 1));
 
         ScreenSpot? own = HudSettings.ToastSpot;
@@ -96,5 +109,11 @@ internal sealed class ToastFeature : Feature
         }
     }
 
-    public override void Shutdown() => Toasts.Clear();
+    public override void Shutdown()
+    {
+        Toasts.Clear();
+        Toasts.ShowSecondsSetting = null;
+        Toasts.MaxShownSetting = null;
+        Toasts.ShowsKind = null;
+    }
 }
