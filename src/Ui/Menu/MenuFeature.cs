@@ -15,6 +15,7 @@ internal sealed class MenuFeature : Feature
         RowKinds.RegisterBuiltIn();
         ProfilesPage.Register();
         DiagnosticsPage.Register();
+        SessionsPage.Register();
         RolePreview.Register();
         ConsolePage.Register();
         MenuTree.Invalidate();
@@ -50,6 +51,7 @@ internal sealed class MenuFeature : Feature
         PageView.Reset();
         TreeView.Reset();
         ProfilesPage.Reset();
+        SessionsPage.Reset();
         TextCache.Clear();
         MenuBlocks.Clear();
         SettingsContent.Reset();

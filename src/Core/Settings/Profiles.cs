@@ -56,6 +56,10 @@ internal static partial class Profiles
     /// <summary>A character is playing and its file is loaded: per-character data reads and writes it.</summary>
     public static bool HasCharacter => State == CharacterState.Loaded;
 
+    /// <summary>The loaded character's key (session history names its files by it), or null. Its name and id must never
+    /// reach the log, diagnostics or reports.</summary>
+    internal static CharacterKey? Key => HasCharacter ? s_key : null;
+
     /// <summary>A profile other than Default is in use: every setting reads and writes it.</summary>
     public static bool InProfile { get; private set; }
 

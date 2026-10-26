@@ -4,6 +4,7 @@ namespace EpochAssist.Core;
 internal static class MenuCategory
 {
     public const string Combat = "combat";
+    public const string Sessions = "session";
     public const string Overlays = "overlays";
     public const string Map = "map";
     public const string Visuals = "visuals";

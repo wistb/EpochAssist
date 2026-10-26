@@ -66,6 +66,7 @@ public static class Runtime
         HudSettings.Declare();
         LookSettings.Declare();
         KeySettings.Declare();
+        SessionSettings.Declare();
         Config.Init();
         // Features read rarity and danger colours from Core; the theme keeps them up to date.
         ColourRoles.Sync = Theme.SyncRoles;
@@ -74,7 +75,7 @@ public static class Runtime
         UiCommands.Register();
         // The host orders features by their Needs and RunsAfter (FeatureHost.StartAll); this list only breaks ties, which
         // are shown in this order.
-        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
+        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new SessionsFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());
 #if DEV
@@ -114,6 +115,8 @@ public static class Runtime
 
     public static void Save()
     {
+        // A quit ends the session normally; written before the game closes.
+        if (FeatureHost.Find("sessions") is { State: FeatureState.Running }) Sessions.EndForQuit();
         Profiles.Save();
         Config.Save();
     }

@@ -8,11 +8,12 @@ internal static class Config
 {
     // Version 2: MenuKey is a Hotkey (chord text) instead of a KeyCode (KeySettings migrates it).
     // Each section is a tab on the Settings page, in this order, wherever it is declared: the UI layer declares hud
-    // (HudSettings), appearance (LookSettings) and keys (KeySettings). Setting ids, not sections, are what is stored.
+    // (HudSettings), appearance (LookSettings) and keys (KeySettings); the core declares sessions (SessionSettings).
+    // Setting ids, not sections, are what is stored.
     public static readonly SettingsGroup Group = new("EpochAssist", "General", version: 2)
     {
         ActionKey = "general",
-        SectionOrder = new[] { "hud", "appearance", "keys", "diagnostics" },
+        SectionOrder = new[] { "hud", "appearance", "keys", "sessions", "diagnostics" },
     };
 
     // Also drawn as a card on the Diagnostics page.
