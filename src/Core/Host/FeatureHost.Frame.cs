@@ -31,17 +31,35 @@ internal static partial class FeatureHost
         }
     }
 
+    // Draws an owner runs before a layer's features (the dev capture backdrop under the HUD); owned, so they go when
+    // their owner leaves Running.
+    private static readonly List<(Feature Owner, GuiLayer Layer, Action Draw)> s_layerHooks = new();
+
+    /// <summary>Draws before the layer's features each frame, in the owner's guard, while the owner runs; removed with the
+    /// owner's other owned things.</summary>
+    public static void AddLayerHook(Feature owner, GuiLayer layer, Action draw) => s_layerHooks.Add((owner, layer, draw));
+
+    internal static void RemoveLayerHooks(Feature owner) => s_layerHooks.RemoveAll(h => h.Owner == owner);
+
+#if DEV
+    // The dev check after a release (Owned).
+    internal static int CountLayerHooks(Feature owner) => s_layerHooks.Count(h => h.Owner == owner);
+#endif
+
     public static void GuiAll()
     {
         for (var layer = GuiLayer.World; layer <= GuiLayer.Menu; layer++)
         {
             // World drawing uses one camera for the frame, taken here and dropped after, whatever a feature does.
             if (layer == GuiLayer.World) Draw.Begin();
-#if DEV
-            if (layer == GuiLayer.Hud) Dev.DevCommands.DrawBackdrop();
-#endif
             try
             {
+                // By index: a hook that faults its owner removes the owner's hooks.
+                for (int i = 0; i < s_layerHooks.Count; i++)
+                {
+                    var hook = s_layerHooks[i];
+                    if (hook.Layer == layer && hook.Owner.State == FeatureState.Running) Guard(hook.Owner, "draw", hook.Draw);
+                }
                 foreach (var feature in s_features)
                 {
                     if (feature.Layer == layer && feature.State == FeatureState.Running) Guard(feature, "draw", feature.OnGUI);

@@ -14,6 +14,7 @@ internal static class Owned
         ("tooltip lines", TooltipLines.RemoveOwner),
         ("bus", Bus.RemoveOwner),
         ("commands", f => Commands.RemoveOwner(f.Id)),
+        ("layer hooks", FeatureHost.RemoveLayerHooks),
     };
 
 #if DEV
@@ -26,6 +27,7 @@ internal static class Owned
         ["tooltip lines"] = TooltipLines.CountOwner,
         ["bus"] = Bus.CountOwner,
         ["commands"] = f => Commands.CountOwner(f.Id),
+        ["layer hooks"] = FeatureHost.CountLayerHooks,
     };
 #endif
 

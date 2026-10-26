@@ -142,6 +142,8 @@ internal sealed class DevBridgeFeature : Feature
         DevCommands.Register(Id);
         ThemeVerbs.Register(Id);
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
+        // Matte shots: the backdrop goes under the HUD and the menu.
+        FeatureHost.AddLayerHook(this, GuiLayer.Hud, DevCommands.DrawBackdrop);
     }
 
     public override void Update()

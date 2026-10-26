@@ -23,7 +23,7 @@ internal static partial class DevCommands
     // Matte shots fill the screen under our HUD and menu with this colour; null draws nothing.
     private static Color? s_backdrop;
 
-    /// <summary>Called by the host before the HUD layer draws.</summary>
+    /// <summary>The dev bridge's HUD layer hook: drawn before the HUD layer's features.</summary>
     public static void DrawBackdrop()
     {
         if (s_backdrop is not Color color || Event.current.type != EventType.Repaint) return;
