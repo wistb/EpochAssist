@@ -6,6 +6,7 @@
 #   {{media:<name>}}               on a line of its own: the image nexus/media/<name>.png from GitHub at <git ref>, collapsed
 #                                  in a spoiler like the README's (consecutive lines share one), or nothing while that image
 #                                  doesn't exist yet (nexus/media/README.md lists them)
+#   {{image:<name>}}               the same image shown in place, not collapsed (the page's lead images)
 # Any other {{...}} is left in place for the caller to refuse.
 set -euo pipefail
 
@@ -28,6 +29,11 @@ while IFS= read -r line || [ -n "$line" ]; do
         continue
     fi
     flush
+    if [[ "$line" =~ ^(.*)\{\{image:([a-z0-9-]+)\}\}(.*)$ ]]; then
+        name="${BASH_REMATCH[2]}"
+        [ -f "$root/nexus/media/$name.png" ] || continue
+        line="${BASH_REMATCH[1]}[img]$raw/$name.png[/img]${BASH_REMATCH[3]}"
+    fi
     line="${line//\{\{version\}\}/$version}"
     printf '%s\n' "${line//\{\{game_version\}\}/$game}"
 done < "$file"
