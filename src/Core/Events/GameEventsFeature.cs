@@ -20,12 +20,6 @@ internal sealed class GameEventsFeature : Feature
     public override Requirement[] Requirements => new[]
     {
         Need<BaseHealth>(nameof(BaseHealth.currentHealth), GameEvents.Hits),
-        Need<Actor>(nameof(Actor.protection), GameEvents.HitDetailOffline),
-        Need<ProtectionClass>(nameof(ProtectionClass.currentWard), GameEvents.HitDetailOffline),
-        Need<DamageStats>(nameof(DamageStats.damage), GameEvents.HitDetailOffline),
-        Need<DamageSource>(nameof(DamageSource.GetDamageSourceInfo), GameEvents.HitDetailOffline),
-        Need<Ability>(nameof(Ability.abilityName), GameEvents.HitDetailOffline),
-        Need<ActorDisplayInformation>(nameof(ActorDisplayInformation.displayName), GameEvents.HitDetailOffline),
         Need<ExperienceTracker>(nameof(ExperienceTracker.CurrentExperience), GameEvents.Xp),
         Need<ExperienceTracker>(nameof(ExperienceTracker.CurrentLevel), GameEvents.Xp),
         Need<ExperienceTracker>(nameof(ExperienceTracker.NextLevelExperience), GameEvents.Xp),
@@ -57,15 +51,6 @@ internal sealed class GameEventsFeature : Feature
         Need<EchoWebIsland>(nameof(EchoWebIsland.stabilityReward), GameEvents.Monolith),
         Need<EchoWebIsland>(nameof(EchoWebIsland.hexIndex), GameEvents.Monolith),
     };
-
-    public override Type[] PatchClasses => NestedPatches(typeof(GameEvents));
-
-    // The hit detail patch is applied only while hits have a subscriber, offline.
-    public override IReadOnlyDictionary<Type, string> PatchGroups => s_patchGroups ??= PatchClasses.ToDictionary(t => t, _ => GameEvents.HitDetailOffline);
-    private static IReadOnlyDictionary<Type, string>? s_patchGroups;
-
-    public override string[] DemandGroups => s_demandGroups;
-    private static readonly string[] s_demandGroups = { GameEvents.HitDetailOffline };
 
     public override IEnumerable<string> DiagnosticNotes => GameEvents.Notes();
 

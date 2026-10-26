@@ -2,21 +2,8 @@ using System.Text;
 
 namespace EpochAssist.Core;
 
-internal enum HitKind { Hit, DamageOverTime, Critical, Block, Dodge, Parry }
-
-/// <summary>
-/// A hit the player took. Without detail it is one health drop in a frame (Amount only); with detail it is one call of
-/// the game's own damage method (offline only), with the ward lost, the attacker, ability and damage types. Unknown
-/// fields are null; Kind is null until a game source gives it.
-/// </summary>
-internal readonly record struct HitTaken(float Amount, float? Ward, string? Source, string? Ability, string[]? Types, HitKind? Kind, bool Detail)
-{
-    private bool PrintMembers(StringBuilder text)
-    {
-        text.Append($"Amount = {Amount:0.#}, Ward = {Ward:0.#}, Source = {Source}, Ability = {Ability}, Types = {GameEvents.List(Types)}, Kind = {Kind}, Detail = {Detail}");
-        return true;
-    }
-}
+/// <summary>A hit the player took: one health drop in a frame, the same in both modes (GF-47).</summary>
+internal readonly record struct HitTaken(float Amount);
 
 /// <summary>XP the player gained, and the tracker's value after it.</summary>
 internal readonly record struct XpGained(long Amount, long Total);

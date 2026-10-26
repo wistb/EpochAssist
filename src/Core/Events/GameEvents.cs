@@ -1,4 +1,3 @@
-using HarmonyLib;
 using Il2Cpp;
 using Feature = EpochAssist.Core.Feature;
 
@@ -8,12 +7,11 @@ namespace EpochAssist.Core;
 /// What happens to the local player, read from state the game already keeps: one producer per event, each
 /// idle (one subscriber count read a frame) while nothing subscribes, each in its own requirement groups so a game
 /// update loses only its own event. The first read after a subscription, a scene change or a player change is a
-/// baseline that raises nothing. The two hit detail patches are applied only while hits have a subscriber.
+/// baseline that raises nothing.
 /// </summary>
 internal static partial class GameEvents
 {
     public const string Hits = "events: hits";
-    public const string HitDetailOffline = "events: hit detail (offline)";
     public const string Xp = "events: xp";
     public const string Gold = "events: gold";
     public const string Drops = "events: drops";
@@ -60,9 +58,6 @@ internal static partial class GameEvents
 
     internal static readonly Producer[] Producers = { s_hits, s_xp, s_gold, s_drops, s_death, s_echo, s_monolith };
 
-    /// <summary>The hit detail group patched now (offline only), or null.</summary>
-    internal static string? DetailOn => s_feature?.Record.DemandGroupsOn.FirstOrDefault();
-
     internal static void Start(Feature feature)
     {
         s_feature = feature;
@@ -86,8 +81,6 @@ internal static partial class GameEvents
     internal static void ResetPlayer()
     {
         s_lastHealth = null;
-        s_protection = null;
-        s_protectionPtr = IntPtr.Zero;
         s_experience = null;
         s_lastXp = null;
         s_goldTracker = null;
@@ -96,7 +89,6 @@ internal static partial class GameEvents
         s_seenDrops.Clear();
         s_pendingDrops.Clear();
         s_echoBaselined = false;
-        s_attackerNames.Clear();
     }
 
     // A new scene is a baseline for every producer; the monolith panel is never kept across one.
@@ -109,9 +101,6 @@ internal static partial class GameEvents
         s_seenDrops.Clear();
         s_pendingDrops.Clear();
         s_echoBaselined = false;
-        s_attackerNames.Clear();
-        s_protection = null;
-        s_protectionPtr = IntPtr.Zero;
     }
 
     internal static void Update()
@@ -149,33 +138,4 @@ internal static partial class GameEvents
     }
 
     internal static string List(string[]? items) => items == null ? string.Empty : "[" + string.Join(", ", items) + "]";
-
-    // Postfixes run inside the game's own call: they never throw into it.
-    [HarmonyPatch(typeof(ProtectionClass), nameof(ProtectionClass.ApplyDamage), new[] { typeof(DamageStats), typeof(DamageSource), typeof(float), typeof(Actor), typeof(bool) })]
-    private static class ApplyDamage_Patch
-    {
-        private static void Prefix(ProtectionClass __instance)
-        {
-            try
-            {
-                OnApplyDamagePrefix(__instance);
-            }
-            catch (Exception e)
-            {
-                Log.ErrorThrottled("events:hits", $"Hit detail read failed: {e.Message}", 30);
-            }
-        }
-
-        private static void Postfix(ProtectionClass __instance, DamageStats __0, DamageSource __1)
-        {
-            try
-            {
-                OnApplyDamage(__instance, __0, __1);
-            }
-            catch (Exception e)
-            {
-                Log.ErrorThrottled("events:hits", $"Hit detail read failed: {e.Message}", 30);
-            }
-        }
-    }
 }

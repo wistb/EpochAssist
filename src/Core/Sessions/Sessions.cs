@@ -42,7 +42,7 @@ internal sealed class SessionView
 /// history off or quitting. Records are batched and handed to the background writer every 10 s; a dev reload or a
 /// fault leaves the file open and the next start in the same game process resumes it, while an open file from an
 /// earlier process (a crash) is closed as ended unexpectedly. Reads the bus only: no game members, no patches, and never
-/// hits (subscribing would apply the hit detail patch).
+/// hits.
 /// </summary>
 internal static class Sessions
 {
