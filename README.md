@@ -13,22 +13,33 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 
 ## Features
 
-- **Autocast**: **Left Ctrl** + a skill's key turns autocast on or off for that slot. Each slot can have its own
-  conditions, and all that are on must pass: health, mana or ward below or above a value, a buff missing or running
-  out, the skill ready or charged, enemies in range, a key held or toggled. The enemy gate is the first condition under
-  Every slot. Optional: aim at the closest enemy, hold-to-pause key.
-  <details><summary>Screenshot</summary>
+- **Macros**: everything automated lives on the Macros tab.
+  - **Slots**: **Left Ctrl** + a skill's key turns that slot on or off. Each slot has its own conditions, and
+    **Shared Conditions** (such as the enemy gate) apply to all of them.
+  - **Macros**: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key
+    is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until,
+    or show a message.
+  - **Conditions**: health, mana, ward, buffs, skills, potions, enemies (nearest or under the cursor, their health,
+    mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
+  - **Sharing**: **Copy share code** puts a set on the clipboard; **Import set** adds one, switched off.
+  - **Potions**: a ready-made Auto potion drinks when a whole potion's heal is missing or health is low. It comes
+    switched off.
+  - **Debugging**: the footer switches show each macro's state, the enemy ranges in use, and a notification naming
+    the line that started each macro.
+  <details><summary>Screenshots</summary>
 
-  ![The Autocast page](nexus/media/autocast.png)
+  ![The Macros tab](nexus/media/macros.png)
+
+  ![A macro's editor](nexus/media/macro-editor.png)
 
   </details>
-- **Session**: the tab next to Combat shows this session's XP and gold per hour, drops by rarity, the drops your loot
+- **Session**: the Session tab shows this session's XP and gold per hour, drops by rarity, the drops your loot
   filter shows, deaths and echoes, and your past sessions. They are kept in `UserData/EpochAssist/sessions/` within
   limits you set; **Export CSV** writes them as two spreadsheet files. Switch it off under History.
 
 ## Settings
 
-Open the Settings tab at the top of the menu. The search box above the tree on the left finds any setting.
+Open the Config tab at the top of the menu. The search box above the tree on the left finds any setting.
 
 - **Profiles**: one setup per character. Export and import to share.
   <details><summary>Screenshot</summary>
@@ -36,7 +47,7 @@ Open the Settings tab at the top of the menu. The search box above the tree on t
   ![Settings: Profiles](nexus/media/profiles.png)
 
   </details>
-- **Mini HUD**: shows autocast's state and slots while the menu is closed. Click it for quick toggles. Its
+- **Mini HUD**: shows the macros' state and slots while the menu is closed. Click it for quick toggles. Its
   notifications have their own position, duration, how many show at once, which kinds and order.
   <details><summary>Screenshots</summary>
 
@@ -80,7 +91,7 @@ The mod saves everything in `UserData/EpochAssist/` in the game folder.
 
 ## Bug reports
 
-Settings → Diagnostics → **Copy diagnostics**, then paste it into an [issue](https://github.com/wistb/EpochAssist/issues).
+Config → General → Diagnostics → **Copy diagnostics**, then paste it into an [issue](https://github.com/wistb/EpochAssist/issues).
 Crash reports are in `UserData/EpochAssist/reports/`.
 
 ## Building from source
