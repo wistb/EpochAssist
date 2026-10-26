@@ -70,7 +70,8 @@ public static class Runtime
         Edits.RecoverSaved();
         CoreCommands.Register();
         UiCommands.Register();
-        // A feature's needs come before it; the hotkey layer comes before the menu, which reads its results that frame.
+        // The host orders features by their Needs and RunsAfter (FeatureHost.StartAll); this list only breaks ties, which
+        // are shown in this order.
         FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
             new DispatcherFeature(), new AutoCastFeature());

@@ -11,6 +11,8 @@ internal sealed class AutoCastFeature : Feature
     public override string Name => "Autocast";
     public override GuiLayer Layer => GuiLayer.World;
     public override string[] Needs => new[] { "game", "dispatch", "hotkeys", "player", "world" };
+    // Reads its settings each frame, after the character's values are in place.
+    public override string[] RunsAfter => new[] { "profiles" };
     public override FeaturePage? Page => s_page;
     public override string? StatusName => "Autocast";
     // It averages 0.28–0.35 ms, above the default.

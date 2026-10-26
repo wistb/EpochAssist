@@ -6,6 +6,8 @@ internal sealed class InputGateFeature : Feature
 {
     public override string Id => "input";
     public override string Name => "Input blocking";
+    // Blocks the game's input by the menu state the menu set this frame.
+    public override string[] RunsAfter => new[] { "menu" };
     // The wheel-zoom hold is optional: if the camera changes in a game update, input blocking must keep working.
     private const string ZoomHold = "wheel zoom hold";
     private const string MovementStop = "movement stop";

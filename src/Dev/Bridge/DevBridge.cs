@@ -134,6 +134,8 @@ internal sealed class DevBridgeFeature : Feature
 {
     public override string Id => "dev";
     public override string Name => "Dev bridge";
+    // Bridge commands read settings, after the character's values are in place.
+    public override string[] RunsAfter => new[] { "profiles" };
     // The draw test pattern draws in the world layer.
     public override GuiLayer Layer => GuiLayer.World;
 

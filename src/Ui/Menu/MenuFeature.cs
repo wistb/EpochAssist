@@ -6,6 +6,8 @@ internal sealed class MenuFeature : Feature
 {
     public override string Id => "menu";
     public override string Name => "Menu";
+    // Reads settings each frame; menu.toggle runs in the hotkey layer's update, before the menu sets the input gate.
+    public override string[] RunsAfter => new[] { "profiles", "hotkeys" };
     public override GuiLayer Layer => GuiLayer.Menu;
 
     public override void Start()

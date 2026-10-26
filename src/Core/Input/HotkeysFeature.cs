@@ -9,6 +9,8 @@ internal sealed class HotkeysFeature : Feature
     private const string GameBindings = "game bindings";
 
     public override string[] Needs => new[] { "game" };
+    // Reads its bindings each frame, after the character's values are in place.
+    public override string[] RunsAfter => new[] { "profiles" };
     public override Requirement[] Requirements => new[]
     {
         Need(typeof(Il2CppRewired.ReInput), nameof(Il2CppRewired.ReInput.isReady), GameBindings),

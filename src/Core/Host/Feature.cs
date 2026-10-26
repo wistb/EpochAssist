@@ -31,9 +31,13 @@ internal abstract class Feature
     /// <summary>Game members the feature relies on beyond its patch targets, checked before it starts.</summary>
     public virtual Requirement[] Requirements => Array.Empty<Requirement>();
 
-    /// <summary>Ids of features this one can't act safely without; they must be registered first. The host starts it
-    /// only while all of them run, and stops it before any of them stops.</summary>
+    /// <summary>Ids of features this one can't act safely without; the host runs it after them, wherever it is
+    /// registered. The host starts it only while all of them run, and stops it before any of them stops.</summary>
     public virtual string[] Needs => Array.Empty<string>();
+
+    /// <summary>Ids of features this one runs after each frame, with no effect on start, stop or blocking (use Needs for
+    /// that). Ids that aren't registered are ignored.</summary>
+    public virtual string[] RunsAfter => Array.Empty<string>();
 
     /// <summary>Parts of the models (player, world, data) the feature reads, checked before it starts like requirements:
     /// a missing required part makes it unavailable, a missing part with a group turns that group off. Each part's model

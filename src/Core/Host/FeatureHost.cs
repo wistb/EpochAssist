@@ -10,6 +10,9 @@ internal static partial class FeatureHost
     // Features found unavailable while StartAll runs; they share one toast at its end.
     private static readonly List<string> s_unavailable = new();
     private static bool s_startingAll;
+    // Features whose Needs or RunsAfter can't be ordered (a need that isn't a feature, a cycle), with the reason; they
+    // stay unavailable.
+    private static Dictionary<Feature, string> s_orderProblems = new();
 
     public static IReadOnlyList<Feature> All => s_features;
 
@@ -17,16 +20,12 @@ internal static partial class FeatureHost
 
     public static Feature? Find(string id) => s_features.FirstOrDefault(f => f.Id == id);
 
-    /// <summary>Update order is registration order, so a feature's needs must be registered before it.</summary>
+    /// <summary>Adds features; StartAll orders them by their Needs and RunsAfter, so where they are registered doesn't
+    /// matter (ties keep registration order).</summary>
     public static void Register(params Feature[] features)
     {
         foreach (var feature in features)
         {
-            foreach (string need in feature.Needs)
-            {
-                // An unknown need keeps the feature stopped; a late one starts it late and updates it before its need.
-                if (Find(need) == null) Log.Error($"{feature.Name} needs '{need}', which is unknown or registered after it; register needs first");
-            }
             foreach (var part in feature.Parts)
             {
                 // The part then counts as missing, as the model may not run when the feature starts.
@@ -38,6 +37,11 @@ internal static partial class FeatureHost
 
     public static void StartAll()
     {
+        // Every order the host uses (start, update, draw, stop, dependents, restart actions, All) is this one.
+        var (order, problems) = UpdateOrder.Sort(s_features);
+        s_features.Clear();
+        s_features.AddRange(order);
+        s_orderProblems = problems;
         foreach (var feature in s_features)
         {
             var target = feature;
@@ -85,6 +89,16 @@ internal static partial class FeatureHost
                 feature.Record.SettingsRegistered = true;
             }
             // Settings first, so a blocked feature's page still has them.
+            if (s_orderProblems.TryGetValue(feature, out string? problem))
+            {
+                feature.Record.State = FeatureState.Unavailable;
+                feature.Record.LastError = problem;
+                Log.Error($"{feature.Name} unavailable: {problem}");
+                if (s_startingAll) s_unavailable.Add(feature.Name);
+                else Toasts.Show("host", $"{feature.Name} is unavailable after a game update.", ToastKind.Warning);
+                Owned.Release(feature);
+                return;
+            }
             string? blocker = feature.Needs.FirstOrDefault(id => Find(id)?.State != FeatureState.Running);
             if (blocker != null)
             {

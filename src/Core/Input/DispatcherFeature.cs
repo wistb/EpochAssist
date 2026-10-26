@@ -14,6 +14,8 @@ internal sealed class DispatcherFeature : Feature
     public const string QuickMoveGroup = "dispatch: quick move";
 
     public override string[] Needs => new[] { "game", "input" };
+    // Its pause rules read each client's switch, after the character's values are in place.
+    public override string[] RunsAfter => new[] { "profiles" };
     public override Type[] PatchClasses => NestedPatches(typeof(Dispatcher));
     public override Requirement[] Requirements => new[]
     {

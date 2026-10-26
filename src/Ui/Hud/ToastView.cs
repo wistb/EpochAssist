@@ -16,6 +16,8 @@ internal sealed class ToastFeature : Feature
 
     public override string Id => "toasts";
     public override string Name => "Toasts";
+    // Reads settings, and places notifications by the HUD the HUD drew this frame.
+    public override string[] RunsAfter => new[] { "profiles", "hud" };
     public override GuiLayer Layer => GuiLayer.Hud;
 
     public override void OnGUI()
