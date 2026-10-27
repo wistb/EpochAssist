@@ -24,22 +24,37 @@ internal static class TextRows
         else Actions.Run(button.Action, "menu");
     }
 
-    /// <summary>A flat banner with the accent bar at its left; the button, when given, at its right. Returns its height.</summary>
-    public static float BannerHeight(string text, float width, ActionButton? button) =>
-        Mathf.Max(28f, TextCache.Height(text, Widgets.Style(() => Theme.BannerText, GUI.skin.label), width - (button != null ? Controls.ButtonWidth(button.Label) + 12f : 0f)));
+    /// <summary>A flat banner with the accent bar at its left; the buttons, when given, at its right (the second at the
+    /// far right). Returns its height.</summary>
+    public static float BannerHeight(string text, float width, ActionButton? button, ActionButton? second = null) =>
+        Mathf.Max(28f, TextCache.Height(text, Widgets.Style(() => Theme.BannerText, GUI.skin.label), width - ButtonsWidth(button, second)));
 
-    public static void Banner(Rect r, string text, ActionButton? button, string key)
+    // The buttons' room: each button and the gap before it, and the margin at the right.
+    private static float ButtonsWidth(ActionButton? button, ActionButton? second)
     {
-        float buttonWidth = button != null ? Controls.ButtonWidth(button.Label) : 0f;
+        float w = 0f;
+        if (button != null) w += Controls.ButtonWidth(button.Label) + 6f;
+        if (second != null) w += Controls.ButtonWidth(second.Label) + 6f;
+        return w > 0f ? w + 6f : 0f;
+    }
+
+    public static void Banner(Rect r, string text, ActionButton? button, string key, ActionButton? second = null)
+    {
         if (Event.current.type == EventType.Repaint)
         {
             Theme.Fill(r, Widgets.Themed ? Theme.Values.Card : new Color(0f, 0f, 0f, 0.3f));
             Theme.Fill(new Rect(r.x, r.y, 2f, r.height), Widgets.Themed ? Theme.Accent : Color.white);
-            Widgets.Paint(new Rect(r.x, r.y, r.width - (button != null ? buttonWidth + 12f : 0f), r.height), text, Widgets.Style(() => Theme.BannerText, GUI.skin.label));
+            Widgets.Paint(new Rect(r.x, r.y, r.width - ButtonsWidth(button, second), r.height), text, Widgets.Style(() => Theme.BannerText, GUI.skin.label));
         }
-        if (button == null) return;
-        var b = new Rect(r.xMax - buttonWidth - 8f, Mathf.Round(r.center.y - 12f), buttonWidth, 24f);
-        if (Controls.Button(b, button.Label, key, button.Primary)) Run(button);
+        float right = r.xMax - 8f;
+        foreach (var (b, k) in new[] { (second, key + ".second"), (button, key) })
+        {
+            if (b == null) continue;
+            float w = Controls.ButtonWidth(b.Label);
+            right -= w;
+            if (Controls.Button(new Rect(right, Mathf.Round(r.center.y - 12f), w, 24f), b.Label, k, b.Primary)) Run(b);
+            right -= 6f;
+        }
     }
 
     private sealed class HeadingRenderer : RowRenderer<HeadingRow>
@@ -80,11 +95,11 @@ internal static class TextRows
         public override bool Shows(MenuRow row, RowContext ctx) => base.Shows(row, ctx) && Text((BannerRow)row) != null;
 
         protected override float Height(BannerRow row, float width, RowContext ctx) =>
-            Text(row) is { } text ? BannerHeight(text, width, row.Button) + RowLayout.RowGap : 0f;
+            Text(row) is { } text ? BannerHeight(text, width, row.Button, row.Second) + RowLayout.RowGap : 0f;
 
         protected override void Draw(BannerRow row, Rect rect, RowContext ctx)
         {
-            if (Text(row) is { } text) Banner(new Rect(rect.x, rect.y, rect.width, rect.height - RowLayout.RowGap), text, row.Button, row.Key + ".button");
+            if (Text(row) is { } text) Banner(new Rect(rect.x, rect.y, rect.width, rect.height - RowLayout.RowGap), text, row.Button, row.Key + ".button", row.Second);
         }
 
         protected override IEnumerable<string> Search(BannerRow row) => Text(row) is { } text ? new[] { text } : Array.Empty<string>();

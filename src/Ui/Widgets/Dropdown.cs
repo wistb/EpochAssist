@@ -10,9 +10,11 @@ namespace EpochAssist.Ui;
 /// </summary>
 internal static class Dropdown
 {
-    /// <summary>A dropdown in a fixed rect. Swatches, when given, are drawn before each option's label.</summary>
+    /// <summary>A dropdown in a fixed rect. Swatches, when given, are drawn before each option's label; previews (an
+    /// image per option, a texture and its part of it) likewise, larger.</summary>
     public static void Draw(Rect r, string key, IReadOnlyList<string> options, int selected, Action<int> pick,
-        (string Label, int First)[]? groups = null, string? shown = null, IReadOnlyList<Color?>? swatches = null, string? tip = null)
+        (string Label, int First)[]? groups = null, string? shown = null, IReadOnlyList<Color?>? swatches = null, string? tip = null,
+        Func<int, (Texture Texture, Rect Uv)?>? previews = null)
     {
         bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
         bool open = Popups.Current is DropdownPopup popup && popup.Key == key;
@@ -25,6 +27,11 @@ internal static class Dropdown
             {
                 Theme.Tinted(new Rect(r.x + 7f, Mathf.Round(r.center.y - 6f), 12f, 12f), Theme.Swatch, swatch);
                 left = 16f;
+            }
+            else if (previews != null && selected >= 0 && selected < options.Count)
+            {
+                Preview(new Rect(r.x + 5f, Mathf.Round(r.center.y - PreviewSize / 2f), PreviewSize, PreviewSize), previews, selected);
+                left = PreviewSize + 4f;
             }
             GUIStyle text = Widgets.Style(() => Theme.FieldText, GUI.skin.label);
             var area = new Rect(r.x + left, r.y, r.width - left - 16f, r.height);
@@ -40,13 +47,26 @@ internal static class Dropdown
         if (Focus.Item("dropdown." + key, r, out int adjust) || clicked)
         {
             if (open) Popups.Close();
-            else Popups.Open(new DropdownPopup(key, Popups.ToWindow(r), options, selected, pick, groups, swatches));
+            else Popups.Open(new DropdownPopup(key, Popups.ToWindow(r), options, selected, pick, groups, swatches, previews));
         }
         if (adjust != 0 && options.Count > 0)
         {
             int next = Math.Clamp((selected < 0 ? 0 : selected) + adjust, 0, options.Count - 1);
             if (next != selected) pick(next);
         }
+    }
+
+    /// <summary>An option's preview image, fitted into the square keeping its shape; nothing when it has none.</summary>
+    internal const float PreviewSize = 18f;
+
+    internal static void Preview(Rect square, Func<int, (Texture Texture, Rect Uv)?> previews, int option)
+    {
+        if (Event.current.type != EventType.Repaint || Safe.Call(() => previews(option), null, "dropdown.preview") is not { } image || image.Texture == null) return;
+        float w = image.Uv.width * image.Texture.width, h = image.Uv.height * image.Texture.height;
+        if (w <= 0f || h <= 0f) return;
+        float fit = Mathf.Min(square.width / w, square.height / h);
+        var r = new Rect(square.center.x - w * fit / 2f, square.center.y - h * fit / 2f, w * fit, h * fit);
+        GUI.DrawTextureWithTexCoords(r, image.Texture, image.Uv);
     }
 
     /// <summary>The same in a GUILayout block, taking the given height and the rest of the width.</summary>
@@ -88,6 +108,7 @@ internal sealed class DropdownPopup : IPopup
     private readonly Action<int> _pick;
     private readonly (string Label, int First)[]? _groups;
     private readonly IReadOnlyList<Color?>? _swatches;
+    private readonly Func<int, (Texture Texture, Rect Uv)?>? _previews;
     private readonly Rect _anchor;
     private string _filter = string.Empty;
     // What is listed: an option's index, or a heading (-1 - group).
@@ -97,7 +118,7 @@ internal sealed class DropdownPopup : IPopup
     private Rect _rect;
 
     public DropdownPopup(string key, Rect anchor, IReadOnlyList<string> options, int selected, Action<int> pick,
-        (string Label, int First)[]? groups, IReadOnlyList<Color?>? swatches)
+        (string Label, int First)[]? groups, IReadOnlyList<Color?>? swatches, Func<int, (Texture Texture, Rect Uv)?>? previews = null)
     {
         Key = key;
         _anchor = anchor;
@@ -106,6 +127,7 @@ internal sealed class DropdownPopup : IPopup
         _pick = pick;
         _groups = groups;
         _swatches = swatches;
+        _previews = previews;
         _highlight = selected;
         Refilter();
         ScrollTo(_highlight);
@@ -146,7 +168,7 @@ internal sealed class DropdownPopup : IPopup
         GUIStyle text = Widgets.Style(() => Theme.OptionText, GUI.skin.label);
         float widest = 0f;
         foreach (string option in _options) widest = Mathf.Max(widest, TextCache.Width(option, text));
-        float width = Mathf.Clamp(Mathf.Ceil(widest + text.padding.horizontal + (_swatches != null ? 18f : 0f)) + Pad * 2f, _anchor.width, 260f);
+        float width = Mathf.Clamp(Mathf.Ceil(widest + text.padding.horizontal + (_swatches != null ? 18f : _previews != null ? Dropdown.PreviewSize + 6f : 0f)) + Pad * 2f, _anchor.width, 260f);
         float list = Mathf.Min(ContentHeight, VisibleRows * ItemHeight);
         _rect = Popups.Place(new Vector2(width, ListTop + Mathf.Max(list, ItemHeight) + Pad), _anchor);
     }
@@ -300,6 +322,11 @@ internal sealed class DropdownPopup : IPopup
         {
             if (option < _swatches.Count && _swatches[option] is Color swatch) Theme.Tinted(new Rect(item.x + 6f, Mathf.Round(item.center.y - 6f), 12f, 12f), Theme.Swatch, swatch);
             label = new Rect(item.x + 18f, item.y, item.width - 18f, item.height);
+        }
+        else if (_previews != null)
+        {
+            Dropdown.Preview(new Rect(item.x + 4f, Mathf.Round(item.center.y - Dropdown.PreviewSize / 2f), Dropdown.PreviewSize, Dropdown.PreviewSize), _previews, option);
+            label = new Rect(item.x + Dropdown.PreviewSize + 8f, item.y, item.width - Dropdown.PreviewSize - 8f, item.height);
         }
         Widgets.Paint(label, _options[option], text);
         if (option == _selected && Widgets.Themed) Theme.Tinted(new Rect(item.xMax - 18f, Mathf.Round(item.center.y - 6f), 12f, 12f), Theme.TickMark, GUI.contentColor);

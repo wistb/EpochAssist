@@ -224,7 +224,7 @@ internal static class PageView
             var button = page.Page.Actions[i];
             float w = Controls.ButtonWidth(button.Label);
             right -= w;
-            if (Controls.Button(new Rect(right, r.center.y - 12f, w, 24f), button.Label, button.Key, button.Primary)) ActionsFor(button);
+            if (Controls.Button(new Rect(right, r.center.y - 12f, w, 24f), button.Label, button.Key, button.Primary, button.Tip)) ActionsFor(button);
             right -= 6f;
         }
         if (page.Page.Switch is { } toggle)

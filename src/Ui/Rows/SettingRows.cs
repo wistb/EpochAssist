@@ -160,7 +160,8 @@ internal static class SettingRows
                 Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip);
                 break;
             case Choice<string> choice:
-                Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip);
+                Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip,
+                    previews: choice.Preview is { } preview ? i => i >= 0 && i < choice.Options.Length ? preview(choice.Options[i].Value) : null : null);
                 break;
             case Pick pick:
                 var (options, index) = PickOptions(pick);

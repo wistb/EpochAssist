@@ -101,6 +101,8 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
 
     /// <summary>Headings for a long option list: each group starts at option index First. Code only, nothing stored.</summary>
     public (string Label, int First)[]? Groups { get; init; }
+    /// <summary>An image shown before an option in the dropdown (a texture and its part of it); null for none. Code only.</summary>
+    public Func<T, (Texture Texture, Rect Uv)?>? Preview { get; init; }
 
     public int Index
     {
@@ -141,7 +143,7 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
 /// </summary>
 internal sealed class ColorSetting : Setting<string>
 {
-    public ColorSetting(Section section, string id, string label) : base(section, id, label, string.Empty) { }
+    public ColorSetting(Section section, string id, string label, string defaultValue = "") : base(section, id, label, defaultValue) { }
 
     /// <summary>Named colours offered as swatches, in order, as #RRGGBB.</summary>
     public (string Name, string Hex)[] Swatches { get; init; } = Array.Empty<(string, string)>();

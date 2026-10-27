@@ -57,17 +57,20 @@ internal sealed class HintRow : MenuRow
     protected override string DefaultKey => "hint";
 }
 
-/// <summary>A flat banner with an accent bar, shown while its text isn't null; an optional button beside it.</summary>
+/// <summary>A flat banner with an accent bar, shown while its text isn't null; an optional button beside it, and a
+/// second one at the far right (a confirmation's Keep).</summary>
 internal sealed class BannerRow : MenuRow
 {
-    public BannerRow(Func<string?> text, ActionButton? button = null)
+    public BannerRow(Func<string?> text, ActionButton? button = null, ActionButton? second = null)
     {
         Text = text;
         Button = button;
+        Second = second;
     }
 
     public Func<string?> Text { get; }
     public ActionButton? Button { get; }
+    public ActionButton? Second { get; }
     protected override string DefaultKey => "banner";
 }
 
