@@ -62,7 +62,7 @@ internal static partial class GameEvents
     {
         if (s_pendingDrops.Count == 0) return;
         bool canRead = s_feature?.Has(DropFilter) == true;
-        bool filterOn = canRead && FilterActive();
+        bool filterOn = canRead && GroundItems.FilterActive;
         for (int i = 0; i < s_pendingDrops.Count; i++)
         {
             var pending = s_pendingDrops[i];
@@ -72,7 +72,7 @@ internal static partial class GameEvents
             {
                 drop = pending.Drop;
             }
-            else if (Judged(pending.Visual) is { } judged)
+            else if (GroundItems.Verdict(pending.Visual) is { } judged)
             {
                 drop = pending.Drop with { Shown = judged.Shown, Rule = judged.Rule };
             }
@@ -119,21 +119,6 @@ internal static partial class GameEvents
         s_droppedOrder.Enqueue(key);
         if (s_droppedOrder.Count > MaxKeys) s_droppedKeys.Remove(s_droppedOrder.Dequeue());
         return true;
-    }
-
-    private static bool FilterActive()
-    {
-        var manager = Il2CppItemFiltering.ItemFilterManager.Instance;
-        return Game.Alive(manager) && manager!.Filter != null && !manager.ManualFilterDisable;
-    }
-
-    // The label's result once the filter has run on it: a rule number above 0 on a label the game has listed.
-    private static (bool Shown, int Rule)? Judged(GroundItemVisuals visual)
-    {
-        if (!Game.Alive(visual)) return null;
-        var label = visual.label;
-        if (!Game.Alive(label) || !label!.isAddedToAll || label.CurrentRuleNumber <= 0) return null;
-        return (label.lastFilterResult != Il2CppItemFiltering.Rule.RuleOutcome.HIDE, label.CurrentRuleNumber);
     }
 
     // The rarity byte is the affix count below exalted, so the name comes from the game's own checks.
