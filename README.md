@@ -20,18 +20,23 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   - **Macros**: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key
     is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until,
     or show a message.
-  - **Conditions**: health, mana, ward, buffs, skills, potions, enemies (nearest or under the cursor, their health,
-    mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
+  - **Targets**: casts aim at the cursor, the nearest, rarest or weakest enemy, or the middle of a pack, with
+    limits by range, rarity, mod and ailment.
+  - **Conditions**: health, mana, ward, buffs, skills, potions, enemies (nearest, under the cursor, a target or the
+    cast target: their health, rarity, mods and ailments), zone and more, grouped as all of, any of or none of, and
+    optionally held for a time.
   - **Sharing**: **Copy share code** puts a set on the clipboard; **Import set** adds one, switched off.
   - **Potions**: a ready-made Auto potion drinks when a whole potion's heal is missing or health is low. It comes
     switched off.
-  - **Debugging**: the footer switches show each macro's state, the enemy ranges in use, and a notification naming
-    the line that started each macro.
+  - **Debugging**: the footer switches show each macro's state, the enemy ranges and targets in use, and a
+    notification naming the line that started each macro and what it aims at.
   <details><summary>Screenshots</summary>
 
   ![The Macros tab](nexus/media/macros.png)
 
   ![A macro's editor](nexus/media/macro-editor.png)
+
+  ![Shared Conditions with the shared target](nexus/media/shared-target.png)
 
   </details>
 - **Session**: the Session tab shows this session's XP and gold per hour, drops by rarity, the drops your loot
