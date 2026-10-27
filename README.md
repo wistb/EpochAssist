@@ -15,7 +15,7 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 ## Features
 
 - **Macros**: everything automated lives on the Macros tab.
-  - **Slots**: **Left Ctrl** + a skill's key turns that slot on or off. Each slot has its own conditions, and
+  - **Skill Slots**: **Left Ctrl** + a skill's key turns that slot on or off. Each slot has its own conditions, and
     **Shared Conditions** (such as the enemy gate) apply to all of them.
   - **Macros**: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key
     is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until,

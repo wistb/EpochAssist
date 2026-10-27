@@ -82,7 +82,7 @@ internal static partial class Macros
         History.Watch();
         var lines = new List<LibraryLine>
         {
-            new(SlotsKey, 0, "Slots", SlotsState(), StatusState.Active, null, true),
+            new(SlotsKey, 0, "Skill Slots", SlotsState(), StatusState.Active, null, true),
             new(EveryKey, 1, "Shared Conditions", MacroSettingsPage.EveryStatus().Text, MacroSettingsPage.EveryStatus().State, null, false),
         };
         for (int i = 0; i < SlotMacros.Slots; i++)
@@ -297,7 +297,7 @@ internal static partial class Macros
             rows.Add(new HintRow(() => "Where slot macros aim, unless a slot macro sets its own target.") { Key = "target.hint" });
             rows.AddRange(MacroSettingsPage.SharedTargetRows());
         }))
-        { Place = () => "Slots" };
+        { Place = () => "Skill Slots" };
         editor.Buttons.Add(Button("Undo", "undo", Undo, () => History.CanUndo, "Takes back the last change on this tab"));
         editor.Buttons.Add(Button("Close", "close", CloseEditor));
         return editor;
@@ -312,7 +312,7 @@ internal static partial class Macros
         var editor = new LibraryEditor(key, () => SlotMacros.SlotAbilityName(slot) ?? "No skill in this slot", () => SlotRows(key, slot, listKey))
         {
             Badge = () => (slot + 1).ToString(),
-            Place = () => "Slots",
+            Place = () => "Skill Slots",
         };
         editor.Buttons.Add(Button("Undo", "undo", Undo, () => History.CanUndo, "Takes back the last change on this tab"));
         editor.Buttons.Add(Button("Duplicate as a macro", "dupe", () => DuplicateAsMacro(slot), () => DuplicateTarget() != null,
