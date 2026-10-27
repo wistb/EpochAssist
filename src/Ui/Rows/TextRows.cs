@@ -13,6 +13,7 @@ internal static class TextRows
         RowKinds.Register<BannerRow>(new BannerRenderer());
         RowKinds.Register<ActionButton>(new ButtonRenderer());
         RowKinds.Register<LiveText>(new LiveRenderer());
+        RowKinds.Register<TextButtonRow>(new TextButtonRenderer());
         RowKinds.Register<BlockRow>(new BlockRenderer());
     }
 
@@ -103,6 +104,33 @@ internal static class TextRows
 
         protected override IEnumerable<string> Search(ActionButton row) => new[] { row.Label };
         protected override RowText Bridge(ActionButton row, RowContext ctx) => new("button", row.Label, row.Action, ctx.Enabled && Safe.Enabled(row));
+    }
+
+    private sealed class TextButtonRenderer : RowRenderer<TextButtonRow>
+    {
+        private static string Text(TextButtonRow row) => Safe.Call(row.Text, string.Empty, row.Key);
+
+        protected override float Height(TextButtonRow row, float width, RowContext ctx) => RowLayout.ControlHeight + RowLayout.RowGap;
+
+        protected override void Draw(TextButtonRow row, Rect rect, RowContext ctx)
+        {
+            var parts = RowLayout.Lay(rect, rect.width - RowLayout.LabelWidth(rect.width) - RowLayout.Gap, null);
+            float buttonWidth = Controls.ButtonWidth(row.Button.Label);
+            var style = Widgets.Style(() => Theme.Label, GUI.skin.label);
+            string text = Text(row);
+            // The button follows the text, or sits at the end when the text needs the room.
+            float textWidth = Mathf.Min(TextCache.Width(text, style), parts.Control.width - buttonWidth - 12f);
+            var button = new Rect(parts.Control.x + textWidth + 12f, parts.Control.y, buttonWidth, RowLayout.ControlHeight);
+            if (Event.current.type == EventType.Repaint)
+            {
+                Widgets.Paint(parts.Label, row.Label, style);
+                Widgets.Paint(new Rect(parts.Control.x, parts.Control.y, textWidth, parts.Control.height), text, style);
+            }
+            if (Controls.Button(button, row.Button.Label, ctx.Prefix + row.Key + ".button", row.Button.Primary, row.Button.Tip)) Run(row.Button);
+        }
+
+        protected override IEnumerable<string> Search(TextButtonRow row) => new[] { row.Label, Text(row) };
+        protected override RowText Bridge(TextButtonRow row, RowContext ctx) => new("textbutton", row.Label, Text(row));
     }
 
     private sealed class LiveRenderer : RowRenderer<LiveText>

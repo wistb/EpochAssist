@@ -104,6 +104,22 @@ internal sealed class LiveText : MenuRow
     protected override string DefaultKey => "live." + MenuEntry.Slug(Label);
 }
 
+/// <summary>A label, a text in the value column and a small button at its end (a value set elsewhere, with a way there).</summary>
+internal sealed class TextButtonRow : MenuRow
+{
+    public TextButtonRow(string label, Func<string> text, ActionButton button)
+    {
+        Label = label;
+        Text = text;
+        Button = button;
+    }
+
+    public string Label { get; }
+    public Func<string> Text { get; }
+    public ActionButton Button { get; }
+    protected override string DefaultKey => "textbutton." + MenuEntry.Slug(Label);
+}
+
 /// <summary>A chip's look: on, paused (on but held) or off. Not a setting type.</summary>
 internal enum ChipState { Off, Paused, On }
 
