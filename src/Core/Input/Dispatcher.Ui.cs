@@ -104,7 +104,7 @@ internal static partial class Dispatcher
     {
         try
         {
-            return Input.anyKey || Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2);
+            return InputState.AnyHeld;
         }
         catch (Exception)
         {

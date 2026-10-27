@@ -117,17 +117,19 @@ internal static class Hotkeys
     internal static void Update()
     {
         MenuNav = default;
-        bool focused = Application.isFocused;
-        if (focused && !s_wasFocused) IgnoreKeysDown();
-        s_wasFocused = focused;
-        if (s_ignored.Count > 0) s_ignored.RemoveWhere(k => !Input.GetKey(k));
-        if (!focused) return;
+        // Only the window's own focus coming back ignores keys already down; dev bridge input counts as focus but
+        // must not have its own keys ignored.
+        bool realFocused = InputState.RealFocused;
+        if (realFocused && !s_wasFocused) IgnoreKeysDown();
+        s_wasFocused = realFocused;
+        if (s_ignored.Count > 0) s_ignored.RemoveWhere(k => !InputState.Key(k));
+        if (!InputState.Focused) return;
 
         s_heldModifiers = HeldModifiers();
         TrackModifierPress();
 
         // Esc closes the menu even from the mod's own fields, but never takes a key meant for a game field or chat.
-        if (Input.GetKeyDown(KeyCode.Escape) && !GameState.GameTyping)
+        if (InputState.KeyDown(KeyCode.Escape) && !GameState.GameTyping)
         {
             if (CaptureActive)
             {
@@ -180,9 +182,9 @@ internal static class Hotkeys
     }
 
     private static bool Open(HotkeyScope scope) =>
-        s_running && !CaptureActive && !GameState.Typing && Application.isFocused && (scope == HotkeyScope.Global || GameState.InGame);
+        s_running && !CaptureActive && !GameState.Typing && InputState.Focused && (scope == HotkeyScope.Global || GameState.InGame);
 
-    private static bool Down(KeyCode key) => Input.GetKey(key) && !s_ignored.Contains(key);
+    private static bool Down(KeyCode key) => InputState.Key(key) && !s_ignored.Contains(key);
 
     /// <summary>Set by a feature that uses the arrow keys while the menu is open (the overlay map's pan on the map
     /// pages); while it returns true the menu leaves the arrows alone.</summary>
@@ -191,18 +193,18 @@ internal static class Hotkeys
     private static MenuNav ReadMenuNav(bool fieldFocused)
     {
         bool arrows = !(MenuArrowsTaken?.Invoke() ?? false);
-        bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-        bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-        int move = Input.GetKeyDown(KeyCode.Tab) ? (shift ? -1 : 1) : 0;
+        bool shift = InputState.Key(KeyCode.LeftShift) || InputState.Key(KeyCode.RightShift);
+        bool ctrl = InputState.Key(KeyCode.LeftControl) || InputState.Key(KeyCode.RightControl);
+        int move = InputState.KeyDown(KeyCode.Tab) ? (shift ? -1 : 1) : 0;
         bool tab = move != 0;
-        if (arrows && Input.GetKeyDown(KeyCode.DownArrow)) move = 1;
-        else if (arrows && Input.GetKeyDown(KeyCode.UpArrow)) move = -1;
-        bool enter = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
-        bool search = ctrl && Input.GetKeyDown(KeyCode.F);
-        int page = Input.GetKeyDown(KeyCode.PageDown) ? 1 : Input.GetKeyDown(KeyCode.PageUp) ? -1 : 0;
+        if (arrows && InputState.KeyDown(KeyCode.DownArrow)) move = 1;
+        else if (arrows && InputState.KeyDown(KeyCode.UpArrow)) move = -1;
+        bool enter = InputState.KeyDown(KeyCode.Return) || InputState.KeyDown(KeyCode.KeypadEnter);
+        bool search = ctrl && InputState.KeyDown(KeyCode.F);
+        int page = InputState.KeyDown(KeyCode.PageDown) ? 1 : InputState.KeyDown(KeyCode.PageUp) ? -1 : 0;
         if (fieldFocused) return new MenuNav(move, enter, 0, page, search, tab);
-        bool activate = enter || Input.GetKeyDown(KeyCode.Space);
-        int adjust = !arrows ? 0 : Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
+        bool activate = enter || InputState.KeyDown(KeyCode.Space);
+        int adjust = !arrows ? 0 : InputState.KeyDown(KeyCode.RightArrow) ? 1 : InputState.KeyDown(KeyCode.LeftArrow) ? -1 : 0;
         return new MenuNav(move, activate, adjust, page, search, tab);
     }
 
@@ -213,7 +215,7 @@ internal static class Hotkeys
     {
         if (chord.IsEmpty) return false;
         if (chord.ModifiersOnly) return s_releasedModifiers == chord.Modifiers;
-        return Input.GetKeyDown(chord.Main) && !s_ignored.Contains(chord.Main) && s_heldModifiers == chord.Modifiers;
+        return InputState.KeyDown(chord.Main) && !s_ignored.Contains(chord.Main) && s_heldModifiers == chord.Modifiers;
     }
 
     private static int HeldModifiers()
@@ -230,7 +232,7 @@ internal static class Hotkeys
     {
         s_releasedModifiers = 0;
         bool modifierWentDown = false;
-        foreach (KeyCode key in Chord.ModifierKeys) modifierWentDown |= Input.GetKeyDown(key);
+        foreach (KeyCode key in Chord.ModifierKeys) modifierWentDown |= InputState.KeyDown(key);
         // Any other key or a mouse button while modifiers are held makes it a chord, not a modifier press.
         if (s_peakModifiers != 0 && !modifierWentDown && !s_modifierPressSpent && OtherKeyWentDown()) s_modifierPressSpent = true;
         // Typing doesn't count as a modifier press either.
@@ -253,10 +255,10 @@ internal static class Hotkeys
     // modifier is held).
     private static bool OtherKeyWentDown()
     {
-        if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)) return true;
+        if (InputState.ButtonDown(0) || InputState.ButtonDown(1)) return true;
         foreach (KeyCode key in AllKeys)
         {
-            if (Chord.ModifierBit(key) == null && Input.GetKeyDown(key)) return true;
+            if (Chord.ModifierBit(key) == null && InputState.KeyDown(key)) return true;
         }
         return false;
     }
@@ -265,7 +267,7 @@ internal static class Hotkeys
     {
         foreach (KeyCode key in AllKeys)
         {
-            if (Input.GetKey(key)) s_ignored.Add(key);
+            if (InputState.Key(key)) s_ignored.Add(key);
         }
         if (s_ignored.Count > 0) Log.Info($"hotkeys: ignoring {string.Join(", ", s_ignored)} until released (held when focus came back)");
     }
@@ -343,7 +345,7 @@ internal static class Hotkeys
         for (int i = 0; i < SlotCount; i++)
         {
             KeyCode key = s_slotKeys[i];
-            if (key == KeyCode.None || s_ignored.Contains(key) || !Input.GetKeyDown(key)) continue;
+            if (key == KeyCode.None || s_ignored.Contains(key) || !InputState.KeyDown(key)) continue;
             Actions.Run(s_slotActionPrefix + (i + 1), $"key {modifier}+{key}");
         }
     }
@@ -427,7 +429,7 @@ internal static class Hotkeys
         s_capturePeak |= held;
         foreach (KeyCode key in AllKeys)
         {
-            if (key == KeyCode.Escape || !Input.GetKeyDown(key)) continue;
+            if (key == KeyCode.Escape || !InputState.KeyDown(key)) continue;
             switch (target)
             {
                 case Hotkey hotkey when Chord.ModifierBit(key) == null && Chord.AllowedMain(key, hotkey.Kind):
@@ -455,7 +457,7 @@ internal static class Hotkeys
         target.Commit(chord.Text);
         foreach (KeyCode key in chord.Keys)
         {
-            if (Input.GetKey(key)) s_ignored.Add(key);
+            if (InputState.Key(key)) s_ignored.Add(key);
         }
         s_modifierPressSpent = true;
         Log.Info($"hotkeys: {target.Label} = {chord.Text}");
@@ -479,7 +481,7 @@ internal static class Hotkeys
     {
         if (chord.IsEmpty) return false;
         if (chord.ModifiersOnly) return s_releasedModifiers == chord.Modifiers;
-        return Input.GetKeyDown(chord.Main) && !s_ignored.Contains(chord.Main) && (s_heldModifiers & chord.Modifiers) == chord.Modifiers;
+        return InputState.KeyDown(chord.Main) && !s_ignored.Contains(chord.Main) && (s_heldModifiers & chord.Modifiers) == chord.Modifiers;
     }
 
     private static void Commit(Hotkey hotkey, Chord chord)
@@ -490,7 +492,7 @@ internal static class Hotkeys
         // The keys just pressed shouldn't also fire the binding they were bound to.
         foreach (KeyCode key in chord.Keys)
         {
-            if (Input.GetKey(key)) s_ignored.Add(key);
+            if (InputState.Key(key)) s_ignored.Add(key);
         }
         s_modifierPressSpent = true;
         Log.Info($"hotkeys: {hotkey.Section.Group.Name} {hotkey.Id} = {(chord.IsEmpty ? "(none)" : chord.Text)}");
@@ -499,7 +501,7 @@ internal static class Hotkeys
     // ---- While the layer isn't running ----
 
     /// <summary>For the menu when this layer is down: whether its key's main key went down, read directly as before.</summary>
-    public static bool FallbackPressed(Hotkey hotkey) => hotkey.Chord.Main != KeyCode.None && Input.GetKeyDown(hotkey.Chord.Main);
+    public static bool FallbackPressed(Hotkey hotkey) => hotkey.Chord.Main != KeyCode.None && InputState.KeyDown(hotkey.Chord.Main);
 
-    public static bool FallbackEscape() => Input.GetKeyDown(KeyCode.Escape);
+    public static bool FallbackEscape() => InputState.KeyDown(KeyCode.Escape);
 }

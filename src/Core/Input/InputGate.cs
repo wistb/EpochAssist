@@ -76,10 +76,10 @@ internal static class InputGate
     // dragged across the pill is left alone.
     private static void BeforeGameInput()
     {
-        var mouse = UnityEngine.Input.mousePosition;
+        var mouse = InputState.Pointer;
         bool over = HudHitTest != null && HudHitTest(new UnityEngine.Vector2(mouse.x, UnityEngine.Screen.height - mouse.y));
-        bool down = UnityEngine.Input.GetMouseButtonDown(0) || UnityEngine.Input.GetMouseButtonDown(1) || UnityEngine.Input.GetMouseButtonDown(2);
-        bool held = UnityEngine.Input.GetMouseButton(0) || UnityEngine.Input.GetMouseButton(1) || UnityEngine.Input.GetMouseButton(2);
+        bool down = InputState.ButtonDown(0) || InputState.ButtonDown(1) || InputState.ButtonDown(2);
+        bool held = InputState.Button(0) || InputState.Button(1) || InputState.Button(2);
 
         if (down && over) s_hudPress = true;
         if (s_hudPress && !held)

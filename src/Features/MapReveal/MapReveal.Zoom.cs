@@ -98,8 +98,8 @@ internal static partial class MapReveal
     public static void PanFrame()
     {
         if (!ArrowsPan()) return;
-        float x = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
-        float y = (Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
+        float x = (InputState.Key(KeyCode.RightArrow) ? 1f : 0f) - (InputState.Key(KeyCode.LeftArrow) ? 1f : 0f);
+        float y = (InputState.Key(KeyCode.UpArrow) ? 1f : 0f) - (InputState.Key(KeyCode.DownArrow) ? 1f : 0f);
         if (x == 0f && y == 0f) return;
         var ui = Il2Cpp.UIBase.instance;
         if (Game.Alive(ui)) ui!.MoveOverlayMap(new Vector2(x, y) * PanInput);

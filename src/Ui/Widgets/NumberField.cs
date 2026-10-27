@@ -99,7 +99,7 @@ internal static class NumberField
         if (s_held == key)
         {
             // Let go anywhere (the window sees the release while the press began on it).
-            if (e.type == EventType.MouseUp || (e.type == EventType.Repaint && !Input.GetMouseButton(0)))
+            if (e.type == EventType.MouseUp || (e.type == EventType.Repaint && !InputState.Button(0)))
             {
                 s_held = null;
                 s_heldSet = null;

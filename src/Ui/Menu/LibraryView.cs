@@ -22,7 +22,7 @@ internal static class LibraryLayout
         // Ctrl+Z on the tab undoes, unless a text field has the keys. Read from the keys once a frame, as the menu's
         // own navigation is (the window doesn't get key events while the game has the input).
         if (Event.current.type == EventType.Layout && Time.frameCount != s_undoFrame && view.Undo != null && GUIUtility.keyboardControl == 0
-            && Input.GetKeyDown(KeyCode.Z) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)))
+            && InputState.KeyDown(KeyCode.Z) && (InputState.Key(KeyCode.LeftControl) || InputState.Key(KeyCode.RightControl)))
         {
             s_undoFrame = Time.frameCount;
             Safe.Run(view.Undo, "library.undo");

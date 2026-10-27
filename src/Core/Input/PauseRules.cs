@@ -77,7 +77,7 @@ internal static class PauseRules
         // Without the chat flag, typing in a game field or ours is still seen; only "not typing" is unsure.
         new("typing", "typing", RuleKind.Global, _ => GameState.Typing ? true : GameState.CanReadChat ? false : null),
         new("capture", "setting a key", RuleKind.Global, _ => CaptureActive()),
-        new("unfocused", "window not focused", RuleKind.Global, _ => !Application.isFocused),
+        new("unfocused", "window not focused", RuleKind.Global, _ => !InputState.Focused),
     };
 
     /// <summary>Rules a status shows as off rather than waiting.</summary>

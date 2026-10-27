@@ -43,7 +43,7 @@ internal static class Slider
                 e.Use();
             }
             // Let go anywhere (the window sees the release while the press began on it).
-            else if (e.type == EventType.MouseUp || (e.type == EventType.Repaint && !Input.GetMouseButton(0)))
+            else if (e.type == EventType.MouseUp || (e.type == EventType.Repaint && !InputState.Button(0)))
             {
                 s_dragging = null;
                 if (e.type == EventType.MouseUp) e.Use();
