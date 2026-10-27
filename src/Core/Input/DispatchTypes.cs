@@ -2,8 +2,9 @@ using UnityEngine;
 
 namespace EpochAssist.Core;
 
-// Survival clients (potions) get the frame's press before skills.
-internal enum PriorityClass { Survival, Skills }
+// Survival clients (potions) get the frame's press before skills; interactions come after potions and casts, so they never
+// take a frame or a press either of them wants.
+internal enum PriorityClass { Survival, Skills, Interact }
 
 /// <summary>A press of the game's own UI that a client asks the dispatcher for.</summary>
 internal abstract record UiAction
@@ -17,6 +18,40 @@ internal abstract record UiAction
     /// <summary>The container UI's own quick move (as a Ctrl-click) of the item at a slot; the game picks where it goes.
     /// Container is a ContainerID name ("INVENTORY", "STASH").</summary>
     public sealed record QuickMove(string Container, Vector2Int Position) : UiAction;
+    /// <summary>Uses a shrine, chest or ground item through the game's own click handler, only from within its reach;
+    /// only a client of the Interact class may ask for it.</summary>
+    public sealed record Interact(InteractTarget Target) : UiAction;
+}
+
+/// <summary>
+/// What an interaction uses: the dispatcher checks at the send that the object is still there, not used yet and within
+/// reach of the player's position that frame, then calls Use. Made by the feature; nothing here is kept between scans.
+/// </summary>
+internal sealed class InteractTarget
+{
+    public InteractTarget(string kind, string name, UnityEngine.Object obj, Func<Vector3> point, float reach, Func<bool> used, Action use)
+    {
+        Kind = kind;
+        Name = name;
+        Object = obj;
+        Point = point;
+        Reach = reach;
+        Used = used;
+        Use = use;
+    }
+
+    /// <summary>The kind's id, for the outcome log.</summary>
+    public string Kind { get; }
+    public string Name { get; }
+    /// <summary>The Unity object to check with Game.Alive before the call.</summary>
+    public UnityEngine.Object Object { get; }
+    /// <summary>The point the game measures its reach to, this frame.</summary>
+    public Func<Vector3> Point { get; }
+    /// <summary>The effective reach in metres, already below the game's own.</summary>
+    public float Reach { get; }
+    public Func<bool> Used { get; }
+    /// <summary>The kind's game call; it walks the character when made from out of reach, so only Press calls it.</summary>
+    public Action Use { get; }
 }
 
 /// <summary>How a UI request ended: pressed, or refused with the reason.</summary>

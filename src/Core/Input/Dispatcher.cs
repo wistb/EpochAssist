@@ -20,6 +20,8 @@ internal static partial class Dispatcher
     /// <summary>The most automated presses in any one second: the slot macros' highest second measured on
     /// five slots (43) plus 25%, so it never holds SlotMacros back; it bounds every client together.</summary>
     public const int MaxPressesPerSecond = 54;
+    // Interactions run only while the last second's presses leave this much of the cap free for potions and casts.
+    public const int InteractHeadroom = 10;
 
     // The game's input action for each bar slot (Ability1..5), for the manual hold check.
     private static readonly int[] s_slotActionIds =
@@ -72,11 +74,16 @@ internal static partial class Dispatcher
     public static readonly float[] SlotGapSum = new float[SlotCount];
     public static readonly float[] SlotMinGap = Enumerable.Repeat(float.MaxValue, SlotCount).ToArray();
 
+    /// <summary>Interactions pressed and refused since ResetPressCounts.</summary>
+    public static int InteractsPressed { get; private set; }
+    public static int InteractsRefused { get; private set; }
+
     /// <summary>Clears the peak and the totals (dev `jobs reset`, for a baseline run).</summary>
     public static void ResetPressCounts()
     {
         PeakPressesPerSecond = 0;
         PressesSinceReset = 0;
+        InteractsPressed = InteractsRefused = 0;
         Array.Clear(SlotPresses);
         Array.Clear(SlotGapSum);
         Array.Fill(SlotMinGap, float.MaxValue);
@@ -161,6 +168,9 @@ internal static partial class Dispatcher
     // count and the heal come from the server a moment after the drink).
     private const float DrinkSettleSeconds = 0.25f, DrinkLandTimeout = 1.5f;
     private static bool s_drinkInFlight;
+    // This frame a drink is landing, or a survival client's drink or press was held back: no interaction runs, so none
+    // sits between a wanted drink and its frame.
+    private static bool s_survivalWaiting;
     private static int? s_flightCharges;
     private static float? s_flightHealth;
     private static float s_flightDroppedAt = float.NaN;
@@ -249,6 +259,7 @@ internal static partial class Dispatcher
     {
         int manualHold = FirstManuallyHeldSlot();
         bool pressed = false;
+        s_survivalWaiting = DrinkLanding;
         // At the cap a press is held back like one inside the slot spacing; clients are in survival-first order.
         bool capped = PressesLastSecond >= MaxPressesPerSecond;
         float now = Time.unscaledTime;
@@ -274,6 +285,7 @@ internal static partial class Dispatcher
 
             // A drink comes before the client's skill presses and takes the frame's press.
             if (client.DrinkRequested && Drink(client, now, capped, pressed)) pressed = true;
+            if (client.Priority == PriorityClass.Survival && client.DrinkRequested && client.DrinkOutcome != SendOutcome.Sent) s_survivalWaiting = true;
             if (client.PortalRequested)
             {
                 // As a key press of the portal key: it takes the frame's press and counts in the send rate.
@@ -305,6 +317,7 @@ internal static partial class Dispatcher
                             // Too soon for this slot, or the cap: the key-up, as a slot that isn't ready gets.
                             SendBarCommand(i, keyDown: false, client.SlotTarget[i], client.SlotHit[i]);
                             Record(client, i, capped ? SendOutcome.Cap : SendOutcome.Spacing, now);
+                            if (client.Priority == PriorityClass.Survival) s_survivalWaiting = true;
                         }
                         else if (!pressed)
                         {

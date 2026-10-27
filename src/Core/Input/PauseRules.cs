@@ -86,13 +86,14 @@ internal static class PauseRules
     /// <summary>
     /// The first active rule for the client, or null when it may act. skip leaves out one kind of the client's own.
     /// forUi is the UI action rule set: the global rules without "dead", "game menu open" and "game paused" (respawn
-    /// happens while dead; prompts open from the game menu, which stops time offline), then the client's own.
+    /// happens while dead; prompts open from the game menu, which stops time offline), then the client's own. An
+    /// Interact client never gets those exceptions: nothing is used while dead, in the game menu or paused.
     /// </summary>
     public static PauseRule? FirstActive(DispatchClient client, RuleKind? skip = null, bool forUi = false)
     {
         foreach (var rule in Global)
         {
-            if (forUi && IsSkippedForUi(rule)) continue;
+            if (forUi && client.Priority != PriorityClass.Interact && IsSkippedForUi(rule)) continue;
             if (Array.IndexOf(client.Ignores, rule.Name) >= 0) continue;
             if (rule.Active(client) == true) return rule;
         }

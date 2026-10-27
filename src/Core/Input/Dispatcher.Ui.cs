@@ -7,6 +7,8 @@ namespace EpochAssist.Core;
 internal static partial class Dispatcher
 {
     private const float UiWaitSeconds = 1f;
+    // An interaction gives up sooner: the feature picks again at its next scan.
+    private const float InteractWaitSeconds = 0.5f;
     // What last kept a frame from UI presses, for the capped reason.
     private static string s_uiHeldBy = "none";
 
@@ -15,6 +17,8 @@ internal static partial class Dispatcher
     /// UI rule set (the global pause rules without dead, game menu open and game paused, plus the client's own), at most
     /// one per frame, never in a frame with an automated key-down or the player's own key or click, and within the send
     /// rate; it counts as a press. Refused at once while a rule holds, and after 1 s without a free frame ("capped").
+    /// An interaction runs under every global rule, last in the frame, only with 10 presses of the cap to spare and no
+    /// drink landing or held back, and is capped after 0.5 s.
     /// </summary>
     public static void RequestUi(DispatchClient client, UiAction action)
     {
@@ -31,19 +35,33 @@ internal static partial class Dispatcher
     {
         string? held = keyDownSent ? "automated key-down" : ManualInputThisFrame() ? "manual input" : PressesLastSecond >= MaxPressesPerSecond ? "send rate" : null;
         if (held != null) s_uiHeldBy = held;
-        bool free = held == null;
+        // The player's own key or click doesn't hold an interaction: players move by holding the mouse, and a use from
+        // in reach doesn't stop a run or a cast. An automated key-down this frame still does.
+        string? interactHeldBy = keyDownSent ? "automated key-down" : PressesLastSecond >= MaxPressesPerSecond ? "send rate" : null;
         bool ran = false;
         foreach (var client in s_clients)
         {
             if (client.PendingUi is not { } action) continue;
+            bool interact = action is UiAction.Interact;
+            if (interact && client.Priority != PriorityClass.Interact)
+            {
+                EndUi(client, action, UiResult.No("not allowed"));
+                continue;
+            }
             if (PauseRules.FirstActive(client, forUi: true) is { } rule)
             {
                 EndUi(client, action, UiResult.No(rule.Reason));
                 continue;
             }
-            if (!free || ran)
+            string? interactHeld = !interact ? null
+                : PressesLastSecond > MaxPressesPerSecond - InteractHeadroom ? "send rate headroom"
+                : s_survivalWaiting ? "drink waiting"
+                : null;
+            string? frameHeld = interact ? interactHeldBy : held;
+            if (frameHeld != null || ran || interactHeld != null)
             {
-                if (Clock.Now - client.PendingUiAt > UiWaitSeconds) EndUi(client, action, UiResult.No($"capped ({(ran ? "another UI press" : s_uiHeldBy)})"));
+                if (Clock.Now - client.PendingUiAt > (interact ? InteractWaitSeconds : UiWaitSeconds))
+                    EndUi(client, action, UiResult.No($"capped ({(ran ? "another UI press" : frameHeld != null ? (interact ? frameHeld : s_uiHeldBy) : interactHeld)})"));
                 continue;
             }
             ran = true;
@@ -66,6 +84,18 @@ internal static partial class Dispatcher
         client.PendingUi = null;
         client.LastUi = result;
         Log.Debug($"dispatch: {client.Feature.Id} {action.GetType().Name.ToLowerInvariant()} {result}");
+        if (action is not UiAction.Interact { Target: var target }) return;
+        if (result.Pressed) InteractsPressed++;
+        else InteractsRefused++;
+        Trace?.Invoke(FormattableString.Invariant($"{client.Name} ui interact {target.Kind} {target.Name} {InteractDistance(target):F2} m: {result} f={Time.frameCount} t={Time.unscaledTime:F3}"));
+    }
+
+    // Metres from the player's position this frame to the point the game measures to; infinity when either is gone.
+    private static float InteractDistance(InteractTarget target)
+    {
+        var player = Player.Transform;
+        if (!Game.Alive(player) || !Game.Alive(target.Object)) return float.PositiveInfinity;
+        return Vector3.Distance(player!.position, target.Point());
     }
 
     // A key or mouse button the player holds this frame: their input goes first. Input.anyKeyDown reads true on every
@@ -107,6 +137,16 @@ internal static partial class Dispatcher
                 var screen = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.Of<DeathScreen>())?.TryCast<DeathScreen>();
                 if (!Game.Alive(screen) || !screen!.gameObject.activeInHierarchy) return UiResult.No("no death screen");
                 return PressButton(screen.normalRespawnButton);
+            }
+            case UiAction.Interact { Target: var target }:
+            {
+                // Checked again here, with this frame's position: the call walks the character from out of reach.
+                if (!Game.Alive(target.Object)) return UiResult.No("gone");
+                if (target.Used()) return UiResult.No("used");
+                if (!(InteractDistance(target) <= target.Reach)) return UiResult.No("out of reach");
+                target.Use();
+                CountPress();
+                return UiResult.Done;
             }
             case UiAction.QuickMove move:
             {
