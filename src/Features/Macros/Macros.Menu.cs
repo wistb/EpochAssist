@@ -39,17 +39,19 @@ internal static partial class Macros
             $"A new set for the class shown ({MacroSet.MaxPerClass} sets per class at most)") },
         ActionHint = Hint,
         Footer = { S.Enabled, S.DebugConditions, S.DebugRanges, S.DebugNotifications, S.ShowRangeRing },
+        // To the macros' settings in the Config tree, not a page in this tab.
+        FooterButtons = { new ActionButton("Settings", "menu.config.macros") { Tip = "Opens Config › Macros" } },
         Undo = Undo,
     };
 
-    // The library page, and the settings page its Settings button opens in its place (search finds its rows).
+    // The library page; its Settings button opens Config › Macros.
     public static readonly MenuEntry Entry = new(MenuCategory.Macros, order: 10)
     {
         Title = "Library",
         Switch = S.Enabled,
         Layout = MenuLayout.Library,
         Library = View,
-        Pages = { new MenuPage("Library") { Resettable = false }, MacroSettingsPage.SettingsPage() },
+        Pages = { new MenuPage("Library") { Resettable = false } },
     };
 
     private const string SlotsKey = "slots", EveryKey = "slots/every";

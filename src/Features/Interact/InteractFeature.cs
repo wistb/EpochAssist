@@ -66,7 +66,7 @@ internal sealed class InteractFeature : Feature
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
-    private static readonly MenuEntry s_menu = new(MenuCategory.Combat, order: 30)
+    private static readonly MenuEntry s_menu = new(MenuCategory.Combat, order: 37)
     {
         Title = "Interact",
         Switch = S.Enabled,

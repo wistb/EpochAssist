@@ -3,30 +3,34 @@ using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
-// The Macros feature's settings as one page of the Macros tab (opened by the library's Settings button, found by
-// search): Keys, Pausing and Enemies, each a card with its settings (the slot macros' shared target is on the Shared
-// Conditions page). Run macros and the debug
-// switches are the library's footer. The menu draws it.
+// The Macros feature's settings in the Config tree (opened by the library's Settings button, found by search): Keys,
+// Pausing and Enemies, a sub-tab each (the slot macros' shared target is on the Shared Conditions page). Run macros
+// and the debug switches are the library's footer. The menu draws it.
 internal static class MacroSettingsPage
 {
-    /// <summary>
-    /// The settings page as cards: Keys beside Pausing, then Enemies across the page.
-    /// </summary>
-    public static MenuPage SettingsPage()
+    /// <summary>The settings in the Config tree, first in it: Keys, Pausing and Enemies, a sub-tab each.</summary>
+    public static readonly MenuEntry ConfigEntry = ConfigSettings();
+
+    private static MenuEntry ConfigSettings()
     {
-        var page = new MenuPage("Settings") { InTree = false, Resettable = false };
-        page.Rows.Add(new CardColumns(
-            new CardRow("Keys", "How slots are toggled, and the key that stops macros while held.",
-                new SettingRow(S.ModifierKey), new SettingRow(S.HoldToPauseKey)),
-            new CardRow("Pausing", "When macros stop by themselves until you press a skill.",
-                new SettingRow(S.PauseOnZoneChange), new SettingRow(S.PauseInNonCombatZones))));
+        // No status row: the page title's tag already shows the state and why.
+        var entry = new MenuEntry(MenuCategory.Combat, order: 20) { Title = "Macros" };
+        var keys = new MenuPage("Keys");
+        keys.Rows.Add(new SettingRow(S.ModifierKey));
+        keys.Rows.Add(new SettingRow(S.HoldToPauseKey));
+        var pausing = new MenuPage("Pausing");
+        pausing.Rows.Add(new SettingRow(S.PauseOnZoneChange));
+        pausing.Rows.Add(new SettingRow(S.PauseInNonCombatZones));
         // The enemy weights every enemy weight condition uses, the range ring and what the gate sees now.
+        var enemies = new MenuPage("Enemies");
         var weights = S.Gate.Settings.Where(s => s.Fold != null).OfType<Number>().ToList();
-        page.Rows.Add(new CardRow("Enemies", "How much each enemy counts in enemy weight lines (the enemy gate's included).",
-            new NumberGroup(weights, weights[0].Fold),
-            new SettingRow(S.ShowRangeRing),
-            new LiveText("Enemy gate", GateReadout) { VisibleWhen = () => S.GateEntry() is { On: true } }));
-        return page;
+        enemies.Rows.Add(new NumberGroup(weights, weights[0].Fold));
+        enemies.Rows.Add(new SettingRow(S.ShowRangeRing));
+        enemies.Rows.Add(new LiveText("Enemy gate", GateReadout) { VisibleWhen = () => S.GateEntry() is { On: true } });
+        entry.Pages.Add(keys);
+        entry.Pages.Add(pausing);
+        entry.Pages.Add(enemies);
+        return entry;
     }
 
     /// <summary>

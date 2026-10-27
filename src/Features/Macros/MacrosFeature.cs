@@ -13,6 +13,7 @@ internal sealed class MacrosFeature : Feature
     // Reads its settings each frame, after the character's values are in place.
     public override string[] RunsAfter => new[] { "profiles" };
     public override MenuEntry? Menu => Macros.Entry;
+    public override MenuEntry? ConfigMenu => MacroSettingsPage.ConfigEntry;
     public override string? StatusName => "Macros";
     // Slot macros alone average 0.28–0.35 ms; five full slot lists and 50 library macros stay within 1.0 ms (SC-008).
     public override double BudgetMs => 1.0;
