@@ -49,7 +49,7 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   - **Zoom**: overlay zooms past game's widest; separate corner minimap zoom.
   - **Look**: Slate, Clear or game style, thicker outline.
   - **Player marker**: any game icon, rotated, tinted, scaled, offset.
-  - Changes drawing only: explored map and game settings untouched.
+  - **Drawing only**: explored map and game settings untouched.
   <details><summary>Screenshots</summary>
 
   ![The overlay map with Map Reveal](nexus/media/map-overlay.png)
