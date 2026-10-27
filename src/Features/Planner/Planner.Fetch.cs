@@ -75,6 +75,22 @@ internal static partial class Planner
     {
         public const string NotABuild = "That isn't a planner link, a Maxroll export or a Last Epoch Tools build.";
         public const string Busy = "Already fetching a build.";
+        public const string NoCharacter = "Load a character to pick its build.";
+        public const string InferredSlots = "Specialisation slots inferred from the export.";
+
+        public static string DifferentMastery(string mastery) => $"This build uses {mastery}; the mastery tree isn't marked.";
+
+        public static string SkillNotInBuild(string skill) => $"{skill} isn't in this build.";
+
+        public static string UnknownIds(BuildResolution resolution) =>
+            $"{resolution.UnknownNodes.Count} nodes and {resolution.UnknownSkills.Count} skills aren't in this game version.";
+
+        public static string AlreadyInLibrary(Build build) =>
+            $"\"{build.Name}\" is already in the library. Replace it with this import, or keep the one you have.";
+
+        public static string Kept(string name) => $"Kept \"{name}\" as it was.";
+
+        public static string NotSaved(Build build) => $"\"{build.Name}\" couldn't be saved to the library.";
 
         public static string Fetching(PlannerSite site) => $"Fetching from {PlannerSites.Name(site)}…";
 
@@ -142,40 +158,7 @@ internal static partial class Planner
         public static string? TestHostNow => s_testHost;
 #endif
 
-        /// <summary>
-        /// Handles a paste, from the tab's button or the dev paste verb: a link of a shown site starts its one request;
-        /// a Maxroll export or Last Epoch Tools build JSON is parsed here, with no request. The outcome words are the
-        /// tab's.
-        /// </summary>
-        public static PasteResult Paste(string? text)
-        {
-            var paste = PasteKind.Recognise(text);
-            PlannerSite? site = paste.Kind switch
-            {
-                PasteSource.MaxrollLink => PlannerSite.Maxroll,
-                PasteSource.LetLink => PlannerSite.LastEpochTools,
-                _ => null,
-            };
-            // A site whose link import isn't offered treats its links as any other text.
-            if (site is { } s && !PlannerSites.Shown(s)) return new PasteResult(Words.NotABuild);
-            if (site is { } linked)
-            {
-                if (Busy) return new PasteResult(Words.Busy);
-                Start(linked, paste);
-                return new PasteResult(Words.Fetching(linked)) { Started = true };
-            }
-            if (paste.Kind is not (PasteSource.MaxrollExport or PasteSource.LetJson)) return new PasteResult(Words.NotABuild);
-            if (paste.Text.Length > MainThreadParseBytes) return new PasteResult(Words.NotABuild);
-            var parsed = paste.Kind == PasteSource.MaxrollExport
-                ? MaxrollFormat.ParseExport(paste.Text, DateTime.Now)
-                : LetFormat.Parse(paste.Text, null, null, DateTime.Now);
-            return parsed.Build is { } build ? new PasteResult(Words.Imported(build)) { Build = build } : new PasteResult(Words.NotABuild);
-        }
-
-        // Pasted text is parsed on the main thread, so only up to this size.
-        private const int MainThreadParseBytes = 1024 * 1024;
-
-        /// <summary>Starts the one request for a recognised link; false while one is running.</summary>
+        /// <summary>Starts the one request for a recognised link, from the paste handler; false while one is running.</summary>
         public static bool Start(PlannerSite site, Paste paste)
         {
             if (s_task != null || paste.RequestUrl == null) return false;

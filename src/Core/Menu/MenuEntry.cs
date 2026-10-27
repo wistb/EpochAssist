@@ -7,6 +7,8 @@ internal static class MenuCategory
     public const string Combat = "combat";
     /// <summary>The macro library (the Macros feature's second entry).</summary>
     public const string Macros = "macros";
+    /// <summary>The planner's build library.</summary>
+    public const string Planner = "planner";
     public const string Sessions = "session";
     public const string Overlays = "overlays";
     public const string Map = "map";
