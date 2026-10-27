@@ -30,6 +30,15 @@ internal sealed class MenuFeature : Feature
             string id = feature.Id;
             Actions.Register(Id, $"menu.page.{id}", $"Open {feature.Menu!.Title ?? feature.Name}", () => Ui.Menu.Open(id));
         }
+        // A feature with a tab of its own and its settings in the Config tree: a way to its settings from the tab.
+        foreach (var feature in FeatureHost.All.Where(f => f.ConfigMenu != null))
+        {
+            var owner = feature;
+            Actions.Register(Id, $"menu.config.{owner.Id}", $"Open {owner.ConfigMenu!.Title ?? owner.Name} settings", () =>
+            {
+                if (MenuTree.ConfigNodeOf(owner) is { } node) Ui.Menu.Open(MenuRoutes.First(node));
+            });
+        }
         Actions.Register(Id, "menu.page.settings", "Open Settings", Ui.Menu.OpenSettings);
         Actions.Register(Id, "menu.profiles", "Open Profiles", Ui.Menu.OpenProfiles);
         // The theme choice lists presets and player files, which the core setting can't know about.

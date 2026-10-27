@@ -132,7 +132,13 @@ internal static class MenuTree
 
     public static PageNode? Find(string path) => Pages.FirstOrDefault(p => p.Path == path);
 
-    public static MenuNode? NodeOf(Feature feature) => Tabs.SelectMany(t => t.Nodes).FirstOrDefault(n => n.Feature == feature);
+    public static MenuNode? NodeOf(Feature feature) =>
+        Tabs.SelectMany(t => t.Nodes).FirstOrDefault(n => n.Feature == feature && ReferenceEquals(n.Entry, feature.Menu))
+        ?? Tabs.SelectMany(t => t.Nodes).FirstOrDefault(n => n.Feature == feature);
+
+    /// <summary>The node of a feature's Config entry, or null.</summary>
+    public static MenuNode? ConfigNodeOf(Feature feature) =>
+        feature.ConfigMenu == null ? null : Tabs.SelectMany(t => t.Nodes).FirstOrDefault(n => ReferenceEquals(n.Entry, feature.ConfigMenu));
 
     /// <summary>Forgets the tree; the next use builds it again (the menu opening, shutdown).</summary>
     public static void Invalidate() => s_seen = Array.Empty<MenuEntry?>();
@@ -154,6 +160,7 @@ internal static class MenuTree
         s_problems.Clear();
         var tabs = s_tabs.Select(t => new MenuTab(t.Id, t.Title)).ToList();
         var entries = FeatureHost.All.Where(f => f.Menu != null).Select(f => (Entry: f.Menu!, Feature: (Feature?)f, Title: f.Menu!.Title ?? f.Name))
+            .Concat(FeatureHost.All.Where(f => f.ConfigMenu != null).Select(f => (Entry: f.ConfigMenu!, Feature: (Feature?)f, Title: f.ConfigMenu!.Title ?? f.Name)))
             .Concat(SettingsContent.Entries.Select(e => (Entry: e, Feature: (Feature?)null, Title: e.Title ?? string.Empty)))
             .Select((e, index) => (e.Entry, e.Feature, e.Title, Index: index))
             .OrderBy(e => e.Entry.Order).ThenBy(e => e.Index)

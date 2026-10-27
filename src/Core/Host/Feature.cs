@@ -40,6 +40,10 @@ internal abstract class Feature
     /// <summary>The feature's place in the menu, or null for none. Read in every state, so a stopped feature keeps it.</summary>
     public virtual MenuEntry? Menu => null;
 
+    /// <summary>A second place in the menu for a feature whose own entry is a tab of its own: its settings in the Config
+    /// tree. Null for none.</summary>
+    public virtual MenuEntry? ConfigMenu => null;
+
     /// <summary>The player can turn the whole feature off: it has an entry outside General.</summary>
     public bool CanTurnOff => Menu != null && Menu.Folder != MenuEntry.General;
 
