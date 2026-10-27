@@ -14,6 +14,7 @@ internal sealed class MenuFeature : Feature
     {
         RowKinds.RegisterBuiltIn();
         ProfilesPage.Register();
+        InputGate.MenuHitTest = point => Ui.Menu.ScreenRect.Contains(point);
         DiagnosticsPage.Register();
         SessionsPage.Register();
         RolePreview.Register();
@@ -43,6 +44,7 @@ internal sealed class MenuFeature : Feature
 
     public override void Shutdown()
     {
+        InputGate.MenuHitTest = null;
         Ui.Menu.Close();
         Popups.Reset();
         MenuTree.Invalidate();

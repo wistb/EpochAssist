@@ -12,6 +12,7 @@ internal sealed class InputGateFeature : Feature
     private const string ZoomHold = "wheel zoom hold";
     private const string MovementStop = "movement stop";
     private const string HudClicks = "HUD click blocking";
+    private const string UiClicks = "game UI click blocking";
 
     public override Type[] PatchClasses => NestedPatches(typeof(InputGate));
     public override IReadOnlyDictionary<Type, string> PatchGroups { get; } =
@@ -26,12 +27,14 @@ internal sealed class InputGateFeature : Feature
         Need<MovementProcessor>(nameof(MovementProcessor.StopActiveMovement), MovementStop),
         Need<MovementProcessor>(nameof(MovementProcessor.ProcessKeyboardMovement), MovementStop),
         Need<EpochInputManager>(nameof(EpochInputManager.blockMouseMovementInput), HudClicks),
+        Need(typeof(UnityEngine.EventSystems.EventSystem), nameof(UnityEngine.EventSystems.EventSystem.current), UiClicks),
     };
 
     public override void Start()
     {
         InputGate.CanStopMovement = Has(MovementStop);
         InputGate.CanBlockMouseMovement = Has(HudClicks);
+        InputGate.CanHoldUiEvents = Has(UiClicks);
     }
 
     // Runs after the menu and the HUD, which set what to block.

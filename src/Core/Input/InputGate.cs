@@ -19,6 +19,13 @@ internal static class InputGate
 
     /// <summary>The HUD's hit test in screen pixels (top-left origin); set by the HUD while it runs.</summary>
     public static Func<UnityEngine.Vector2, bool>? HudHitTest;
+    /// <summary>The menu window's hit test in screen pixels (top-left origin); set by the menu while it runs.</summary>
+    public static Func<UnityEngine.Vector2, bool>? MenuHitTest;
+    /// <summary>Off when the game's UI event system can't be read (set by InputGateFeature).</summary>
+    public static bool CanHoldUiEvents = true;
+    // The event system this gate turned off. A disabled one is no longer EventSystem.current, so it is kept here to be
+    // turned back on.
+    private static UnityEngine.EventSystems.EventSystem? s_heldUiEvents;
     private static bool s_hudPress;
     private static int s_hudTailFrames;
     private static bool s_ownsMouseMoveBlock;
@@ -89,7 +96,29 @@ internal static class InputGate
         // Click-to-move is handled apart from the general lock, so while the cursor is on the HUD the game's own
         // mouse-movement block is held as well. It covers only click-to-move; keys and skills keep working.
         HoldMouseMovementBlock(over && !Menu);
+        // The game's own UI (the world map, its buttons and panels) takes clicks through Unity's event system, which
+        // the lock above doesn't reach: while the cursor is over the menu window or the HUD, that system is held off,
+        // so a click there lands only on ours.
+        var point = new UnityEngine.Vector2(mouse.x, UnityEngine.Screen.height - mouse.y);
+        HoldUiEvents(over || (Menu && MenuHitTest != null && MenuHitTest(point)));
         Apply();
+    }
+
+    private static void HoldUiEvents(bool hold)
+    {
+        if (!CanHoldUiEvents) return;
+        if (hold)
+        {
+            var events = UnityEngine.EventSystems.EventSystem.current;
+            if (s_heldUiEvents != null || !Game.Alive(events) || !events!.enabled) return;
+            events.enabled = false;
+            s_heldUiEvents = events;
+        }
+        else if (s_heldUiEvents != null)
+        {
+            if (Game.Alive(s_heldUiEvents)) s_heldUiEvents.enabled = true;
+            s_heldUiEvents = null;
+        }
     }
 
     private static void HoldMouseMovementBlock(bool hold)
@@ -142,6 +171,7 @@ internal static class InputGate
         s_hudPress = false;
         s_hudTailFrames = 0;
         HoldMouseMovementBlock(false);
+        HoldUiEvents(false);
         Apply();
     }
 
