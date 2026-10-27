@@ -22,12 +22,12 @@ internal static class KnownMods
 
     public static readonly IReadOnlyList<KnownOverlap> All = new[]
     {
-        new KnownOverlap(new[] { "LastEpoch_Hud", "LEHud", "Last Epoch HUD" }, new[] { Autocaster, "overlay", "map" }, new[] { "macros", "dispatch", "game" },
-            "Has its own autocast and patches the same skill bar and echo methods; two autocasters press skills twice."),
+        new KnownOverlap(new[] { "LastEpoch_Hud", "LEHud", "Last Epoch HUD" }, new[] { Autocaster, "overlay", "map", "auto pick-up" }, new[] { "macros", "dispatch", "game", "interact" },
+            "Has its own autocast and loot pick-up, and patches the same skill bar and echo methods; two autocasters press skills twice, and both mods may reach for the same item (the game gives it once)."),
         new KnownOverlap(new[] { "Terrible Tooltips", "medick_Terrible_Tooltips" }, new[] { "tooltips" }, new[] { "gameui" },
             "Also changes item tooltips; lines a feature adds to tooltips may sit oddly or twice."),
-        new KnownOverlap(new[] { "FallenStar's Auto Enabler", "Fallen_Auto_Enabler" }, new[] { "auto use" }, Array.Empty<string>(),
-            "Uses shrines and objects by itself."),
+        new KnownOverlap(new[] { "FallenStar's Auto Enabler", "Fallen_Auto_Enabler" }, new[] { "auto use" }, new[] { "interact" },
+            "Uses shrines, chests and rune prisons by itself, from farther away; both may reach for the same object (the game uses it once)."),
     };
 
     /// <summary>The entry for a mod by its MelonInfo name or its file name (with or without .dll), ignoring case; null for none.</summary>
