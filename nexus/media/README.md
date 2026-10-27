@@ -32,6 +32,10 @@ is drawn (`tools/shot.sh …`; shots land in `UserData/EpochAssist/dev/shots/`):
 | `appearance` | Config › General › Interface › Appearance | `menu open combat/general/interface/appearance`, `wait 90`, `shot menu appearance matte` |
 | `diagnostics` | Config › General › Diagnostics › Overview, offline (the summary names the mode; a dev build's says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time; an unfocused game runs few frames a second, so the wait takes longer) | `menu open combat/general/diagnostics/overview`, `wait 900`, `shot menu diagnostics matte` |
 | `settings-hud` | Config › General › Interface › Mini HUD, second image under Mini HUD (the HUD preview pokes 4 px past the menu's left and top edges; trim the image to the menu's 1600 × 1360) | `menu open combat/general/interface/mini-hud`, `wait 90`, `shot menu settings-hud matte` |
+| `interact` | Config › Interact › Proximity Interact, every kind on | `menu open combat/interact/proximity-interact`, `wait 90`, `shot menu interact matte` |
+| `map-overlay` | The overlay map in an echo with Map Reveal on (Slate look, thick outline, icons shown), menu closed, cropped to the map with a margin of the world and none of the game's UI | a screenshot with Tab open in an echo, cropped to the map |
+| `map-look` | Config › Map › Look, the Slate style | `menu open combat/map/look`, `wait 90`, `shot menu map-look matte` |
+| `map-icons` | Config › Map › Icons, a player icon picked | `menu open combat/map/icons`, `wait 90`, `shot menu map-icons matte` |
 
 A dev build lists a Dev section in the Config tree; players don't have it: `menu devpages off` hides it for the shots (`menu devpages on` after). Not shipped in the zip. The Nexus gallery images and the page header and banner (`../banner-1300x372.png`,
 `../header-1920x1080.png`) are uploaded by hand.
