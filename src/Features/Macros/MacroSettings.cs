@@ -61,7 +61,8 @@ internal static class MacroSettings
     private const string GateOn = "the enemy gate is on";
     public static readonly Toggle ShowRangeRing = new(Gate, "ShowRangeRing", "Show range ring", false)
     {
-        QuickLabel = "Show range ring", VisibleWhen = () => GateEntry() is { On: true }, ShownWhen = GateOn, WithDebug = true,
+        // On the Macros tab's footer with the debug switches, not a quick toggle.
+        VisibleWhen = () => GateEntry() is { On: true }, ShownWhen = GateOn, WithDebug = true,
     };
     public static readonly Number WeightNormal = Weight("WeightNormal", "Normal", 1f);
     public static readonly Number WeightMagic = Weight("WeightMagic", "Magic", 2f);

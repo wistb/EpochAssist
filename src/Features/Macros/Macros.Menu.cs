@@ -38,7 +38,7 @@ internal static partial class Macros
             Button("New set", "newset", NewSet, () => !S.LibraryDoc.Doc.ReadOnly && S.LibraryDoc.Doc.SetsOf(PickedClass).Count() < MacroSet.MaxPerClass,
             $"A new set for the class shown ({MacroSet.MaxPerClass} sets per class at most)") },
         ActionHint = Hint,
-        Footer = { S.Enabled, S.DebugConditions, S.DebugRanges, S.DebugNotifications },
+        Footer = { S.Enabled, S.DebugConditions, S.DebugRanges, S.DebugNotifications, S.ShowRangeRing },
         Undo = Undo,
     };
 
