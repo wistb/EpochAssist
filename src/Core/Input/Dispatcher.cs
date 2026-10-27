@@ -144,6 +144,8 @@ internal static partial class Dispatcher
         client.Intents[slot] = intent;
         client.Target = target;
         client.Hit = hit;
+        client.SlotTarget[slot] = target;
+        client.SlotHit[slot] = hit;
     }
 
     /// <summary>When the last drink was sent, by any client (unscaled seconds); negative infinity before the first.</summary>
@@ -295,18 +297,18 @@ internal static partial class Dispatcher
                         break;
                     // Nothing is sent for a slot at or after one the player holds, not even a key-up.
                     case PressIntent.Lift when i < manualHold:
-                        SendBarCommand(i, keyDown: false, client.Target, client.Hit);
+                        SendBarCommand(i, keyDown: false, client.SlotTarget[i], client.SlotHit[i]);
                         break;
                     case PressIntent.Press when i < manualHold:
                         if (capped || now - LastPressAt[i] < PressSpacingSeconds)
                         {
                             // Too soon for this slot, or the cap: the key-up, as a slot that isn't ready gets.
-                            SendBarCommand(i, keyDown: false, client.Target, client.Hit);
+                            SendBarCommand(i, keyDown: false, client.SlotTarget[i], client.SlotHit[i]);
                             Record(client, i, capped ? SendOutcome.Cap : SendOutcome.Spacing, now);
                         }
                         else if (!pressed)
                         {
-                            SendBarCommand(i, keyDown: true, client.Target, client.Hit);
+                            SendBarCommand(i, keyDown: true, client.SlotTarget[i], client.SlotHit[i]);
                             pressed = true;
                             client.Held[i] = true;
                             CountSlotPress(i, now);
@@ -360,7 +362,10 @@ internal static partial class Dispatcher
         client.Outcome[slot] = outcome;
         if (outcome == SendOutcome.Sent) client.Sent[slot]++;
         else client.Refused[(int)outcome]++;
-        Trace?.Invoke(FormattableString.Invariant($"{client.Name} slot {slot + 1} {OutcomeWord(client, outcome)} f={Time.frameCount} t={now:F3}"));
+        // A sent press says where it aimed, so send points can be compared across builds.
+        Trace?.Invoke(outcome == SendOutcome.Sent
+            ? FormattableString.Invariant($"{client.Name} slot {slot + 1} {OutcomeWord(client, outcome)} at {client.SlotTarget[slot].x:F1},{client.SlotTarget[slot].z:F1} f={Time.frameCount} t={now:F3}")
+            : FormattableString.Invariant($"{client.Name} slot {slot + 1} {OutcomeWord(client, outcome)} f={Time.frameCount} t={now:F3}"));
     }
 
     private static void RecordDrink(DispatchClient client, SendOutcome outcome, float now)
@@ -395,7 +400,7 @@ internal static partial class Dispatcher
     {
         if (!client.Held[slot]) return;
         client.Held[slot] = false;
-        SendBarCommand(slot, keyDown: false, client.Target, client.Hit);
+        SendBarCommand(slot, keyDown: false, client.SlotTarget[slot], client.SlotHit[slot]);
         bool channelled;
         try
         {

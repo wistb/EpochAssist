@@ -91,6 +91,9 @@ internal sealed class DispatchClient
     internal readonly bool[] StopRequested = new bool[Dispatcher.SlotCount];
     internal Vector3 Target;
     internal Transform? Hit;
+    // Each slot's own aim (slot macros can aim at different targets); Target and Hit are the last request's.
+    internal readonly Vector3[] SlotTarget = new Vector3[Dispatcher.SlotCount];
+    internal readonly Transform?[] SlotHit = new Transform?[Dispatcher.SlotCount];
     internal Vector3? RetargetTo;
     internal int RetargetSlot;
     internal UiAction? PendingUi;
