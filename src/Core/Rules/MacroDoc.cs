@@ -12,7 +12,8 @@ internal sealed class MacroStep
 {
     public static readonly string[] Kinds = { "cast", "drink", "portal", "wait", "waitUntil", "message" };
     public static readonly string[] Modes = { "tap", "hold", "channel" };
-    public static readonly string[] Aims = { "cursor", "nearest", "hovered" };
+    /// <summary>The stored aims: the three from before targets, and "target" for any other (its "target" object).</summary>
+    public static readonly string[] Aims = { "cursor", "nearest", "hovered", "target" };
     public static readonly string[] OnTimeouts = { "stop", "go" };
     public const int MaxMessage = 80;
 
@@ -51,6 +52,58 @@ internal sealed class MacroStep
 
     public bool Has(string name) => Fields.ContainsKey(name);
 
+    // The target read from the fields it was last made from (the run asks every frame; nothing allocates while they
+    // stay the same).
+    private TargetSpec? _target;
+    private (JsonNode? Aim, JsonNode? Range, JsonNode? Target) _targetFrom;
+
+    /// <summary>
+    /// What a cast step lands on: an old aim as the target it always meant (at cursor; nearest within aimRange, else at
+    /// cursor; hovered, else at cursor), or the "target" object. An aim this build doesn't know reads "needs a newer
+    /// version".
+    /// </summary>
+    public TargetSpec Target
+    {
+        get
+        {
+            var from = (Fields["aim"], Fields["aimRange"], Fields["target"]);
+            if (_target != null && ReferenceEquals(from.Item1, _targetFrom.Aim) && ReferenceEquals(from.Item2, _targetFrom.Range)
+                && ReferenceEquals(from.Item3, _targetFrom.Target)) return _target;
+            _targetFrom = from;
+            return _target = Aim switch
+            {
+                "cursor" => TargetSpec.Cursor,
+                "nearest" => TargetSpec.OldNearest(AimRange),
+                "hovered" => TargetSpec.OldHovered(),
+                "target" => TargetSpec.FromObject(Fields["target"]),
+                _ => TargetSpec.Unreadable(null),
+            };
+        }
+    }
+
+    /// <summary>
+    /// Stores a target: one of the old aims in the old shape (aim, and aimRange for nearest), so steps, exports and
+    /// share codes read the same as before; any other as aim "target" with its object, which builds from before
+    /// targets refuse rather than cast elsewhere.
+    /// </summary>
+    public void SetTarget(TargetSpec target)
+    {
+        if (target.Legacy)
+        {
+            Fields["aim"] = TargetSpec.PickNames[(int)target.Pick];
+            if (target.Pick == TargetPick.Nearest) Fields["aimRange"] = target.Range;
+            else Fields.Remove("aimRange");
+            Fields.Remove("target");
+            return;
+        }
+        Fields["aim"] = "target";
+        Fields["target"] = target.ToObject();
+        Fields.Remove("aimRange");
+    }
+
+    /// <summary>A step this build can't run because a newer one made it: a step name, aim or target it doesn't know.</summary>
+    public bool NeedsNewer => Raw == null && (!Known || (Step == "cast" && Invalid == TargetSpec.NewerVersion));
+
     /// <summary>Why the step can't run here, or null: a step name this build doesn't know, or a field outside its range.</summary>
     public string? Invalid
     {
@@ -66,8 +119,12 @@ internal sealed class MacroStep
                     if (!Modes.Contains(Mode)) return $"mode isn't one of {string.Join(", ", Modes)}";
                     if (Mode == "hold" && OutOfRange("ms", Ms, 100, 5000) is { } hold) return hold;
                     if (Mode == "channel" && OutOfRange("ms", Ms, 100, 10000) is { } channel) return channel;
-                    if (!Aims.Contains(Aim)) return $"aim isn't one of {string.Join(", ", Aims)}";
-                    if (OutOfRange("aimRange", AimRange, 2, 60) is { } range) return range;
+                    if (!Aims.Contains(Aim)) return TargetSpec.NewerVersion;
+                    if (Aim == "target")
+                    {
+                        if (Target.Invalid(TargetOwner.Step) is { } target) return target;
+                    }
+                    else if (OutOfRange("aimRange", AimRange, 2, 60) is { } range) return range;
                     if (Mode == "channel" && Until?.Invalid is { } channelUntil) return channelUntil;
                     return OutOfRange("timeoutMs", TimeoutMs, 0, 5000);
                 case "drink":
@@ -663,6 +720,7 @@ internal sealed class MacroDoc
             foreach (var step in macro.Actions)
             {
                 if (step.Raw == null && !step.Known) parts.Add($"{macro.Name}: step {step.Step}");
+                else if (step.NeedsNewer) parts.Add($"{macro.Name}: {step.Step} step's target");
             }
         }
         return parts;

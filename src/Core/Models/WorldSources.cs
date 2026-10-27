@@ -43,6 +43,9 @@ internal static class WorldSources
 
         Need<ActorDisplayInformation>(nameof(ActorDisplayInformation.appliedMods), World.MonsterMods),
 
+        Need<UIActorInfo>(nameof(UIActorInfo.ActorOnMouse), World.HoveredEnemy),
+        Need<UIActorInfo>(nameof(UIActorInfo.CurrentlyHovered), World.HoveredEnemy),
+
         Need<MonolithZoneManager>(nameof(MonolithZoneManager.instance), World.ObjectivesOffline),
         Need<MonolithZoneManager>(nameof(MonolithZoneManager.objectiveEnemies), World.ObjectivesOffline),
         Need<Actor>(nameof(Actor.dying), World.ObjectivesOffline),

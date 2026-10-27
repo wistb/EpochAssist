@@ -23,6 +23,8 @@ internal static class World
     public const string ChestsOffline = "world: chests (offline)";
     public const string ChestsOnline = "world: chests (online)";
     public const string EnemyAilments = "world: enemy ailments";
+    /// <summary>The game's own hovered enemy (the top enemy bar's actor), the same in both modes.</summary>
+    public const string HoveredEnemy = "world: hovered enemy";
 
     /// <summary>Active entries and entries this close are refreshed every frame (AutoCast's largest aim range).</summary>
     public const float NearRadius = 60f;

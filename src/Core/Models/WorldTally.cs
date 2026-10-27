@@ -134,11 +134,10 @@ internal sealed class WorldTally
     private readonly SubjectKey[] _subjectKeys = new SubjectKey[MaxSubjects];
     private readonly WorldEntry?[] _subjects = new WorldEntry?[MaxSubjects];
     private int _subjectCount;
-    private const float HoverFallbackMetres = 2f;
 
     /// <summary>
-    /// Picks each subject's enemy: the hovered one is the world entry whose object the cursor hits (or a parent of what
-    /// it hits), else the nearest enemy within 2 m of the cursor point (GF-79); the nearest one is World.Nearest.
+    /// Picks each subject's enemy: the hovered one is the targets' hovered read (the game's hovered enemy, else the
+    /// cursor's), the nearest one World.Nearest.
     /// </summary>
     public void RefreshSubjects(IReadOnlyList<SubjectKey> keys, Vector3? cursor, Transform? hit)
     {
@@ -151,7 +150,7 @@ internal sealed class WorldTally
             _subjectKeys[s] = key;
             try
             {
-                _subjects[s] = key.Hovered ? Hovered(cursor, hit)
+                _subjects[s] = key.Hovered ? Targets.Hovered()
                     : World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, MinRarity = key.MinRarity, Range = key.Range });
             }
             catch (Exception e)
@@ -160,39 +159,6 @@ internal sealed class WorldTally
                 Log.ErrorThrottled("tally:subjects", $"Enemy pick failed: {e.Message}", 30);
             }
         }
-    }
-
-    private static WorldEntry? Hovered(Vector3? cursor, Transform? hit)
-    {
-        if (cursor is not Vector3 point) return null;
-        var entries = World.Entries;
-        WorldEntry? near = null;
-        float nearest = HoverFallbackMetres;
-        for (int i = 0; i < entries.Count; i++)
-        {
-            var entry = entries[i];
-            if (entry.Kind != WorldKind.Enemy || entry.Gone || entry.Dead || !entry.Active) continue;
-            if (hit != null && IsOrParent(entry.Transform, hit)) return entry;
-            float d = Vector3.Distance(entry.Position, point);
-            if (d <= nearest)
-            {
-                nearest = d;
-                near = entry;
-            }
-        }
-        return near;
-    }
-
-    // Whether the entry's transform is the hit one or a parent of it (colliders sit on child objects).
-    private static bool IsOrParent(Transform? entry, Transform hit)
-    {
-        if (!Game.Alive(entry)) return false;
-        var t = hit;
-        for (int depth = 0; depth < 6 && Game.Alive(t); depth++, t = t!.parent)
-        {
-            if (t!.Pointer == entry!.Pointer) return true;
-        }
-        return false;
     }
 
     /// <summary>The enemy a subject key picked at the last refresh (null for none, or gone and dead since); false when
