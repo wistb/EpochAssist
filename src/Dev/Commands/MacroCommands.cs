@@ -11,7 +11,7 @@ internal static class MacroCommands
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
-    public const string MacroUsage = "macro list | add <share code> | code <set id> | on|off <set id> | fire <name> | cancel | clear <set id|all> | bench <n|off> | casts | ailments | hovered | xp";
+    public const string MacroUsage = "macro list | add <share code> | code <set id> | on|off <set id> | fire <name> | cancel | clear <set id|all> | bench <n [targets]|off> | casts | ailments | hovered | targets [hovered [seconds]|screen] | targetbench <n> [radius] | xp";
 
     public static void Register(string owner)
     {
@@ -81,6 +81,17 @@ internal static class MacroCommands
     {
         switch (call.Lower(1))
         {
+            case "targets" when call.Lower(2) == "hovered" && call.Args.Length >= 3 && float.TryParse(call.Args[2], NumberStyles.Float, s_inv, out float seconds):
+                return SampleHovered(Math.Clamp(seconds, 0.5f, 30f));
+            case "targets" when call.Lower(2) == "hovered":
+                return CommandResult.Ok(HoveredText());
+            case "targetbench" when call.Args.Length >= 2 && int.TryParse(call.Args[1], out int enemies):
+                float radius = call.Args.Length >= 3 && float.TryParse(call.Args[2], NumberStyles.Float, s_inv, out float r) ? Math.Clamp(r, 1f, 15f) : 4f;
+                return new CommandResult(DevOutput.Reply("macro", Targets.Bench(Math.Clamp(enemies, 1, 400), radius)));
+            case "targets" when call.Args.Length == 1:
+                return new CommandResult(DevOutput.Reply("macro", TargetLines()));
+            case "targets" when call.Lower(2) == "screen":
+                return new CommandResult(DevOutput.Reply("macro", ScreenLines()));
             case "hovered":
                 return CommandResult.Ok(Features.AutoCast.HoveredEnemy() is { } h
                     ? $"macro hovered: {h.Name} {h.Distance.ToString("F1", s_inv)} m, rarity {h.Rarity}, cursor {(Features.AutoCast.CursorPoint() is { } c ? c.ToString() : "none")}"
@@ -112,7 +123,7 @@ internal static class MacroCommands
             case "fire" when call.Args.Length >= 2:
                 return new CommandResult(Features.Macros.DevFire(call.Rest(2)));
             case "bench" when call.Args.Length >= 2:
-                return new CommandResult(Features.Macros.Bench(call.Lower(2) == "off" ? 0 : int.TryParse(call.Lower(2), out int n) ? Math.Clamp(n, 0, 200) : 0));
+                return new CommandResult(Features.Macros.Bench(call.Lower(2) == "off" ? 0 : int.TryParse(call.Lower(2), out int n) ? Math.Clamp(n, 0, 200) : 0, call.Lower(3) == "targets"));
             case "on" or "off" when call.Args.Length >= 2:
                 bool on = call.Lower(1) == "on";
                 string id = call.Args[1];
@@ -141,6 +152,76 @@ internal static class MacroCommands
             default:
                 return CommandResult.Error($"usage: {MacroUsage}");
         }
+    }
+
+    // The game's hovered enemy beside the old rule's, for checking the game's read against the bridge.
+    private static string HoveredText()
+    {
+        var (point, hit) = Targets.Cursor?.Invoke() ?? (null, null);
+        var rule = Targets.RuleHovered(point, hit);
+        string Entry(WorldEntry? e) => e == null ? "none" : $"{e.Name} ({e.Rarity}, {e.Distance.ToString("F1", s_inv)} m)";
+        string game = !World.Has("hovered enemy") ? $"read missing ({World.MissingGroup("hovered enemy")})"
+            : !Targets.GameHovered(out var entry, out bool hovering, out string? actor) ? "no actor info in this scene"
+            : $"instance found, hovered {hovering}, actor {actor ?? "none"}, entry {Entry(entry)}";
+        return $"macro targets hovered: game: {game}; old rule: {Entry(rule)}; used: {Entry(Targets.Hovered())}, t={Clock.Now.ToString("F2", s_inv)}";
+    }
+
+    // Every target in use: owners, words, pick, score, kept for, last change, left out; then the refresh's cost.
+    private static List<string> TargetLines()
+    {
+        var picks = Targets.Snapshot();
+        var lines = new List<string>
+        {
+            $"ok macro targets: {picks.Count} in use, refresh {Targets.LastMs.ToString("F3", s_inv)} ms last, {Targets.MeanMs.ToString("F3", s_inv)} ms mean, "
+                + $"{Targets.Dropped} dropped past {Targets.MaxKeys}, t={Clock.Now.ToString("F2", s_inv)}",
+        };
+        foreach (var pick in picks)
+        {
+            string owners = pick.Owners.Count > 0 ? string.Join(", ", pick.Owners) : "(owners named from the next scan)";
+            lines.Add($"[{owners}] {TargetSpec.FromKey(pick.Key).Words(TargetOwner.Condition)} → {Targets.Describe(pick)}");
+        }
+        var (words, pickNow) = Features.AutoCast.SlotTargetNow;
+        lines.Add($"slot target: {words} → {pickNow}");
+        return lines;
+    }
+
+    // The hovered read every 0.25 s for a while (a hover sweep by the input helper), with the cursor's place on screen.
+    private static CommandResult SampleHovered(float seconds)
+    {
+        var lines = new List<string>();
+        float start = Clock.Now, next = start;
+        return new CommandResult(string.Empty)
+        {
+            Pending = () =>
+            {
+                float now = Clock.Now;
+                if (now >= next)
+                {
+                    next = now + 0.25f;
+                    var mouse = UnityEngine.Input.mousePosition;
+                    lines.Add($"cursor {mouse.x.ToString("F0", s_inv)},{(UnityEngine.Screen.height - mouse.y).ToString("F0", s_inv)}: {HoveredText()}");
+                }
+                if (now - start < seconds) return null;
+                lines.Insert(0, $"ok macro targets hovered {ArgSpec.Format(seconds)} s: {lines.Count} samples");
+                return DevOutput.Reply("macro", lines);
+            },
+        };
+    }
+
+    // The nearest active enemies with their feet's place on screen (client pixels, top-left origin), so the input
+    // helper can hover or aim at them.
+    private static List<string> ScreenLines()
+    {
+        var camera = UnityEngine.Camera.main;
+        var lines = new List<string> { $"ok macro targets screen: screen {UnityEngine.Screen.width}x{UnityEngine.Screen.height}, t={Clock.Now.ToString("F2", s_inv)}" };
+        foreach (var e in World.Entries.Where(e => e.Kind == WorldKind.Enemy && !e.Gone && !e.Dead).OrderBy(e => e.Distance).Take(12))
+        {
+            string at = Game.Alive(camera) && camera!.WorldToScreenPoint(e.Position) is var p && p.z > 0
+                ? $"screen {p.x.ToString("F0", s_inv)},{(UnityEngine.Screen.height - p.y).ToString("F0", s_inv)}" : "off screen";
+            string health = e.HealthFraction is float f ? (f * 100f).ToString("F0", s_inv) + "%" : "?";
+            lines.Add($"{e.Name}{(e.Active ? string.Empty : " inactive")} ({e.Rarity}, {e.Distance.ToString("F1", s_inv)} m, {health}) pos {e.Position.x.ToString("F1", s_inv)},{e.Position.z.ToString("F1", s_inv)} {at}");
+        }
+        return lines;
     }
 
     // Every set and macro: ids, class, on, state.

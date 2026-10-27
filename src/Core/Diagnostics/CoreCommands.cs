@@ -63,6 +63,7 @@ internal static class CoreCommands
             Choice<KeyCode> c when Enum.TryParse(value, true, out KeyCode key) && c.Options.Any(o => o.Value == key) => Apply(() => c.Value = key),
             Pick pick when value.Length > 0 => Apply(() => pick.Value = value),
             ColorSetting color when value.Length == 0 || ColorSetting.TryParse(value.ToUpperInvariant(), out _) => Apply(() => color.Value = value.ToUpperInvariant()),
+            TargetSetting targets => targets.SetText(value, out _),
             _ => false,
         };
         // Outside Default the value went into the profile in use.
@@ -87,6 +88,7 @@ internal static class CoreCommands
         Hotkey h => (h.Clearable ? "nothing, or " : string.Empty) + "key names joined by +, such as LeftControl+F2",
         Pick pick => pick.Options?.Invoke() is { Count: > 0 } names ? string.Join(", ", names) : "a name",
         ColorSetting => "#RRGGBB, or nothing",
+        TargetSetting => "a slot target document, such as {\"v\":1}",
         _ => "nothing",
     };
 
