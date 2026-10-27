@@ -47,7 +47,8 @@ internal static class ColorPicker
 
     // The colour the empty value ("Theme") stands for: the theme's own colour for that accent's role.
     private static Color EmptyColor(ColorSetting setting) =>
-        setting == LookSettings.AccentSecondary ? Theme.ThemeHighlight : setting == LookSettings.AccentTertiary ? Theme.ThemeAccentText : Theme.ThemeAccent;
+        ColorSetting.TryParse(setting.EmptyHex, out Color own) ? own
+        : setting == LookSettings.AccentSecondary ? Theme.ThemeHighlight : setting == LookSettings.AccentTertiary ? Theme.ThemeAccentText : Theme.ThemeAccent;
 
     // The swatches' headings, moved past the empty value, then one for Custom….
     private static (string Label, int First)[]? Groups(ColorSetting setting, int options) => setting.Groups?

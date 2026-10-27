@@ -147,6 +147,8 @@ internal sealed class ColorSetting : Setting<string>
     public (string Name, string Hex)[] Swatches { get; init; } = Array.Empty<(string, string)>();
     /// <summary>What the empty value means, for its swatch ("Theme").</summary>
     public string EmptyLabel { get; init; } = "Default";
+    /// <summary>The colour the empty value stands for (#RRGGBB), shown on its swatch; null shows the theme accent.</summary>
+    public string? EmptyHex { get; init; }
     /// <summary>Headings for the swatches: each group starts at swatch index First. Code only, nothing stored.</summary>
     public (string Label, int First)[]? Groups { get; init; }
 
