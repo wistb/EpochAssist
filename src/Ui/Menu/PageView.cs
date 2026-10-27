@@ -265,13 +265,16 @@ internal static class PageView
     {
         if (page.Page.Status != null) return Safe.Call(page.Page.Status, new PageStatus(StatusState.Off, "off"), page.Path + ".status");
         if (page.Node.Feature is not { } feature) return null;
-        if (feature.Record.TurnedOff) return new PageStatus(StatusState.Off, "turned off");
-        if (feature.State != FeatureState.Running) return new PageStatus(StatusState.Off, feature.State.ToString().ToLowerInvariant());
-        // The state, and why when there is a reason ("waiting: menu open").
+        if (feature.Record.TurnedOff) return new PageStatus(StatusState.Off, Tag("turned off", string.Empty));
+        if (feature.State != FeatureState.Running) return new PageStatus(StatusState.Off, Tag(feature.State.ToString().ToLowerInvariant(), string.Empty));
+        // The state, and why when there is a reason ("status: waiting · menu open").
         FeatureStatus current = feature.Status;
-        string text = current.State.ToString().ToLowerInvariant();
-        return new PageStatus(current.State, current.Detail.Length > 0 ? $"{text}: {current.Detail}" : text);
+        return new PageStatus(current.State, Tag(current.State.ToString().ToLowerInvariant(), current.Detail));
     }
+
+    // "status: off"; a reason that only repeats the state ("Off") is left out.
+    private static string Tag(string state, string detail) =>
+        detail.Length == 0 || detail.Equals(state, StringComparison.OrdinalIgnoreCase) ? $"status: {state}" : $"status: {state} · {detail}";
 
     /// <summary>A status tag: the state's shape and its text on the state's badge colour.</summary>
     public static float Tag(Rect at, PageStatus status)
