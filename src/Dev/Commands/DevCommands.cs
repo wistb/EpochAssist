@@ -35,6 +35,7 @@ internal static partial class DevCommands
         Add("rva", "rva <type> <method>", "Shows where each overload of a game method's code is in GameAssembly.dll, for a native decompile.", call =>
             Plain(PatchCheck.Rva(Arg(call, 1), Arg(call, 2))));
         Add("find", "find <text>", "Writes every game method whose name has the text to find.txt.", call => Plain(Find(Arg(call, 1))));
+        Add("uievents", "uievents [on]", "Shows the game's UI event systems and whether each is on; on switches every one back on.", UiEvents);
         Add("facts", "facts", "Reads the game values behind typing, pause, loading, arrival and death.", _ => CommandResult.Ok("facts: " + Facts()));
         Add("keys", "keys [frames]", "Lists the keys and buttons Unity reports down or newly down, frame by frame (10 frames when not given).", KeysCommand);
         Add("move", "move <x> <y> [true|false]", "Feeds the game a keyboard movement direction, as a held key would.", Move);
@@ -267,5 +268,22 @@ internal static partial class DevCommands
         string counted = gate.Counted ? string.Empty : " (not counted)";
         return CommandResult.Ok($"gate: open {gate.Open}, {(gate.On ? "on" : "off")}, range {gate.Range.ToString("0.##", inv)}, count {gate.Count}, "
             + $"weight {gate.Weight.ToString("0.##", inv)}{counted}, slot target: {words} → {pick}, t {Time.unscaledTime.ToString("F2", inv)}");
+    }
+
+    // The game's UI event systems, found even while switched off (a switched-off one is no longer EventSystem.current).
+    private static CommandResult UiEvents(CommandCall call)
+    {
+        bool on = call.Lower(1) == "on";
+        var all = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<UnityEngine.EventSystems.EventSystem>());
+        var parts = new List<string>();
+        foreach (var obj in all)
+        {
+            var events = obj.TryCast<UnityEngine.EventSystems.EventSystem>();
+            if (!Game.Alive(events)) continue;
+            if (on && !events!.enabled) events.enabled = true;
+            parts.Add($"{events!.gameObject.name} {(events.enabled ? "on" : "off")}");
+        }
+        string current = Game.Alive(UnityEngine.EventSystems.EventSystem.current) ? UnityEngine.EventSystems.EventSystem.current!.gameObject.name : "none";
+        return CommandResult.Ok($"uievents: {(parts.Count > 0 ? string.Join(", ", parts) : "none")}; current {current}");
     }
 }

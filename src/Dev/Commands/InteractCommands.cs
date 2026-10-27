@@ -238,11 +238,19 @@ internal static class InteractCommands
     private static CommandResult DrawSwitch(CommandCall call)
     {
         if (call.Lower(2) is not ("on" or "off")) return CommandResult.Error($"interact: usage {Usage}");
-        s_draw = call.Lower(2) == "on";
+        SetDraw(call.Lower(2) == "on");
+        return CommandResult.Ok($"interact draw {(s_draw ? "on" : "off")}");
+    }
+
+    /// <summary>Whether the object names overlay is on.</summary>
+    public static bool Drawing => s_draw;
+
+    public static void SetDraw(bool on)
+    {
+        s_draw = on;
         s_marks.Clear();
         s_drawNextAt = 0f;
-        if (s_draw) World.WakeFor(600f);
-        return CommandResult.Ok($"interact draw {(s_draw ? "on" : "off")}");
+        if (on) World.WakeFor(600f);
     }
 
     // Labels every active click listener within 60 m (shrines and chests within 300 m, with an edge arrow): name, range,

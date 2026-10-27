@@ -144,6 +144,7 @@ internal sealed class DevBridgeFeature : Feature
         DevCommands.Register(Id);
         ThemeVerbs.Register(Id);
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
+        Ui.SettingsContent.DevSwitches = DevCommands.DebugSwitches;
         // Matte shots: the backdrop goes under the HUD and the menu.
         FeatureHost.AddLayerHook(this, GuiLayer.Hud, DevCommands.DrawBackdrop);
     }
@@ -158,6 +159,7 @@ internal sealed class DevBridgeFeature : Feature
     public override void Shutdown()
     {
         CoreCommands.CompatSelfTest = null;
+        Ui.SettingsContent.DevSwitches = null;
         DevBridge.Reset();
         DevCommands.Reset();
     }
