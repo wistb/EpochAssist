@@ -78,9 +78,12 @@ internal static partial class Interact
     public static void Start(Feature feature)
     {
         var run = new Run { Feature = feature };
-        // The last class: an interaction never takes a frame or a press a potion or cast wants. No pause rules of its
-        // own: the dispatcher's global ones are the only ones that hold it.
-        run.Client = Dispatcher.Register(new DispatchClient(feature, PriorityClass.Interact, S.Enabled, Array.Empty<PauseRule>()));
+        // The last class: an interaction never takes a frame or a press a potion or cast wants. Besides the dispatcher's
+        // global rules, only the player's own hold key holds it (none of the Macros pauses).
+        run.Client = Dispatcher.Register(new DispatchClient(feature, PriorityClass.Interact, S.Enabled, new[]
+        {
+            new PauseRule("hold-key", HoldReason, RuleKind.Momentary, HoldActive),
+        }));
         s_run = run;
         Scheduler.Every(feature, "scan", ScanSeconds, () => { if (s_run == run) Scan(run); }, startNow: true);
         Bus.Subscribe<ZoneChange>(feature, _ => ClearZone(run));
@@ -125,6 +128,16 @@ internal static partial class Interact
         }
         return false;
     }
+
+    // The hold key, per its mode: held while it is down (pause), or while it is up (use). Unbound, it holds nothing.
+    private static bool HoldActive()
+    {
+        if (S.HoldKey.Value.Length == 0) return false;
+        bool down = Hotkeys.Held(S.HoldKey);
+        return S.HoldMode.Value == S.HoldUses ? !down : down;
+    }
+
+    private static string HoldReason() => S.HoldMode.Value == S.HoldUses ? $"waiting for {S.HoldKey.Display}" : $"{S.HoldKey.Display} held";
 
     /// <summary>Held by the "Not in town" choice: the player is in a town or other non-combat zone.</summary>
     public static bool HeldInTown => S.Where.Value == S.NotInTown && GameState.Kind == SceneKind.NonCombat;

@@ -77,6 +77,8 @@ internal sealed class InteractFeature : Feature
                 Rows =
                 {
                     new SettingRow(S.Enabled),
+                    new SettingRow(S.HoldKey),
+                    new SettingRow(S.HoldMode),
                     new LiveText("Status", () => Interact.StatusText()),
                     new LiveText("Game reach", () => (Interact.ReachText(), null)),
                     new HeadingRow("Use"),

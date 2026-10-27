@@ -13,6 +13,17 @@ internal static class InteractSettings
     {
         QuickLabel = "Interact", Help = "Uses what you walk up to, from where you stand.",
     };
+    public static readonly Hotkey HoldKey = new(Main, "HoldKey", "Hold key", string.Empty, HotkeyKind.Hold, HotkeyScope.Gameplay)
+    {
+        Clearable = true, Help = "Hold it to stop using things for a moment, or to use things only while held (below).",
+    };
+    public const string HoldPauses = "pause";
+    public const string HoldUses = "use";
+    public static readonly Choice<string> HoldMode = new(Main, "HoldMode", "While held", HoldPauses, (HoldPauses, "Pause"), (HoldUses, "Use"))
+    {
+        WithKeybinds = true, VisibleWhen = () => HoldKey.Value.Length > 0, ShownWhen = "a hold key is set",
+        Help = "Pause: uses nothing while the key is held. Use: uses nothing unless it is held.",
+    };
 
     public static readonly Section Use = Group.Section("use", "Use");
     public static readonly Toggle Shrines = new(Use, "Shrines", "Shrines", false)
