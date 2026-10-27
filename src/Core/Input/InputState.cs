@@ -57,5 +57,11 @@ internal static class InputState
         ;
 
     /// <summary>The window's own focus, for rules about focus changing hands.</summary>
-    public static bool RealFocused => Application.isFocused;
+    public static bool RealFocused =>
+#if DEV
+        // Dev builds report the window focused while the bridge injects input; this reads past that.
+        Dev.GameFocus.Real();
+#else
+        Application.isFocused;
+#endif
 }

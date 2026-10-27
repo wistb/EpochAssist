@@ -115,8 +115,9 @@ internal static class DevBridge
         {
             if (line.Trim().Length > 0) s_queue.Enqueue(line.Trim());
         }
-        // A new batch starts with nothing injected.
+        // A new batch starts with nothing injected, and with the game's current key bindings.
         VirtualInput.ReleaseAll(immediate: true);
+        GameActions.Reset();
         s_inputReleased = false;
         s_batchActive = true;
     }
@@ -172,14 +173,26 @@ internal sealed class DevBridgeFeature : Feature
         Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.mapParameters), MapCommands.ZoomGroup),
         Need<Il2Cpp.UIBase>(nameof(Il2Cpp.UIBase.overlayMapOpen), MapCommands.ZoomGroup),
         Need<Il2CppRewired.Integration.UnityUI.RewiredPointerInputModule.UnityInputSource>(GameUiPointer.Member, GameUiPointer.Group),
+        Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButton), GameActions.Group),
+        Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButtonDown), GameActions.Group),
+        Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButtonUp), GameActions.Group),
+        Need<Application>(nameof(Application.isFocused), GameFocus.Group),
+        Need<Il2Cpp.EpochInputManager>(nameof(Il2Cpp.EpochInputManager.GetMousePosition), GameActions.Group),
     };
-    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch), typeof(GameUiPointer.ScreenPositionPatch) };
+    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch), typeof(GameUiPointer.ScreenPositionPatch),
+        typeof(GameActions.ButtonPatch), typeof(GameActions.ButtonDownPatch), typeof(GameActions.ButtonUpPatch), typeof(GameActions.MousePositionPatch),
+        typeof(GameFocus.IsFocusedPatch) };
     public override IReadOnlyDictionary<Type, string> PatchGroups { get; } = new Dictionary<Type, string>
     {
         [typeof(MapCommands.StampPatch)] = MapCommands.StampGroup,
         [typeof(MapCommands.StampSingularPatch)] = MapCommands.StampGroup,
         [typeof(MapCommands.ZoomPatch)] = MapCommands.ZoomGroup,
         [typeof(GameUiPointer.ScreenPositionPatch)] = GameUiPointer.Group,
+        [typeof(GameActions.ButtonPatch)] = GameActions.Group,
+        [typeof(GameActions.ButtonDownPatch)] = GameActions.Group,
+        [typeof(GameActions.ButtonUpPatch)] = GameActions.Group,
+        [typeof(GameActions.MousePositionPatch)] = GameActions.Group,
+        [typeof(GameFocus.IsFocusedPatch)] = GameFocus.Group,
     };
     public override string[] DemandGroups => new[] { MapCommands.StampGroup, MapCommands.ZoomGroup };
 

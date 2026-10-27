@@ -18,6 +18,7 @@ internal static class VirtualInput
 
     private static readonly HashSet<KeyCode> s_heldKeys = new();
     private static readonly HashSet<KeyCode> s_pressedKeys = new();
+    private static readonly HashSet<KeyCode> s_releasedKeys = new();
     private static readonly bool[] s_postedButtons = new bool[ButtonCount];
     private static readonly List<Change> s_pending = new();
     // Keys pressed to type a character, whose window message was the character.
@@ -43,6 +44,12 @@ internal static class VirtualInput
     {
         Tick();
         return s_pressedKeys.Contains(key);
+    }
+
+    public static bool KeyUp(KeyCode key)
+    {
+        Tick();
+        return s_releasedKeys.Contains(key);
     }
 
     public static bool AnyHeld
@@ -162,6 +169,7 @@ internal static class VirtualInput
         {
             s_heldKeys.Clear();
             s_pressedKeys.Clear();
+            s_releasedKeys.Clear();
             s_pending.Clear();
             s_typedKeys.Clear();
             s_releasing = false;
@@ -199,13 +207,14 @@ internal static class VirtualInput
         if (frame == s_tickFrame) return;
         s_tickFrame = frame;
         if (s_pressedKeys.Count > 0) s_pressedKeys.Clear();
+        if (s_releasedKeys.Count > 0) s_releasedKeys.Clear();
         if (s_pending.Count == 0) return;
 
         foreach (var c in s_pending)
         {
             if (c.MovesPointer) s_pointer = c.Pointer;
             else if (c.Down && s_heldKeys.Add(c.Key)) s_pressedKeys.Add(c.Key);
-            else if (!c.Down) s_heldKeys.Remove(c.Key);
+            else if (!c.Down && s_heldKeys.Remove(c.Key)) s_releasedKeys.Add(c.Key);
         }
         s_pending.Clear();
         if (s_releasing)
