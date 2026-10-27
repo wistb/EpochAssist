@@ -12,12 +12,14 @@ Everything automated lives on the [b]Macros[/b] tab.
 [list]
 [*][b][color=#25be6a]Slots[/color][/b]: [font=Courier New]Left Ctrl[/font] + a skill's key turns that slot on or off. Each slot has its own conditions, and [b]Shared Conditions[/b] (such as the enemy gate) apply to all of them.
 [*][b][color=#25be6a]Macros[/color][/b]: sorted into sets per class, or for all classes. Each starts on its own, on a key press, while a key is held, or on a toggle, then runs its steps: cast a skill, drink a potion, open a town portal, wait, wait until, or show a message.
-[*][b][color=#25be6a]Conditions[/color][/b]: health, mana, ward, buffs, skills, potions, enemies (nearest or under the cursor, their health, mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
+[*][b][color=#25be6a]Targets[/color][/b]: casts aim at the cursor, the nearest, rarest or weakest enemy, or the middle of a pack, with limits by range, rarity, mod and ailment.
+[*][b][color=#25be6a]Conditions[/color][/b]: health, mana, ward, buffs, skills, potions, enemies (nearest, under the cursor, a target or the cast target: their health, rarity, mods and ailments), zone and more, grouped as all of, any of or none of, and optionally held for a time.
 [*][b][color=#25be6a]Sharing[/color][/b]: [b]Copy share code[/b] puts a set on the clipboard; [b]Import set[/b] adds one, switched off.
 [*][b][color=#25be6a]Potions[/color][/b]: a ready-made Auto potion drinks when a whole potion's heal is missing or health is low. It comes switched off.
-[*][b][color=#25be6a]Debugging[/color][/b]: the footer switches show each macro's state, the enemy ranges in use, and a notification naming the line that started each macro.
+[*][b][color=#25be6a]Debugging[/color][/b]: the footer switches show each macro's state, the enemy ranges and targets in use, and a notification naming the line that started each macro and what it aims at.
 [/list]
 {{media:macro-editor}}
+{{media:shared-target}}
 [line]
 [size=5][b][color=#5ba8a4]Session[/color][/b][/size]
 The [b]Session[/b] tab shows this session's XP and gold per hour, drops by rarity, the drops your loot filter shows, deaths and echoes, and your past sessions. [b]Export CSV[/b] writes them as two spreadsheet files.
