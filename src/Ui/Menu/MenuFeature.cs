@@ -23,6 +23,7 @@ internal sealed class MenuFeature : Feature
 
         Actions.Register(Id, "menu.toggle", "Menu", Ui.Menu.Toggle, () => Ui.Menu.Visible);
         Actions.Register(Id, "menu.close", "Close the menu", Ui.Menu.Close);
+        Actions.Register(Id, "menu.collapse", "Fold the menu to its bars, or unfold it", Ui.Menu.ToggleCollapsed, () => Ui.Menu.Collapsed);
         Actions.Register(Id, "menu.escape", "Close a list, cancel, clear the search, or close the menu", Ui.Menu.Escape);
         // One per feature with a menu entry; a feature that isn't running still opens, to show why.
         foreach (var feature in FeatureHost.All.Where(f => f.Menu != null))

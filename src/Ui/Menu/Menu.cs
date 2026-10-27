@@ -17,6 +17,34 @@ internal static class Menu
 
     public static bool Visible { get; private set; }
 
+    /// <summary>Folded to the top bar and footer, to see the game behind; kept while the menu closes and opens.</summary>
+    public static bool Collapsed { get; private set; }
+
+    public static void ToggleCollapsed()
+    {
+        // From wherever the fold is, so a second click mid-way turns it back.
+        s_foldFrom = Fold;
+        s_foldSince = Time.unscaledTime;
+        Collapsed = !Collapsed;
+    }
+
+    private const float FoldSeconds = 0.2f;
+    private static float s_foldFrom, s_foldSince = -1f;
+    // The body's full height, laid out at that size while the window folds over it; and the height drawn, which a
+    // folded window's room for popups exceeds.
+    private static float s_bodyHeight, s_shownHeight = Height;
+
+    // How far the window is folded, 0 (open) to 1 (bars only), eased.
+    private static float Fold
+    {
+        get
+        {
+            float t = Motion.Progress(s_foldSince, FoldSeconds);
+            t = t * t * (3f - 2f * t);
+            return Mathf.Lerp(s_foldFrom, Collapsed ? 1f : 0f, t);
+        }
+    }
+
     public static void Close() => SetVisible(false);
 
     public static void Toggle() => SetVisible(!Visible);
@@ -27,7 +55,9 @@ internal static class Menu
         get
         {
             float scale = Scale;
-            return new Rect(s_rect.x * scale, s_rect.y * scale, s_rect.width * scale, s_rect.height * scale);
+            // Folded, only the bars take the game's input, and an open popup below them.
+            float height = Popups.IsOpen ? s_rect.height : s_shownHeight;
+            return new Rect(s_rect.x * scale, s_rect.y * scale, s_rect.width * scale, height * scale);
         }
     }
 
@@ -133,9 +163,14 @@ internal static class Menu
         GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
         // The mock-up's size, kept inside the game window at any scale; the tree and page scroll when it is smaller.
         s_rect.width = Mathf.Min(Width, Screen.width / scale - 40f);
-        s_rect.height = Mathf.Min(Height, Screen.height / scale - 40f);
+        float full = Mathf.Min(Height, Screen.height / scale - 40f);
+        s_bodyHeight = full - TopBar.Height - Footer.Height;
+        s_rect.height = s_shownHeight = Mathf.Lerp(full, TopBar.Height + Footer.Height, Fold);
         s_rect.x = Mathf.Clamp(s_rect.x, 0f, Mathf.Max(0f, Screen.width / scale - s_rect.width));
         s_rect.y = Mathf.Clamp(s_rect.y, 0f, Mathf.Max(0f, Screen.height / scale - s_rect.height));
+        // Popups (the profile list) draw inside the window and take their room as they open, so a folded window reaches
+        // down, unpainted, to its full height.
+        if (Fold > 0f) s_rect.height = Mathf.Max(s_shownHeight, Mathf.Min(full, Screen.height / scale - s_rect.y));
         try
         {
             s_rect = GUI.Window(WindowId, s_rect, (WindowFunction)DrawWindow, string.Empty);
@@ -219,7 +254,7 @@ internal static class Menu
     private static void DrawContents()
     {
         float opacity = Mathf.Clamp(LookSettings.MenuOpacity.Value, 0.2f, 1f);
-        float w = s_rect.width, h = s_rect.height;
+        float w = s_rect.width, h = s_shownHeight;
         if (Widgets.Themed && Event.current.type == EventType.Repaint)
         {
             Color color = GUI.color;
@@ -232,16 +267,34 @@ internal static class Menu
 
         var top = new Rect(0f, 0f, w, TopBar.Height);
         var foot = new Rect(0f, h - Footer.Height, w, Footer.Height);
-        // The library layout has its own tree, so the menu's gives it the room (search results keep the usual layout).
-        bool library = s_search.Trim().Length == 0 && MenuRoutes.Page?.Node.Entry.Layout == MenuLayout.Library;
-        var tree = new Rect(0f, top.yMax, library ? 0f : TreeView.Width, foot.y - top.yMax);
-        var page = new Rect(tree.xMax, top.yMax, w - tree.xMax - 1f, foot.y - top.yMax);
-
-        if (Widgets.Themed && !library) Theme.Fill(new Rect(tree.xMax - 1f, tree.y, 1f, tree.height), Theme.DividerColor);
+        float fold = Fold;
         // In reading order, which is the order keys move along.
         TopBar.Draw(top);
-        if (!library) TreeView.Draw(tree);
-        PageView.Draw(page);
+        // Folded, only the bars show, the footer right under the top bar. Folding, the body keeps its full size and the
+        // window's edge slides over it as it fades.
+        if (fold < 1f)
+        {
+            bool folding = fold > 0f;
+            Color color = GUI.color;
+            if (folding)
+            {
+                GUI.BeginGroup(new Rect(0f, top.yMax, w, foot.y - top.yMax));
+                GUI.color = new Color(color.r, color.g, color.b, color.a * (1f - fold));
+            }
+            float y = folding ? 0f : top.yMax;
+            // The library layout has its own tree, so the menu's gives it the room (search results keep the usual layout).
+            bool library = s_search.Trim().Length == 0 && MenuRoutes.Page?.Node.Entry.Layout == MenuLayout.Library;
+            var tree = new Rect(0f, y, library ? 0f : TreeView.Width, s_bodyHeight);
+            var page = new Rect(tree.xMax, y, w - tree.xMax - 1f, s_bodyHeight);
+            if (Widgets.Themed && !library) Theme.Fill(new Rect(tree.xMax - 1f, tree.y, 1f, tree.height), Theme.DividerColor);
+            if (!library) TreeView.Draw(tree);
+            PageView.Draw(page);
+            if (folding)
+            {
+                GUI.color = color;
+                GUI.EndGroup();
+            }
+        }
         Footer.Draw(foot);
         Popups.DrawLast();
 

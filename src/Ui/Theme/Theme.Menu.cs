@@ -31,7 +31,7 @@ internal static partial class Theme
     public static Texture2D Flat = null!, FieldBg = null!, FieldOpen = null!, InputBox = null!, InputFocus = null!, PopupBg = null!;
     public static Texture2D ButtonBg = null!, ButtonHover = null!, PrimaryBg = null!, PrimaryHover = null!, HighlightBg = null!, SelectionBg = null!, HoverBg = null!;
     public static Texture2D SmallOff = null!, SmallOffHover = null!, SmallOn = null!, SmallOnHover = null!;
-    public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, TreeCollapseAll = null!, TreeExpandAll = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!;
+    public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, TreeCollapseAll = null!, TreeExpandAll = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!, CloseCross = null!;
     public static Texture2D TagBg = null!, SidebarFill = null!;
 
     private static void BuildMenu(GUISkin skin, ThemeValues v)
@@ -148,6 +148,14 @@ internal static partial class Theme
             float hx = 4f * Mathf.Cos(80f * Mathf.Deg2Rad), hy = 4f * Mathf.Sin(80f * Mathf.Deg2Rad);
             float head = Coverage(CircleDistance(px, py, hx + 0.6f, hy, 1.9f));
             return Shade(Color.white, Mathf.Max(ring, head));
+        });
+        // The window's close: the dropdown chevron's size and stroke, so it matches the collapse chevron beside it.
+        CloseCross = Paint(12, 12, (x, y) =>
+        {
+            float px = x + 0.5f, py = y + 0.5f;
+            float a = Mathf.Abs(px - py) / 1.414f, b = Mathf.Abs(px + py - 12f) / 1.414f;
+            float inside = px > 1.5f && px < 10.5f && py > 1.5f && py < 10.5f ? 1f : 0f;
+            return Shade(Color.white, inside * Mathf.Clamp01(1.6f - Mathf.Min(a, b)));
         });
         Cross = Paint(10, 10, (x, y) =>
         {

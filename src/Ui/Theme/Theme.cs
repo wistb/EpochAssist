@@ -65,7 +65,7 @@ internal static partial class Theme
     public static GUIStyle ChipNumber = null!, ChipName = null!;
     public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, ToastText = null!;
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
-    public static Texture2D Chevron = null!, ChevronRight = null!;
+    public static Texture2D Chevron = null!, ChevronRight = null!, ChevronUp = null!;
     public static Texture2D IconDot = null!, IconRing = null!, IconSquare = null!, IconBars = null!, IconDash = null!, IconWarning = null!;
     public static Texture2D Swatch = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
@@ -227,6 +227,8 @@ internal static partial class Theme
         });
         // The same chevron pointing right, for a folded group (rotating the drawing goes wrong inside a scroll view).
         ChevronRight = Paint(12, 12, (x, y) => Chevron.GetPixel(y, 11 - x));
+        // And pointing up, for the menu's collapse button.
+        ChevronUp = Paint(12, 12, (x, y) => Chevron.GetPixel(x, 11 - y));
         // State shapes, white and tinted when drawn, so colour is never the only cue.
         Dot = Circle(10, Color.white);
         Ring = Paint(10, 10, (x, y) => Shade(Color.white, Mathf.Clamp01(Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 4.5f)) - Coverage(CircleDistance(x + 0.5f, y + 0.5f, 5f, 5f, 2.5f)))));
