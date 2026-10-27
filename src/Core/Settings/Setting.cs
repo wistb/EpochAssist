@@ -30,6 +30,8 @@ internal abstract class Setting
     public string? ShownWhen { get; init; }
     /// <summary>Also listed on General › Keybinds with the keys (a choice that goes with a key). Keys always are.</summary>
     public bool WithKeybinds { get; init; }
+    /// <summary>Also listed on General › Diagnostics › Debug. A feature's "debug" section always is.</summary>
+    public bool WithDebug { get; init; }
 
     public bool Visible => VisibleWhen?.Invoke() ?? true;
     public abstract bool IsDefault { get; }

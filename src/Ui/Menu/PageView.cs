@@ -251,6 +251,11 @@ internal static class PageView
     // Copy diagnostics still copies while the diagnostics feature is down, when its action is gone.
     private static void ActionsFor(ActionButton button)
     {
+        if (button.OnClick != null)
+        {
+            TextRows.Run(button);
+            return;
+        }
         if (Actions.Run(button.Action, "menu button").StartsWith("error") && button.Action == "diagnostics.copy")
             DiagnosticsPage.Copy(Diagnostics.Build().ToText(), "Diagnostics copied.");
     }

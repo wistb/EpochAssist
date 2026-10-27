@@ -62,6 +62,7 @@ internal static class SettingsContent
                 new MenuPage("Mods") { Block = "diagnostics.mods", Resettable = false },
                 new MenuPage("Reports") { Block = "diagnostics.reports", Resettable = false },
                 new MenuPage("Console") { Block = "console", Resettable = false },
+                Debug(),
             },
         },
     };
@@ -80,6 +81,44 @@ internal static class SettingsContent
             page.Rows.AddRange(keys.Select(s => new SettingRow(s) { Key = $"{group.Id}.{s.Id}" }));
         }
         return page;
+    }
+
+    // Every debug switch in one place: each feature's Debug section and the settings that ask to be listed, under a
+    // heading per settings group, with All on and All off for a full debug view. The same settings stay on their own
+    // pages. No page reset, as on Keybinds.
+    private static MenuPage Debug()
+    {
+        var page = new MenuPage("Debug") { Resettable = false };
+        var switches = new List<Toggle>();
+        var rows = new List<MenuRow>();
+        foreach (var group in SettingsRegistry.Groups)
+        {
+            var debug = group.All.Where(s => s.Section.Id == "debug" || s.WithDebug).ToList();
+            if (debug.Count == 0) continue;
+            rows.Add(new HeadingRow(group.Name) { Key = "heading." + group.Id });
+            rows.AddRange(debug.Select(s => new SettingRow(s) { Key = $"{group.Id}.{s.Id}" }));
+            switches.AddRange(debug.OfType<Toggle>());
+        }
+        var dev = DevSwitches?.Invoke() ?? Array.Empty<ValueToggle>();
+        if (dev.Count > 0)
+        {
+            rows.Add(new HeadingRow("Dev (dev builds only)") { Key = "heading.dev" });
+            rows.AddRange(dev);
+        }
+        page.Rows.Add(new HintRow(() => "Everything the mod can draw or report to show what it is doing. Each switch is on its feature's page too."));
+        page.Rows.AddRange(rows);
+        page.Actions.Add(new ActionButton("All on", "debug.all-on") { OnClick = () => SetAll(switches, dev, true), Tip = "Turns every switch below on" });
+        page.Actions.Add(new ActionButton("All off", "debug.all-off") { OnClick = () => SetAll(switches, dev, false), Tip = "Turns every switch below off" });
+        return page;
+    }
+
+    /// <summary>Dev builds: switches for the dev overlays and logs, set by the dev bridge; listed on the Debug page.</summary>
+    public static Func<IReadOnlyList<ValueToggle>>? DevSwitches { get; set; }
+
+    private static void SetAll(List<Toggle> switches, IReadOnlyList<ValueToggle> dev, bool on)
+    {
+        foreach (var toggle in switches) toggle.Value = on;
+        foreach (var toggle in dev) toggle.Set(on);
     }
 
     // The current session's stats, then the drops the loot filter showed.
