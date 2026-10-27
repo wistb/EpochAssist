@@ -44,11 +44,12 @@ internal static partial class Interact
     public static readonly InteractKind RunePrisons = new("runeprisons", "Rune prisons", "Rune prison", S.RunePrisons, S.HudRunePrisons, ObjectsGroup, false);
     public static readonly InteractKind Forges = new("forges", "Forges", "Forge", S.Forges, S.HudForges, ObjectsGroup, false);
     public static readonly InteractKind Rifts = new("rifts", "Unstable rifts", "Unstable rift", S.Rifts, S.HudRifts, ObjectsGroup, false);
+    public static readonly InteractKind Crystals = new("crystals", "Blood crystals", "Blood crystal", S.Crystals, S.HudCrystals, ObjectsGroup, false);
     public static readonly InteractKind Keys = new("keys", "Keys", "Key", S.Keys, S.HudKeys, ItemsGroup, true);
     public static readonly InteractKind Materials = new("materials", "Materials", "Material", S.Materials, S.HudMaterials, ItemsGroup, true);
     public static readonly InteractKind Filtered = new("filter", "Loot filter items", "Item", S.FilterShown, S.HudFilter, FilterGroup, true);
 
-    public static readonly InteractKind[] Kinds = { Shrines, Chests, RunePrisons, Forges, Rifts, Keys, Materials, Filtered };
+    public static readonly InteractKind[] Kinds = { Shrines, Chests, RunePrisons, Forges, Rifts, Crystals, Keys, Materials, Filtered };
 
     // Base types the game gives crafting materials and keys (affix shards, runes, glyphs; keys). The loot filter never
     // judges these, so only their own switches pick them up.
@@ -64,6 +65,8 @@ internal static partial class Interact
     // An echo's unstable rift: using it starts its event where the player stands (the Time Beast rift, which moves the
     // player, is never one). It can trigger again too.
     private const string RiftName = "Client_UnstableRift";
+    // An echo's blood crystal: using it starts the Rage of Morditas event where the player stands.
+    private const string CrystalName = "RageOfMorditas_StartInteract";
 
     // Kept below the game's reach, so a frame of movement can't put the call past the edge: the game's click handler
     // walks the character to anything farther.
@@ -95,8 +98,8 @@ internal static partial class Interact
         return run.Listeners[obj.Pointer];
     }
 
-    // The kind of a listener found in the game's list: an echo cache or reward chest, or a rune prison's entrance, by
-    // its own name or a parent's; null for anything else.
+    // The kind of a listener found in the game's list: an echo cache or reward chest, a rune prison's entrance, or an
+    // event's start (forge, rift, blood crystal), by its own name or a parent's; null for anything else.
     private static InteractKind? ListedKind(WorldObjectClickListener listener)
     {
         for (var t = listener.transform; Game.Alive(t); t = t!.parent)
@@ -105,6 +108,7 @@ internal static partial class Interact
             if (name.Contains(RunePrisonName)) return RunePrisons;
             if (name.Contains(ForgeName)) return Forges;
             if (name.Contains(RiftName)) return Rifts;
+            if (name.Contains(CrystalName)) return Crystals;
             foreach (var marker in s_echoChestNames)
             {
                 if (name.Contains(marker)) return Chests;

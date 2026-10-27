@@ -275,7 +275,7 @@ internal static partial class Interact
     private static void Pick(Run run, Vector3 player)
     {
         run.HasBest = false;
-        if (KindOn(Shrines) || KindOn(Chests) || KindOn(RunePrisons) || KindOn(Forges) || KindOn(Rifts)) OfferObjects(run, player);
+        if (KindOn(Shrines) || KindOn(Chests) || KindOn(RunePrisons) || KindOn(Forges) || KindOn(Rifts) || KindOn(Crystals)) OfferObjects(run, player);
         if (!run.ItemsHeld && (KindOn(Keys) || KindOn(Materials) || KindOn(Filtered))) OfferItems(run, player);
     }
 
@@ -308,7 +308,7 @@ internal static partial class Interact
             if (kind == null || ListenerOf(run, entry) is not { } listener) continue;
             OfferListener(run, kind, entry.Name, listener, player, me);
         }
-        if (!chests && !KindOn(RunePrisons) && !KindOn(Forges) && !KindOn(Rifts)) return;
+        if (!chests && !KindOn(RunePrisons) && !KindOn(Forges) && !KindOn(Rifts) && !KindOn(Crystals)) return;
         if (Clock.Now >= run.NextListedScan)
         {
             run.NextListedScan = Clock.Now + ListedScanSeconds;
@@ -334,7 +334,7 @@ internal static partial class Interact
         Offer(run, new Candidate { Kind = kind, Key = listener.Pointer.ToInt64(), Distance = distance, Reach = reach, Name = name, Listener = listener });
     }
 
-    // Echo caches, reward chests and rune prisons near the player, from the game's own listener list (no scene search).
+    // Echo caches, reward chests, rune prisons and event starts near the player, from the game's own listener list (no scene search).
     // Each listener is looked at once per zone.
     private static void FindListed(Run run, Vector3 player)
     {

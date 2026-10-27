@@ -46,6 +46,10 @@ internal static class InteractSettings
     {
         Help = "Starts the rift's event.",
     };
+    public static readonly Toggle Crystals = new(Use, "Crystals", "Blood crystals", false)
+    {
+        Help = "Starts the blood crystal's event.",
+    };
 
     public static readonly Section Pickup = Group.Section("pickup", "Pick up");
     public static readonly Toggle Keys = new(Pickup, "Keys", "Keys", false)
@@ -85,6 +89,7 @@ internal static class InteractSettings
     public static readonly Toggle HudRunePrisons = Counted("HudRunePrisons", "Rune prisons");
     public static readonly Toggle HudForges = Counted("HudForges", "Forges");
     public static readonly Toggle HudRifts = Counted("HudRifts", "Unstable rifts");
+    public static readonly Toggle HudCrystals = Counted("HudCrystals", "Blood crystals");
     public static readonly Toggle HudKeys = Counted("HudKeys", "Keys");
     public static readonly Toggle HudMaterials = Counted("HudMaterials", "Materials");
     public static readonly Toggle HudFilter = Counted("HudFilter", "Loot filter items");

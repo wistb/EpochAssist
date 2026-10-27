@@ -40,10 +40,10 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 
   </details>
 - **Proximity Interact** (Configuration tab): uses what you walk up to, from where you stand, one thing at a time.
-  It activates shrines, opens chests, caches and echo reward chests, starts rune prisons, forges and unstable rifts,
-  and picks up keys, crafting
-  materials (affix shards, runes, glyphs) and the items your loot filter shows. It never walks your character to
-  anything and never reaches farther than the game itself allows; items your loot filter hides are never picked up.
+  It activates shrines, opens chests, caches and echo reward chests, starts rune prisons, forges, unstable rifts and
+  blood crystals, and picks up keys, crafting materials (affix shards, runes, glyphs) and the items your loot filter
+  shows. It never walks your character to anything and never reaches farther than the game itself allows; items your
+  loot filter hides are never picked up.
   Every kind starts switched off. Optional: a hold key to pause it or to use things only while held, a count on the
   mini HUD (choose which kinds it counts), a notification for each use, and rings showing the reach.
 - **Session**: the Session tab shows this session's XP and gold per hour, drops by rarity, the drops your loot
