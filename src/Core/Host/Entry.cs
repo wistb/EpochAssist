@@ -77,7 +77,7 @@ public static class Runtime
         // are shown in this order.
         FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new SessionsFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
-            new DispatcherFeature(), new MacrosFeature());
+            new DispatcherFeature(), new MacrosFeature(), new InteractFeature());
 #if DEV
         // Dev code isn't compiled into release builds (src/Dev/).
         if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature());
