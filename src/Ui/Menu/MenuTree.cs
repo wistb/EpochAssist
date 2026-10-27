@@ -41,7 +41,7 @@ internal sealed class MenuNode
     public string? FolderPath { get; }
     /// <summary>"Config › General", the node's place without its own title.</summary>
     public string Place => Folder != null ? $"{Tab.Title} › {Folder}" : Tab.Title;
-    /// <summary>"Config › General › Interface".</summary>
+    /// <summary>"Config › General".</summary>
     public string Crumb => $"{Place} › {Title}";
     public List<PageNode> Pages { get; } = new();
     /// <summary>One page with the node's own title: the node is the page, with nothing to expand.</summary>

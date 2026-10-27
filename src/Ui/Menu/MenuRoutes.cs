@@ -10,13 +10,14 @@ namespace EpochAssist.Ui;
 internal static class MenuRoutes
 {
     private const string General = "combat/general";
-    public const string MiniHud = General + "/interface/mini-hud";
-    public const string Console = General + "/diagnostics/console";
-    public const string Overview = General + "/diagnostics/overview";
+    public const string MiniHud = General + "/mini-hud";
+    private const string Diagnostics = "combat/diagnostics";
+    public const string Console = Diagnostics + "/console";
+    public const string Overview = Diagnostics + "/overview";
     public const string Profiles = General + "/profiles";
 
     // The old Settings tabs, by index: Mini HUD, Appearance, Keybinds, Diagnostics › Overview, Profiles.
-    private static readonly string[] s_settingsTabs = { MiniHud, General + "/interface/appearance", General + "/keybinds", Overview, Profiles };
+    private static readonly string[] s_settingsTabs = { MiniHud, General + "/appearance", General + "/keybinds", Overview, Profiles };
 
     private static string s_path = string.Empty;
     private static readonly Dictionary<string, string> s_lastByNode = new();
@@ -53,7 +54,7 @@ internal static class MenuRoutes
         s_path = page.Path;
         s_lastByNode[page.Node.Path] = page.Path;
         s_lastByTab[page.Node.Tab.Id] = page.Path;
-        if (page.Node.Folder == MenuEntry.General) s_lastSettings = page.Path;
+        if (IsSettings(page)) s_lastSettings = page.Path;
     }
 
     /// <summary>A page by path, matched by slug with a unique prefix allowed for each part; null when none or several match.</summary>
@@ -95,7 +96,10 @@ internal static class MenuRoutes
     public static PageNode? ForFeature(string featureId) =>
         FeatureHost.Find(featureId) is { } feature && MenuTree.NodeOf(feature) is { } node ? First(node) : null;
 
-    /// <summary>General's last page shown, else Profiles.</summary>
+    /// <summary>One of the menu's own Config pages (General's and Diagnostics').</summary>
+    public static bool IsSettings(PageNode page) => page.Node.Feature == null && page.Node.Tab.Id == MenuCategory.Combat;
+
+    /// <summary>The last of the menu's own Config pages shown, else Profiles.</summary>
     public static PageNode? Settings() => (s_lastSettings != null ? MenuTree.Find(s_lastSettings) : null) ?? MenuTree.Find(Profiles);
 
     /// <summary>An old Settings tab index (0–4).</summary>

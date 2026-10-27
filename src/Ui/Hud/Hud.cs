@@ -48,7 +48,7 @@ internal static class Hud
     private static IEnumerable<Feature> StatusFeatures => FeatureHost.All.Where(f => f.StatusName != null && HudSettings.ShowsSection(f.Id));
 
     // A feature that isn't running keeps its section, greyed; with no section at all (or all switched off) there is no pill.
-    // While the menu is open only as a preview, on General › Interface › Mini HUD.
+    // While the menu is open only as a preview, on General › Mini HUD.
     private static bool Shown => HudSettings.HudEnabled.Value && (!Menu.Visible || Menu.PreviewingHud) && Player.Exists && StatusFeatures.Any();
 
     public static void OnUpdate()

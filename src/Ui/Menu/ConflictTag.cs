@@ -7,7 +7,7 @@ namespace EpochAssist.Ui;
 // overlap check: known mods that may affect it, and other patches on methods it patches). Clicking opens the Mods page.
 internal static class ConflictTag
 {
-    private const string ModsPage = "combat/general/diagnostics/mods";
+    private const string ModsPage = "combat/diagnostics/mods";
 
     private static IReadOnlyList<(string Mod, string Why)>? s_for;
     private static string s_text = string.Empty, s_tip = string.Empty;

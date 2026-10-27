@@ -58,7 +58,7 @@ internal static class Menu
     public static void Open(PageNode? page)
     {
         // Theme files may have changed since the list was read.
-        if (page?.Node.Folder == MenuEntry.General && (!Visible || page != MenuRoutes.Page)) Themes.Rescan();
+        if (page != null && MenuRoutes.IsSettings(page) && (!Visible || page != MenuRoutes.Page)) Themes.Rescan();
         if (page != null) MenuRoutes.Show(page);
         SetVisible(true);
     }

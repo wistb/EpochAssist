@@ -2,8 +2,8 @@ using EpochAssist.Core;
 
 namespace EpochAssist.Ui;
 
-// The menu's own entries, declared like a feature's: Config › General (Profiles, Interface with the General
-// group's look, HUD and key sections, and Diagnostics) and the Session tab (current session, past sessions, history and
+// The menu's own entries, declared like a feature's: Config › General (Profiles, Keybinds, Mini HUD and Appearance),
+// Config › Diagnostics and the Session tab (current session, past sessions, history and
 // export). Section ids, order and stored values are the General group's, unchanged.
 internal static class SettingsContent
 {
@@ -20,21 +20,14 @@ internal static class SettingsContent
     {
         new MenuEntry(MenuCategory.Combat, order: 80)
         {
-            Title = "Profiles",
-            Folder = MenuEntry.General,
-            Pages = { new MenuPage("Profiles") { Block = "profiles", Resettable = false } },
-        },
-        new MenuEntry(MenuCategory.Combat, order: 81)
-        {
-            Title = "Keybinds",
-            Folder = MenuEntry.General,
-            Pages = { Keybinds() },
-        },
-        new MenuEntry(MenuCategory.Combat, order: 82)
-        {
-            Title = "Interface",
-            Folder = MenuEntry.General,
-            Pages = { new MenuPage(HudSettings.Hud), Appearance() },
+            Title = "General",
+            Pages =
+            {
+                new MenuPage("Profiles") { Block = "profiles", Resettable = false },
+                Keybinds(),
+                new MenuPage(HudSettings.Hud),
+                Appearance(),
+            },
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)
         {
@@ -51,10 +44,9 @@ internal static class SettingsContent
             Title = "History",
             Pages = { SessionHistory() },
         },
-        new MenuEntry(MenuCategory.Combat, order: 83)
+        new MenuEntry(MenuCategory.Combat, order: 81)
         {
             Title = "Diagnostics",
-            Folder = MenuEntry.General,
             Pages =
             {
                 Overview(),
