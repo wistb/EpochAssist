@@ -41,6 +41,10 @@ internal sealed class MacroRun
     // The bar slot (1–5) of the cast step under way, or 0; the slot (0–4) held for a hold or channel, or -1.
     internal int CastSlot;
     internal int ChannelSlot = -1;
+    // Where the step's last send aimed and at what ("Draal Lava Keeper (rare, 12 m)", "the pack centre (7 enemies)",
+    // "cursor: no rare or better within 20 m"), for a hold or channel that loses its target and for the toasts.
+    internal Vector3? LastPoint;
+    internal string? AimedAt;
     internal float? ChargesBefore;
     internal bool? ReadyBefore;
     internal readonly TreeState Until = new();
@@ -57,6 +61,8 @@ internal sealed class MacroRun
         CastSlot = 0;
         ChannelSlot = -1;
         Presses = 0;
+        LastPoint = null;
+        AimedAt = null;
         ChargesBefore = null;
         ReadyBefore = null;
         Until.Reset();
@@ -85,8 +91,8 @@ internal static partial class Macros
             }
             if (step.Invalid is { } invalid)
             {
-                // A step this build doesn't know stops the run; a bad one is skipped.
-                if (!step.Known && step.Raw == null)
+                // A step this build doesn't know (or a target it can't read) stops the run; a bad one is skipped.
+                if (step.NeedsNewer)
                 {
                     run.Results.Add("stopped (needs a newer version)");
                     Finish(engine, run, "needs a newer version");
@@ -192,11 +198,10 @@ internal static partial class Macros
             case StepPhase.Channelling:
             {
                 bool goOn = now < run.PhaseUntil;
-                if (goOn && step.Until is { Entries.Count: > 0 } until) goOn = Conditions.Check(until, ContextOf(run.Macro), run.Until).Passed;
+                if (goOn && step.Until is { Entries.Count: > 0 } until) goOn = Conditions.Check(until, ContextOf(run.Macro, run.StepIndex), run.Until).Passed;
                 if (!goOn) return LetGo(engine, run, "cast");
                 Keep(engine, run, step, run.ChannelSlot);
-                var (target, _) = Aim(step);
-                Dispatcher.Retarget(library, run.ChannelSlot, target);
+                Dispatcher.Retarget(library, run.ChannelSlot, run.LastPoint ?? Aim(step).Point);
                 return false;
             }
             default:
@@ -222,9 +227,21 @@ internal static partial class Macros
             if (run.Presses > 0) return Done(run, "cast");
             return WaitFor(run, "not ready", now, timeout);
         }
-        if (now - run.StepStartedAt >= timeout && run.Presses == 0 && run.Waiting != null) return Skip(run, run.Waiting);
-        var (target, hit) = Aim(step);
-        Dispatcher.Request(engine.Library, number - 1, PressIntent.Press, target, hit);
+        if (now - run.StepStartedAt >= timeout && run.Presses == 0 && run.Waiting != null && run.Waiting != WaitingForTarget) return Skip(run, run.Waiting);
+        var aimed = Aim(step);
+        if (aimed.NoTarget)
+        {
+            // An unconfirmed cast pressed again with its target gone was still the cast.
+            if (run.Presses > 0) return Done(run, "sent");
+            if (step.Target.Else != "wait") return Skip(run, NoTarget);
+            // Waiting for a target counts against the step's time-out, as waiting for readiness does.
+            run.Phase = StepPhase.Waiting;
+            run.Waiting = WaitingForTarget;
+            return now - run.StepStartedAt >= timeout && Skip(run, NoTarget);
+        }
+        run.LastPoint = aimed.Point;
+        run.AimedAt = aimed.Words;
+        Dispatcher.Request(engine.Library, number - 1, PressIntent.Press, aimed.Point, aimed.Hit);
         run.ChargesBefore = slot?.Charges;
         run.ReadyBefore = slot?.Ready;
         run.Phase = StepPhase.Pressing;
@@ -253,10 +270,17 @@ internal static partial class Macros
     }
 
     // Keeps a held or channelled key down: a key-up request (sent as the game sees from a held key) keeps the slot held.
+    // Its aim follows the target; a target lost meanwhile is picked again, and with none the last point is kept.
     private static void Keep(Engine engine, MacroRun run, MacroStep step, int slot)
     {
-        var (target, hit) = Aim(step);
-        Dispatcher.Request(engine.Library, slot, PressIntent.Lift, target, hit);
+        var aimed = Aim(step);
+        if (aimed.NoTarget)
+        {
+            Dispatcher.Request(engine.Library, slot, PressIntent.Lift, run.LastPoint ?? aimed.Point, null);
+            return;
+        }
+        run.LastPoint = aimed.Point;
+        Dispatcher.Request(engine.Library, slot, PressIntent.Lift, aimed.Point, aimed.Hit);
     }
 
     // Lets go of a held or channelled key now (the channel stop goes with it), then the step is done.
@@ -266,18 +290,49 @@ internal static partial class Macros
         return Done(run, result);
     }
 
-    // Where a cast aims: the cursor point (with what it hits), the nearest enemy within the step's range, or the enemy
-    // under the cursor; with no enemy, the cursor.
-    private static (Vector3 Target, Transform? Hit) Aim(MacroStep step)
+    private const string NoTarget = "no target", WaitingForTarget = "waiting for a target";
+
+    /// <summary>Where a send aims: the point and what the cursor hits there, or no target (the step's fallback decides),
+    /// with words for the toasts.</summary>
+    internal readonly record struct Aimed(Vector3 Point, Transform? Hit, bool NoTarget, string? Words);
+
+    // Where a cast aims, by its target. The aims from before targets act exactly as they did: the nearest enemy within
+    // the step's range or the hovered one, read now, else the cursor. Any other target is the picker's, checked again
+    // now; with nothing qualifying the fallback is the cursor or no target (the step skips or waits). No player: the
+    // hero's place.
+    internal static Aimed Aim(MacroStep step) => AimAt(step.Target);
+
+    internal static Aimed AimAt(TargetSpec target)
     {
-        if (step.Aim is "nearest" or "hovered")
+        if (target.Pick == TargetPick.Cursor || target.Newer != null) return AtCursor(null);
+        if (target.Legacy)
         {
-            var enemy = step.Aim == "hovered" ? AutoCast.HoveredEnemy() : World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = step.AimRange });
-            if (enemy is { Gone: false, Dead: false }) return (enemy.Position, null);
+            var enemy = target.Pick == TargetPick.Hovered ? AutoCast.HoveredEnemy() : World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = target.Range });
+            if (enemy is { Gone: false, Dead: false }) return new Aimed(enemy.Position, null, false, Targets.EnemyWords(enemy));
+            return AtCursor(target.Pick == TargetPick.Hovered ? "no hovered enemy" : $"no enemy within {ArgSpec.Format(target.Range)} m");
         }
-        Vector3? point = AutoCast.CursorPoint(out var hit);
-        if (point is Vector3 p) return (p, hit);
-        return (Player.Transform is Transform t ? t.position : Vector3.zero, null);
+        var result = Targets.Resolve(target);
+        if (result.Found)
+        {
+            string words = result.Entry is { } picked ? Targets.EnemyWords(picked) : $"the pack centre ({result.Members} enem{(result.Members == 1 ? "y" : "ies")})";
+            return new Aimed(result.Point, null, false, words);
+        }
+        if (target.Else == "cursor") return AtCursor(result.Reason);
+        return new Aimed(CursorOrHero(out _), null, true, result.Reason);
+    }
+
+    private static Aimed AtCursor(string? reason)
+    {
+        var point = CursorOrHero(out var hit);
+        return new Aimed(point, hit, false, reason != null ? $"cursor: {reason}" : "cursor");
+    }
+
+    private static Vector3 CursorOrHero(out Transform? hit)
+    {
+        Vector3? point = AutoCast.CursorPoint(out hit);
+        if (point is Vector3 p) return p;
+        hit = null;
+        return Player.Transform is Transform t ? t.position : Vector3.zero;
     }
 
     // ---- drink ----
@@ -326,8 +381,7 @@ internal static partial class Macros
         if (!run.Macro.Trigger.NeedsKey && !run.TestFire) return Skip(run, "only in key-triggered macros");
         if (!Dispatcher.CanPortal) return Skip(run, "town portal isn't available in this mode");
         if (now - run.LastSendAt < SendGapSeconds) return WaitFor(run, "spacing", now, 1f);
-        var (target, _) = Aim(MacroStep.New("cast"));
-        Dispatcher.RequestPortal(engine.Library, target);
+        Dispatcher.RequestPortal(engine.Library, AtCursor(null).Point);
         run.Phase = StepPhase.Pressing;
         return false;
     }
@@ -353,7 +407,7 @@ internal static partial class Macros
             run.Phase = StepPhase.Waiting;
             run.PhaseUntil = now + step.TimeoutMs / 1000f;
         }
-        if (step.Until != null && Conditions.Check(step.Until, ContextOf(run.Macro), run.Until).Passed) return Done(run, "condition met");
+        if (step.Until != null && Conditions.Check(step.Until, ContextOf(run.Macro, run.StepIndex), run.Until).Passed) return Done(run, "condition met");
         if (now < run.PhaseUntil)
         {
             run.Waiting = "until";

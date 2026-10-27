@@ -13,7 +13,6 @@ internal static partial class Macros
     private static readonly string[] s_triggerLabels = { "automatic", "on key press", "while key held", "toggled by key" };
     private static readonly string[] s_moveLabels = { "don't care", "moving", "standing still" };
     private static readonly string[] s_modeLabels = { "tap", "hold", "channel" };
-    private static readonly string[] s_aimLabels = { "at cursor", "nearest enemy", "hovered enemy" };
     private static readonly string[] s_timeoutLabels = { "stop the macro", "go on" };
     private static readonly string[] s_stepKinds = { "cast", "drink", "portal", "wait", "waitUntil", "message" };
     private static readonly string[] s_stepLabels = { "Cast a skill", "Drink a potion", "Open a town portal", "Wait", "Wait until", "Show a message" };
@@ -82,7 +81,7 @@ internal static partial class Macros
         if (!s_liveUntil.TryGetValue(step, out var state)) s_liveUntil[step] = state = new TreeState();
         if (state.Frame != UnityEngine.Time.frameCount)
         {
-            Conditions.Check(until, CurrentMacro(setId, macroId) is { } m ? ContextOf(m) : AutoCast.ContextFor(-1), state);
+            Conditions.Check(until, CurrentMacro(setId, macroId) is { } m ? ContextOf(m, step) : AutoCast.ContextFor(-1), state);
             state.Frame = UnityEngine.Time.frameCount;
         }
         return state;
@@ -255,8 +254,11 @@ internal static partial class Macros
         if (step.Raw != null) return step.Raw.ToJsonString();
         string text = step.Step switch
         {
-            "cast" => $"cast {ConditionKinds.SkillName(step.Skill)} ({step.Mode}{(step.Mode != "tap" ? $" {ArgSpec.Format(step.Ms)} ms" : string.Empty)}, "
-                + $"{(step.Aim == "nearest" ? $"nearest enemy within {ArgSpec.Format(step.AimRange)} m" : step.Aim == "hovered" ? "hovered enemy" : "at cursor")})",
+            // The aims from before targets read as they did: "(tap, nearest enemy within 15 m)"; any other target after the
+            // mode: "(tap) at the rarest enemy within 20 m, else at cursor".
+            "cast" => step.Target is { Legacy: true } old
+                ? $"cast {ConditionKinds.SkillName(step.Skill)} ({ModeWords(step)}, {old.Words(TargetOwner.Step)})"
+                : $"cast {ConditionKinds.SkillName(step.Skill)} ({ModeWords(step)}) {step.Target.Words(TargetOwner.Step)}",
             "drink" => "drink a potion",
             "portal" => "open a town portal",
             "wait" => $"wait {ArgSpec.Format(step.Ms)} ms",
@@ -267,6 +269,8 @@ internal static partial class Macros
         };
         return step.Invalid is { } bad && step.Known ? $"{text} — {bad}" : text;
     }
+
+    private static string ModeWords(MacroStep step) => step.Mode != "tap" ? $"{step.Mode} {ArgSpec.Format(step.Ms)} ms" : step.Mode;
 
     private static IEnumerable<MenuRow> StepOptions(string setId, string macroId, int index, MacroStep step)
     {
@@ -296,15 +300,15 @@ internal static partial class Macros
                     Key = prefix + "ms",
                     VisibleWhen = () => Current()?.Mode is "hold" or "channel",
                 };
-                yield return new ValueChoice("Aim", () => Array.IndexOf(MacroStep.Aims, Current()?.Aim ?? "cursor"), i =>
+                // Target in place of the old Aim and Aim range; a change goes through the library edit (undo works).
+                foreach (var row in TargetRows.Rows(new TargetRows.Access
                 {
-                    if (i >= 0 && i < MacroStep.Aims.Length) Set("aim", JsonValue.Create(MacroStep.Aims[i]));
-                }, () => s_aimLabels) { Key = prefix + "aim", Width = 140f };
-                yield return new ValueNumber("Aim range", () => Current()?.AimRange ?? 15f, v => Set("aimRange", JsonValue.Create(v)), 2f, 60f, 1f, " m")
-                {
-                    Key = prefix + "aimrange",
-                    VisibleWhen = () => Current()?.Aim == "nearest",
-                };
+                    Prefix = prefix,
+                    Owner = TargetOwner.Step,
+                    Get = () => Current()?.Target,
+                    Set = target => Edit(s => s.SetTarget(target ?? TargetSpec.Cursor)),
+                    Blocked = ReadOnlyReason,
+                })) yield return row;
                 yield return new ValueNumber("Wait for ready", () => Current()?.TimeoutMs ?? 1000f, v => Set("timeoutMs", JsonValue.Create(v)), 0f, 5000f, 100f, " ms")
                 {
                     Key = prefix + "timeout",

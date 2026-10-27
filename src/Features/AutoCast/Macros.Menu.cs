@@ -29,7 +29,7 @@ internal static partial class Macros
         Back = () =>
         {
             if (s_editing == null) return false;
-            s_editing = null;
+            CloseEditor();
             return true;
         },
         Rename = Rename,
@@ -187,17 +187,33 @@ internal static partial class Macros
     {
         if (key == SlotsKey) return;
         s_editing = key;
+        s_cameFrom = null;
+    }
+
+    // The page a link opened this one from (a slot macro's shared conditions or shared target), so Close goes back to it.
+    private static string? s_cameFrom;
+
+    // Opens a page from the one open now; closing it returns there.
+    private static void EditFromHere(string key)
+    {
+        string? from = s_editing;
+        Edit(key);
+        s_cameFrom = from != key ? from : null;
     }
 
     /// <summary>Dev: opens an editor by its key ("s1/m1", "slots/3", "slots/every") without keys.</summary>
     internal static void DevEdit(string key)
     {
         View.Selected = key;
-        s_editing = key;
+        Edit(key);
     }
 
-    /// <summary>Closes the open editor (Close, Esc).</summary>
-    internal static void CloseEditor() => s_editing = null;
+    /// <summary>Closes the open editor (Close, Esc): back to the page a link opened it from, else to the library.</summary>
+    internal static void CloseEditor()
+    {
+        s_editing = s_cameFrom;
+        s_cameFrom = null;
+    }
 
     // ---- Editors ----
 
@@ -213,6 +229,7 @@ internal static partial class Macros
         {
             // Gone (deleted, another class): back to the library.
             s_editing = null;
+            s_cameFrom = null;
             return null;
         }
         s_editors[key] = editor;
@@ -254,13 +271,13 @@ internal static partial class Macros
         return state;
     }
 
-    private static (string Key, int Gate, int Slots, string? Open)? s_listBuiltFor;
+    private static (string Key, int Gate, int Slots, int Targets, string? Open)? s_listBuiltFor;
     private static List<MenuRow> s_listRows = new();
 
-    // Rows rebuilt when either list's text or the open line changes.
+    // Rows rebuilt when a list's text, the slot targets or the open line changes.
     private static IReadOnlyList<MenuRow> ListRows(string key, Action<List<MenuRow>> build)
     {
-        var built = (key, S.GateConditions.Value.GetHashCode(), S.SlotConditions.Value.GetHashCode(), s_openLine);
+        var built = (key, S.GateConditions.Value.GetHashCode(), S.SlotConditions.Value.GetHashCode(), S.SlotTargets.Value.GetHashCode(), s_openLine);
         if (s_listBuiltFor == built) return s_listRows;
         s_listBuiltFor = built;
         var rows = new List<MenuRow>();
@@ -276,6 +293,9 @@ internal static partial class Macros
             rows.Add(new HintRow(() => "No live data: enter the game to see values.") { Key = "nolive", VisibleWhen = () => !Player.Exists });
             rows.Add(new HintRow(() => "Checked for every slot macro before its own conditions. The enemy gate can be switched off, not removed.") { Key = "hint" });
             RuleTreeRows.Add(rows, ListTree("shared", S.GateConditions, () => S.EveryList, () => -1));
+            rows.Add(new HeadingRow("Shared target"));
+            rows.Add(new HintRow(() => "Where slot macros aim, unless a slot macro sets its own target.") { Key = "target.hint" });
+            rows.AddRange(AutoCastMenu.SharedTargetRows());
         }))
         { Place = () => "Slots" };
         editor.Buttons.Add(Button("Undo", "undo", Undo, () => History.CanUndo, "Takes back the last change on this tab"));
@@ -323,11 +343,40 @@ internal static partial class Macros
                 v => SetListField(listKey(), "waitMs", v <= 0f ? null : System.Text.Json.Nodes.JsonValue.Create(v)), 0f, Macro.MaxWaitMs, 100f, " ms") { Key = "waitms" });
             rows.Add(new HeadingRow("Shared Conditions"));
             RuleTreeRows.Add(rows, ListTree("sharedview", S.GateConditions, () => S.EveryList, () => slot, readOnly: true));
-            rows.Add(Button("Edit Shared Conditions", "editshared", () => Edit(EveryKey)));
+            rows.Add(Button("Edit Shared Conditions", "editshared", () => EditFromHere(EveryKey)));
             rows.Add(new HeadingRow("Trigger"));
             RuleTreeRows.Add(rows, ListTree($"slot{slot + 1}", S.SlotConditions, listKey, () => slot));
             rows.Add(new HeadingRow("Sequence"));
             rows.Add(new HintRow(() => $"1. Cast slot {slot + 1} ({AutoCast.SlotAbilityName(slot) ?? "whatever is there"}), tapped, or held while it channels.") { Key = "sequence" });
+            // Its own target for this form, or the shared one (set on the Shared Conditions page).
+            rows.Add(new HeadingRow("Target"));
+            rows.Add(new HintRow(() => SlotContext(slot)) { Key = "target.form" });
+            var targetRows = TargetRows.Rows(new TargetRows.Access
+            {
+                Prefix = $"slot{slot + 1}.",
+                Owner = TargetOwner.Slot,
+                Get = () => S.SlotTargets.Slot(listKey()),
+                Set = target =>
+                {
+                    History.Watch();
+                    if (!S.SlotTargets.SetSlot(listKey(), target, out string reason)) Report($"Target not changed: {reason}.", ToastKind.Warning);
+                },
+                SameAs = () => S.SharedSlotTarget,
+                StartRange = () => S.SharedSlotTarget.Pick == TargetPick.Cursor ? S.AimRange.Value : S.SharedSlotTarget.Range,
+                Blocked = () => S.SlotTargets.Doc.ReadOnly ? "made by a newer version" : null,
+            }).ToList();
+            rows.Add(targetRows[0]);
+            // While the slot follows the shared target: its words, and Edit to open it.
+            rows.Add(new TextButtonRow("Shared target", () => S.SharedSlotTarget.Words(TargetOwner.Slot), new ActionButton("Edit", "editsharedtarget")
+            {
+                OnClick = () => EditFromHere(EveryKey),
+                Tip = "Opens the shared target on the Shared Conditions page",
+            })
+            {
+                Key = "target.shared",
+                VisibleWhen = () => S.SlotTargets.Slot(listKey()) == null,
+            });
+            rows.AddRange(targetRows.Skip(1));
         });
 
     // Where "Duplicate as a macro" puts the copy: the shown class's first set with room, or a new set; null when the
@@ -392,7 +441,11 @@ internal static partial class Macros
                 WaitMs = float.TryParse(ListField(listKey, "waitMs"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ms) ? ms : 0f,
                 All = ConditionDoc.ParseItems(ConditionDoc.ItemsJson(tree)),
             };
-            macro.Actions.Add(MacroStep.New("cast", skill));
+            // The cast step aims where the slot did; "don't cast" becomes "skip the step".
+            var step = MacroStep.New("cast", skill);
+            var target = S.EffectiveSlotTarget(AutoCast.CurrentFormKey, slot);
+            step.SetTarget(target.Else == "hold" ? target.WithElse("skip") : target);
+            macro.Actions.Add(step);
             macro.SyncReady();
             set.Macros.Add(macro);
             made = $"{set.Id}/{macro.Id}";
@@ -642,21 +695,21 @@ internal static partial class Macros
     }
 
     /// <summary>
-    /// Up to 50 snapshots this session of the library, the shared conditions and the slot lists (R14): a change seen on
+    /// Up to 50 snapshots this session of the library, the shared conditions, the slot lists and the slot targets (R14): a change seen on
     /// the Macros tab pushes the texts from before it, and Undo puts the last back through the settings. Cleared when
     /// the profile or character changes; never saved.
     /// </summary>
     internal static class History
     {
         private const int Max = 50;
-        private static readonly List<(string Library, string Gate, string Slots)> s_stack = new();
-        private static (string Library, string Gate, string Slots)? s_last;
+        private static readonly List<(string Library, string Gate, string Slots, string Targets)> s_stack = new();
+        private static (string Library, string Gate, string Slots, string Targets)? s_last;
         private static int s_profileGeneration = -1;
 
         public static bool CanUndo => s_stack.Count > 0;
         public static int Count => s_stack.Count;
 
-        private static (string, string, string) Now() => (S.LibraryDoc.Value, S.GateConditions.Value, S.SlotConditions.Value);
+        private static (string, string, string, string) Now() => (S.LibraryDoc.Value, S.GateConditions.Value, S.SlotConditions.Value, S.SlotTargets.Value);
 
         /// <summary>Notes the texts now; a change since the last look pushes the texts from before it.</summary>
         public static void Watch()
@@ -681,13 +734,14 @@ internal static partial class Macros
             what = string.Empty;
             Watch();
             if (s_stack.Count == 0) return false;
-            var (library, gate, slots) = s_stack[^1];
+            var (library, gate, slots, targets) = s_stack[^1];
             s_stack.RemoveAt(s_stack.Count - 1);
-            var (nowLibrary, nowGate, nowSlots) = Now();
+            var (nowLibrary, nowGate, nowSlots, nowTargets) = Now();
             var parts = new List<string>();
             if (library != nowLibrary && S.LibraryDoc.SetText(library, out _)) parts.Add("library");
             if (gate != nowGate && S.GateConditions.SetText(gate, out _)) parts.Add("shared conditions");
             if (slots != nowSlots && S.SlotConditions.SetText(slots, out _)) parts.Add("slot conditions");
+            if (targets != nowTargets && S.SlotTargets.SetText(targets, out _)) parts.Add("slot targets");
             s_last = Now();
             what = parts.Count > 0 ? string.Join(", ", parts) : "nothing changed";
             return true;

@@ -256,15 +256,15 @@ internal static partial class DevCommands
         return new CommandResult(panel.StartsWith("ok") ? $"ok {call.Line}" : panel) { Settle = SettleFrames };
     }
 
-    // gate: autocast's enemy gate (the every-slot list's gate entry) as it decides, for comparing its transitions and aim
-    // across builds; the name is the one the nameplate shows.
+    // gate: autocast's enemy gate (the every-slot list's gate entry) as it decides, and the shared slot target's pick,
+    // for comparing transitions and aim across builds; the name is the one the nameplate shows.
     private static CommandResult Gate()
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        string closest = Features.AutoCast.ClosestEnemy is var (name, distance) ? $"\"{name ?? "?"}\" {distance.ToString("F1", inv)}m" : "none";
+        var (words, pick) = Features.AutoCast.SlotTargetNow;
         var gate = Features.AutoCast.GateNow;
         string counted = gate.Counted ? string.Empty : " (not counted)";
         return CommandResult.Ok($"gate: open {gate.Open}, {(gate.On ? "on" : "off")}, range {gate.Range.ToString("0.##", inv)}, count {gate.Count}, "
-            + $"weight {gate.Weight.ToString("0.##", inv)}{counted}, closest {closest}, t {Time.unscaledTime.ToString("F2", inv)}");
+            + $"weight {gate.Weight.ToString("0.##", inv)}{counted}, slot target: {words} → {pick}, t {Time.unscaledTime.ToString("F2", inv)}");
     }
 }

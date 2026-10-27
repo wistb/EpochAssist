@@ -76,9 +76,21 @@ internal static partial class AutoCast
     private static Run? s_run;
 
 
-    /// <summary>The closest enemy within aim range as of the last count and its distance, or null (for the dev gate verb).</summary>
-    internal static (string? Name, float Distance)? ClosestEnemy =>
-        s_run?.ClosestEnemy is { Gone: false } closest ? (closest.Name, closest.Distance) : null;
+    /// <summary>The shared slot target in words and what it picks now (for the dev gate verb): the scan's nearest enemy
+    /// for the old switch's target, else the picker's.</summary>
+    internal static (string Words, string Pick) SlotTargetNow
+    {
+        get
+        {
+            var shared = S.SharedSlotTarget;
+            string words = shared.Words(TargetOwner.Slot);
+            if (SharedAimedInScan(shared))
+            {
+                return (words, s_run?.ClosestEnemy is { Gone: false } closest ? Targets.EnemyWords(closest) : shared.Pick == TargetPick.Cursor ? "cursor" : "none (cursor)");
+            }
+            return (words, Targets.PickWords(shared) ?? "cursor");
+        }
+    }
 
     public static string ModifierKeyName => S.ModifierKey.ValueLabel;
 
@@ -171,6 +183,9 @@ internal static partial class AutoCast
         }
 
         UpdateEnemyGate(run);
+        // Picks die with the hero; a refresh spread over frames goes on.
+        if (!GameState.PlayerAlive) Targets.Clear();
+        else Targets.Continue();
         CheckEvery(run);
         // Library macros ask first, so their press is in before the slot macros' in the same frame.
         Macros.Update();
@@ -252,6 +267,9 @@ internal static partial class AutoCast
             Channelled = slot => run.Slots[slot].Channelled,
         });
         Macros.Start(run.Library, run.Drinks);
+        Targets.Cursor = s_cursorRead;
+        Targets.Weight = s_enemyWeight;
+        Targets.Clear();
         run.Client.SwallowRealPress = OnRealBarCommand;
         run.Client.SlotChordHeld = Hotkeys.SlotChordEngaged;
         s_run = run;
@@ -339,6 +357,9 @@ internal static partial class AutoCast
     public static void Shutdown()
     {
         Hotkeys.SetSlotChords(null, null);
+        Targets.Cursor = null;
+        Targets.Weight = null;
+        Targets.Clear();
         ConditionTargets.Remove("autocast");
         ConditionKeys.Remove("autocast");
         var run = s_run;
@@ -382,6 +403,7 @@ internal static partial class AutoCast
         run.SlotRefresh?.Due();
         run.EnemyScan?.Due();
         run.Tally.Clear();
+        Targets.Clear();
         run.Verdicts.Clear();
         run.ClosestEnemy = null;
         Array.Clear(run.ToggleKeyDown);
@@ -436,6 +458,7 @@ internal static partial class AutoCast
         for (int i = 0; i < SlotCount; i++) anyToggled |= toggles[i];
         if (!anyToggled) return;
 
+        // The point slots that send nothing are given (a let-go key-up): the shared target's, as before.
         Vector3 targetPosition = GetTargetPosition(run, out Transform? hitTransform);
         for (int i = 0; i < SlotCount; i++)
         {
@@ -443,6 +466,7 @@ internal static partial class AutoCast
             if (!toggles[i])
             {
                 run.Verdicts.Waiting[i] = false;
+                run.Verdicts.NoTarget[i] = false;
                 Dispatcher.Request(client, i, PressIntent.None, targetPosition, hitTransform);
                 continue;
             }
@@ -463,10 +487,29 @@ internal static partial class AutoCast
                 continue;
             }
 
+            // The slot's own target, or the shared one; one that finds nothing and doesn't cast holds the slot.
+            var target = S.EffectiveSlotTarget(run.FormKey, i);
+            Vector3 point = targetPosition;
+            Transform? hit = hitTransform;
+            if (!ReferenceEquals(target, S.SharedSlotTarget) || !SharedAimedInScan(target))
+            {
+                var aimed = Macros.AimAt(target);
+                if (aimed.NoTarget)
+                {
+                    run.Verdicts.NoTarget[i] = true;
+                    run.Verdicts.Waiting[i] = true;
+                    Dispatcher.Request(client, i, PressIntent.None, targetPosition, hitTransform);
+                    continue;
+                }
+                point = aimed.Point;
+                hit = aimed.Hit;
+            }
+            run.Verdicts.NoTarget[i] = false;
+
             bool channelling = slot.Channelled && PlayerModel.Channelling == true;
             bool ready = !channelling && !IsOnCooldown(i, slot.Ability);
-            Dispatcher.Request(client, i, ready ? PressIntent.Press : PressIntent.Lift, targetPosition, hitTransform);
-            if (channelling) Dispatcher.Retarget(client, i, targetPosition);
+            Dispatcher.Request(client, i, ready ? PressIntent.Press : PressIntent.Lift, point, hit);
+            if (channelling) Dispatcher.Retarget(client, i, point);
         }
     }
 
@@ -478,6 +521,11 @@ internal static partial class AutoCast
     private static bool IsOnCooldown(int slot, Ability? ability) =>
         ability != null && PlayerModel.Slot(slot + 1)?.Ready == false;
 
+    // A shared target aimed from the scan, as the old switch did: nearest within its range, else at cursor (that is
+    // GetTargetPosition), and at cursor itself.
+    private static bool SharedAimedInScan(TargetSpec shared) => shared.Pick == TargetPick.Cursor || (shared.Legacy && shared.Pick == TargetPick.Nearest);
+
+    // The shared target's point when the scan aims it (nearest from the scan, re-checked here) and else the cursor's.
     private static Vector3 GetTargetPosition(Run run, out Transform? hitTransform)
     {
         hitTransform = null;
@@ -485,7 +533,7 @@ internal static partial class AutoCast
 
         // The count runs a few times a second, so make sure the target is still there and alive; the world model keeps
         // its position current while it is active.
-        if (S.AimAtClosestEnemy.Value && run.ClosestEnemy is { Gone: false, Dead: false, Active: true } closest) return closest.Position;
+        if (run.ClosestEnemy is { Gone: false, Dead: false, Active: true } closest) return closest.Position;
 
         try
         {

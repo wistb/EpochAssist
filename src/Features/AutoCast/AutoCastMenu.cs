@@ -4,12 +4,13 @@ using S = EpochAssist.Features.AutoCastSettings;
 namespace EpochAssist.Features;
 
 // The Macros feature's settings as one page of the Macros tab (opened by the library's Settings button, found by
-// search): Keys, Pausing, Aiming and Enemies, each a card with its settings. Run macros and the debug
+// search): Keys, Pausing and Enemies, each a card with its settings (the slot macros' shared target is on the Shared
+// Conditions page). Run macros and the debug
 // switches are the library's footer. The menu draws it.
 internal static class AutoCastMenu
 {
     /// <summary>
-    /// The settings page as cards: Keys beside Pausing, then Aiming and Enemies across the page.
+    /// The settings page as cards: Keys beside Pausing, then Enemies across the page.
     /// </summary>
     public static MenuPage SettingsPage()
     {
@@ -19,8 +20,6 @@ internal static class AutoCastMenu
                 new SettingRow(S.ModifierKey), new SettingRow(S.HoldToPauseKey)),
             new CardRow("Pausing", "When macros stop by themselves until you press a skill.",
                 new SettingRow(S.PauseOnZoneChange), new SettingRow(S.PauseInNonCombatZones))));
-        page.Rows.Add(new CardRow("Aiming", "Where slot macros aim their casts.",
-            new SettingRow(S.AimAtClosestEnemy), new SettingRow(S.AimRange)));
         // The enemy weights every enemy weight condition uses, the range ring and what the gate sees now.
         var weights = S.Gate.Settings.Where(s => s.Fold != null).OfType<Number>().ToList();
         page.Rows.Add(new CardRow("Enemies", "How much each enemy counts in enemy weight lines (the enemy gate's included).",
@@ -29,6 +28,24 @@ internal static class AutoCastMenu
             new LiveText("Enemy gate", GateReadout) { VisibleWhen = () => S.GateEntry() is { On: true } }));
         return page;
     }
+
+    /// <summary>
+    /// The shared slot target's rows (the Shared Conditions page), in the cast step's rows and words; its first change
+    /// saves it (until then the old aiming switch decides). Changes go through the Macros tab's undo.
+    /// </summary>
+    internal static IEnumerable<MenuRow> SharedTargetRows() => TargetRows.Rows(new TargetRows.Access
+    {
+        Prefix = "sharedtarget.",
+        Owner = TargetOwner.Slot,
+        Get = () => S.SharedSlotTarget,
+        Set = target =>
+        {
+            Macros.History.Watch();
+            if (!S.SlotTargets.SetShared(target ?? TargetSpec.Cursor, out string reason)) Log.WarnThrottled("aiming:edit", $"Slot target not changed: {reason}");
+        },
+        StartRange = () => S.AimRange.Value,
+        Blocked = () => S.SlotTargets.Doc.ReadOnly ? "made by a newer version" : null,
+    });
 
     internal static string SlotHint(int slot)
     {
@@ -42,6 +59,7 @@ internal static class AutoCastMenu
     {
         bool toggled = Status.Slots?[slot] ?? false;
         if (!toggled) return new PageStatus(StatusState.Off, "off");
+        if (AutoCast.SlotNoTarget(slot)) return new PageStatus(StatusState.Holding, "no target");
         return AutoCast.SlotWaiting(slot) ? new PageStatus(StatusState.Holding, "waiting") : new PageStatus(StatusState.Active, "casting");
     }
 

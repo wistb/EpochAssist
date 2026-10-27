@@ -18,6 +18,8 @@ internal static partial class AutoCast
         public readonly TreeState[] Slot = new TreeState[SlotCount];
         public readonly TreeVerdict[] SlotVerdict = new TreeVerdict[SlotCount];
         public readonly bool[] Waiting = new bool[SlotCount];
+        // Slots holding because their target finds nothing and doesn't cast ("no target").
+        public readonly bool[] NoTarget = new bool[SlotCount];
         // Slots a library run has (FR-042): left alone, reason "in use by a macro".
         public readonly bool[] InUse = new bool[SlotCount];
 
@@ -50,6 +52,7 @@ internal static partial class AutoCast
                 SlotVerdict[i] = TreeVerdict.Pass;
                 Slot[i].Reset();
                 Waiting[i] = false;
+                NoTarget[i] = false;
             }
             ReasonList = null;
             ReasonIndex = -1;
@@ -110,8 +113,16 @@ internal static partial class AutoCast
     /// <summary>The slot is toggled and its own conditions hold it back (chips show Paused, tree items Holding).</summary>
     public static bool SlotWaiting(int slot) => s_run is { } run && run.Verdicts.Waiting[slot];
 
+    /// <summary>The slot is toggled and holds because its target finds nothing ("don't cast").</summary>
+    public static bool SlotNoTarget(int slot) => s_run is { } run && run.Verdicts.NoTarget[slot];
+
     /// <summary>A check's context for a slot (0-based, -1 for none), with the run's enemy tally while it counts.</summary>
-    internal static ConditionContext ContextFor(int slot) => new(slot, s_run is { Active: true } run ? run.Tally : null, Clock.Now);
+    internal static ConditionContext ContextFor(int slot) => new(slot, s_run is { Active: true } run ? run.Tally : null, Clock.Now)
+    {
+        // "The cast target": the slot's own or the shared one; the shared conditions (and a library macro's trees,
+        // until the macro sets its own) read the shared one.
+        CastTarget = slot >= 0 ? S.EffectiveSlotTarget(CurrentFormKey, slot) : S.SharedSlotTarget,
+    };
 
     /// <summary>Whether autocast counts enemies now (for the editor's "not counted (autocast off)").</summary>
     internal static bool Scanning => s_run is { Active: true };
@@ -223,6 +234,7 @@ internal static partial class AutoCast
                 : blocking != null && blocking.Name == "every-slot" ? $"held by every-slot {everyVerdict.FirstFailing + 1}"
                 : blocking != null ? $"paused: {blocking.Reason}"
                 : !verdict.Passed ? $"waiting on {verdict.FirstFailing + 1}"
+                : run != null && run.Verdicts.NoTarget[i] ? "no target"
                 : ready == false ? "on cooldown"
                 : "would cast";
             lines.Add($"slot {i + 1} {skill,-16} toggled  {readiness}  {conditions}  → {outcome}");

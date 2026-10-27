@@ -6,7 +6,8 @@ namespace EpochAssist.Features;
 
 // The debug overlays (FR-063, R18), drawn with Draw in repaint passes only and off by default: "Debug conditions" lists
 // each enabled macro of the class with its state and first failing line; "Debug ranges" rings each distinct range an
-// enabled enemy line counts, around the hero or the cursor point, green while a line using it counts; and up to four
+// enabled enemy line or target counts, around the hero or the cursor point, green while a line using it counts or the
+// target has a pick, and marks each target's pick (the enemy, or the area spot with its circle); and up to four
 // lines with "Show chart on overlay" get a 10-second chart of their value, sampled 10 times a second.
 internal static partial class Macros
 {
@@ -15,6 +16,8 @@ internal static partial class Macros
     private static readonly Color s_pass = new(0.35f, 1f, 0.45f, 0.85f);
     private static readonly Color s_fail = new(1f, 1f, 1f, 0.5f);
     private static readonly Color s_panel = new(0f, 0f, 0f, 0.55f);
+    private static readonly Color s_target = new(1f, 0.75f, 0.3f, 0.9f);
+    private static readonly List<(Vector3 At, string Text)> s_labels = new();
 
     // One charted line: whose it is and its last 10 s of values (NaN where it had none).
     private sealed class Chart
@@ -120,6 +123,25 @@ internal static partial class Macros
             }
         }
         if (Player.Transform is not Transform hero) return;
+        // Each target in use: its range joins the rings (green while it has a pick); the picked enemy gets a marker
+        // and the target's words at its feet, an area spot its circle.
+        // Targets on the same enemy or spot share one label (their words joined), so they don't print over each other.
+        s_labels.Clear();
+        for (int i = 0; i < Targets.Count; i++)
+        {
+            var pick = Targets.PickAt(i);
+            var ring = (pick.Key.Range, false);
+            rings[ring] = (rings.TryGetValue(ring, out bool any) && any) || pick.Has;
+            Vector3? at = pick.Entry is { Gone: false } e ? e.Position : pick.Spot;
+            if (at is not Vector3 point) continue;
+            if (pick.Spot != null) Draw.WorldCircle(point, pick.Key.Radius, s_target, 2f);
+            Draw.WorldMarker(point, s_target, 10f);
+            string words = TargetSpec.FromKey(pick.Key).Words(TargetOwner.Condition);
+            int near = s_labels.FindIndex(l => (l.At - point).sqrMagnitude < 6.25f);
+            if (near >= 0) s_labels[near] = (s_labels[near].At, s_labels[near].Text + "\n" + words);
+            else s_labels.Add((point, words));
+        }
+        foreach (var (at, text) in s_labels) Draw.WorldLabel(at, text, s_target);
         Vector3? cursor = FrameCursor();
         foreach (var ((range, atCursor), counts) in rings)
         {

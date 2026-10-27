@@ -130,7 +130,24 @@ internal static partial class Macros
     }
 
     /// <summary>The context a library macro's trees are checked in: its id, the feature's tally, now.</summary>
-    internal static ConditionContext ContextOf(Macro macro) => AutoCast.ContextFor(-1) with { Macro = macro.Id };
+    internal static ConditionContext ContextOf(Macro macro) => AutoCast.ContextFor(-1) with { Macro = macro.Id, CastTarget = CastTargetOf(macro, 0) };
+
+    /// <summary>The context of a step's tree: a wait until's cast target is the next cast step's, a channel's its own.</summary>
+    internal static ConditionContext ContextOf(Macro macro, int step) => AutoCast.ContextFor(-1) with { Macro = macro.Id, CastTarget = StepCastTarget(macro, step) };
+
+    // "The cast target" for a tree: the first switched-on cast step's from a step on, or null with none.
+    private static TargetSpec? CastTargetOf(Macro macro, int from)
+    {
+        var steps = macro.Actions;
+        for (int i = from; i < steps.Count; i++)
+        {
+            if (steps[i].On && steps[i].Step == "cast" && steps[i].Raw == null) return steps[i].Target;
+        }
+        return null;
+    }
+
+    private static TargetSpec? StepCastTarget(Macro macro, int step) =>
+        macro.Actions.ElementAtOrDefault(step) is { Step: "cast", Raw: null } own ? own.Target : CastTargetOf(macro, step + 1);
 
     /// <summary>The running macro's name, or null.</summary>
     public static string? RunningName => s_engine?.Run?.Macro.Name;
@@ -185,6 +202,34 @@ internal static partial class Macros
             foreach (var step in macro.Actions)
             {
                 if (step.Until != null) ConditionEditor.EnemySubjects(step.Until, into);
+            }
+        }
+    }
+
+    /// <summary>The slot (0-based) whose page is open, -1 for the Shared Conditions page, or null when neither shows:
+    /// their targets are picked then, so the page's live pick has a value.</summary>
+    internal static int? ShownSlotPage => !EditorShowing || s_editing is not { } key ? null
+        : key == EveryKey ? -1
+        : key.StartsWith(SlotsKey + "/") && int.TryParse(key[(SlotsKey.Length + 1)..], out int slot) && slot is >= 1 and <= AutoCast.Slots ? slot - 1 : null;
+
+    /// <summary>The sticky targets of the class's enabled macros (and the running and open ones): each switched-on cast
+    /// step's.</summary>
+    public static void CollectTargets()
+    {
+        if (s_engine is not { } engine || engine.Class == null) return;
+        bool named = Targets.WantOwners;
+        foreach (var macro in ScannedMacros(engine))
+        {
+            ConditionEditor.EnemyTargets(macro.All, CastTargetOf(macro, 0), named ? macro.Name : null);
+            var steps = macro.Actions;
+            for (int i = 0; i < steps.Count; i++)
+            {
+                var step = steps[i];
+                if (step.Until != null) ConditionEditor.EnemyTargets(step.Until, StepCastTarget(macro, i), named ? $"{macro.Name} step {i + 1}" : null);
+                if (!step.On || step.Step != "cast" || step.Raw != null) continue;
+                var target = step.Target;
+                if (!target.Sticky || target.Invalid(TargetOwner.Step) != null) continue;
+                Targets.Collect(target.Key, named ? $"{macro.Name} step {i + 1}" : null);
             }
         }
     }
@@ -541,7 +586,19 @@ internal static partial class Macros
         string? line = TriggerLine(check.Tree);
         string cause = key != null && line != null ? $"{key}, {line}" : key ?? line ?? "no lines";
         var first = macro.Actions.FirstOrDefault(s => s.On);
-        return $"{macro.Name}: {cause}{(first != null ? " → " + StepWords(first) : string.Empty)}";
+        return $"{macro.Name}: {cause}{(first != null ? " → " + FirstWords(first) : string.Empty)}";
+    }
+
+    // A first cast step with what it aims at now: "cast Shadow Rend at Draal Lava Keeper (rare, 12 m)", "cast Meteor at
+    // the pack centre (7 enemies)", "cast Shadow Rend at cursor: no rare or better within 20 m", "Shadow Rend skipped: no
+    // target"; other steps as their line.
+    private static string FirstWords(MacroStep step)
+    {
+        if (step.Step != "cast" || step.Raw != null || step.Invalid != null) return StepWords(step);
+        string skill = ConditionKinds.SkillName(step.Skill);
+        var aimed = AimAt(step.Target);
+        if (aimed.NoTarget) return step.Target.Else == "wait" ? $"{skill} waits for a target ({aimed.Words})" : $"{skill} skipped: no target";
+        return $"cast {skill} at {aimed.Words}";
     }
 
     // The condition that most recently began to count: the one whose change let the tree pass.
@@ -726,7 +783,12 @@ internal static partial class Macros
             lines.Add($"{indent}{RuleTreeRows.PathOf(macro.All, i)} {node.Words}{extra}  {value}  {Conditions.StateWord(result.State)}  {counted}"
                 + (result.Reason != null ? $" ({result.Reason})" : string.Empty));
         }
-        for (int i = 0; i < macro.Actions.Count; i++) lines.Add($"step {i + 1}: {StepWords(macro.Actions[i])}{(macro.Actions[i].On ? string.Empty : " (off)")}");
+        for (int i = 0; i < macro.Actions.Count; i++)
+        {
+            var step = macro.Actions[i];
+            lines.Add($"step {i + 1}: {StepWords(step)}{(step.On ? string.Empty : " (off)")}");
+            if (step.Step == "cast" && step.Raw == null && step.Target.Pick != TargetPick.Cursor) lines.Add($"  target: {TargetLine(step.Target)}");
+        }
         if (engine?.Run is { } run && run.Macro.Id == macro.Id)
         {
             lines.Add($"run: step {run.StepIndex + 1}/{macro.Actions.Count} {run.Step?.Step}, elapsed {ArgSpec.Format(now - run.StartedAt)} s, waiting on {RunWaiting(run)}, "
@@ -734,6 +796,16 @@ internal static partial class Macros
         }
         else if (LastCauseOf(macro.Id) is { } cause) lines.Add($"last run: {cause}");
         if (TestResult is { } test) lines.Add(test);
+    }
+
+    // "<words> → <pick> (kept 1.2 s, last change: higher rarity; left out: 2 mod)" for a kept target; nearest and hovered
+    // as read now.
+    private static string TargetLine(TargetSpec target)
+    {
+        string words = target.Words(TargetOwner.Condition);
+        if (Targets.PickOf(target) is { } pick) return $"{words} → {Targets.Describe(pick)}";
+        var aimed = AimAt(target);
+        return $"{words} → {(aimed.NoTarget ? "nothing qualifies: " : string.Empty)}{aimed.Words} (read at the send)";
     }
 
     /// <summary>Test fire from the dev bridge: armed as the editor's button does, without closing a menu.</summary>
@@ -749,9 +821,11 @@ internal static partial class Macros
     /// <summary>
     /// Adds n generated macros for the character's class, in memory only (never saved): each with 12 lines (vitals, a
     /// buff, a skill, three enemy lines around hero and cursor, an any group and a none group) ending in a line that
-    /// fails, so all are checked every frame and none starts. 0 removes them.
+    /// fails, so all are checked every frame and none starts. 0 removes them. With targets, each also has a cast step
+    /// and two lines (Has a target, and a target's health) using one of 20 targets (10 area, radius 2–6 m; 10 single),
+    /// so the scan picks them.
     /// </summary>
-    public static string Bench(int count)
+    public static string Bench(int count, bool targets = false)
     {
         if (s_engine is not { } engine) return "error macro bench: macros aren't running";
         engine.BenchVersion++;
@@ -778,12 +852,44 @@ internal static partial class Macros
                 + "{\"kind\":\"potions.available\",\"args\":{\"count\":1},\"on\":true,\"trueWhenUnknown\":false}]},"
                 + "{\"none\":[{\"kind\":\"zone.kind\",\"args\":{\"is\":\"town\"},\"on\":true,\"trueWhenUnknown\":false}]},"
                 + "{\"kind\":\"player.health\",\"args\":{\"compare\":\"below\",\"percent\":1},\"on\":true,\"trueWhenUnknown\":false}],"
-                + "\"actions\":[{\"step\":\"wait\",\"ms\":50}]}";
+                + $"\"actions\":[{{\"step\":\"wait\",\"ms\":50}}{(targets ? BenchCast(i, skill) : string.Empty)}]}}";
             var holder = MacroDoc.ParseSet(System.Text.Json.Nodes.JsonNode.Parse($"{{\"macros\":[{text}]}}"));
             set.Macros.Add(holder.Macros[0]);
         }
+        if (targets)
+        {
+            // The target lines go before the last (failing) line, so they are checked too.
+            for (int i = 0; i < set.Macros.Count; i++)
+            {
+                var lines = ConditionDoc.ItemsJson(set.Macros[i].All);
+                var target = BenchTarget(i);
+                target.Remove("else");
+                var exists = new System.Text.Json.Nodes.JsonObject { ["subject"] = "target" };
+                var health = new System.Text.Json.Nodes.JsonObject { ["subject"] = "target", ["compare"] = "below", ["percent"] = 50 };
+                foreach (var (key, value) in target) exists[key] = ConditionDoc.Clone(value);
+                foreach (var (key, value) in BenchTarget(i + 10)) if (key != "else" && key != "radius") health[key] = ConditionDoc.Clone(value);
+                lines.Insert(lines.Count - 1, new System.Text.Json.Nodes.JsonObject { ["kind"] = "target.exists", ["args"] = exists, ["on"] = true, ["trueWhenUnknown"] = false });
+                lines.Insert(lines.Count - 1, new System.Text.Json.Nodes.JsonObject { ["kind"] = "enemy.health", ["args"] = health, ["on"] = true, ["trueWhenUnknown"] = false });
+                set.Macros[i].All = ConditionDoc.ParseItems(lines);
+            }
+        }
         engine.Bench = set;
-        return $"ok macro bench {count}: {count} macros of {set.Macros[0].All.NodeCount} lines for {cls}, in memory only";
+        string with = targets ? $", {set.Macros.SelectMany(m => m.Actions).Select(s => s.Target.Key).Distinct().Count()} distinct cast targets" : string.Empty;
+        return $"ok macro bench {count}{(targets ? " targets" : string.Empty)}: {count} macros of {set.Macros[0].All.NodeCount} lines for {cls}{with}, in memory only";
     }
+
+    // One of 20 targets: 0–9 area (health, weight, count in turn; radius 2–6 m), 10–19 single-enemy picks.
+    private static System.Text.Json.Nodes.JsonObject BenchTarget(int i)
+    {
+        int n = i % 20;
+        string[] areas = { "areaHealth", "areaWeight", "areaCount" }, single = { "rarest", "mostHealth", "maxHealth", "lowHealth" };
+        var target = n < 10
+            ? new System.Text.Json.Nodes.JsonObject { ["pick"] = areas[n % 3], ["range"] = 20 + n, ["radius"] = 2 + n % 5, ["else"] = "skip" }
+            : new System.Text.Json.Nodes.JsonObject { ["pick"] = single[n % 4], ["range"] = 10 + n, ["else"] = "skip" };
+        return target;
+    }
+
+    private static string BenchCast(int i, string skill) =>
+        $",{{\"step\":\"cast\",\"skill\":\"{skill}\",\"mode\":\"tap\",\"aim\":\"target\",\"target\":{BenchTarget(i).ToJsonString()},\"timeoutMs\":1000}}";
 #endif
 }

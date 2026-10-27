@@ -8,7 +8,7 @@ internal static partial class AutoCast
     // The unscanned part, each update; the count itself is the enemy scan job.
     private static void UpdateEnemyGate(Run run)
     {
-        if (!S.AimAtClosestEnemy.Value) run.ClosestEnemy = null;
+        if (!SharedNearest(out _)) run.ClosestEnemy = null;
     }
 
     // The enemy scan job (0.15 s): counts what switched-on enemy conditions need (the shared conditions, the toggled
@@ -43,16 +43,67 @@ internal static partial class AutoCast
         UnityEngine.Vector3? cursor = AnyCursor(ranges) || subjects.Count > 0 ? CursorPoint(out hit) : null;
         if (ranges.Count > 0) run.Tally.Refresh(ranges, s_enemyWeight, cursor);
         if (subjects.Count > 0) run.Tally.RefreshSubjects(subjects, cursor, hit);
-        if (!S.AimAtClosestEnemy.Value) return;
+        // The targets in use, picked from one pass over the enemies (its own error key: a failed pick never stops the
+        // counts above).
         try
         {
-            run.ClosestEnemy = World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = S.AimRange.Value });
+            Targets.Begin();
+            CollectTargets(run);
+            Targets.Refresh();
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("autocast:targets", $"Target refresh failed: {e.Message}", 30);
+        }
+        if (!SharedNearest(out float range)) return;
+        try
+        {
+            run.ClosestEnemy = World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = range });
         }
         catch (Exception e)
         {
             run.ClosestEnemy = null;
             Log.ErrorThrottled("autocast:enemies", $"Autocast enemy scan failed: {e.Message}", 30);
         }
+    }
+
+    // Whether the shared slot target is the old switch's nearest (else at cursor): the scan finds that enemy, as before.
+    private static bool SharedNearest(out float range)
+    {
+        var shared = S.SharedSlotTarget;
+        range = shared.Range;
+        return shared.Legacy && shared.Pick == TargetPick.Nearest;
+    }
+
+    private static readonly string[] s_slotOwners = { "slot 1", "slot 2", "slot 3", "slot 4", "slot 5" };
+
+    // The sticky targets the owners use this scan: each toggled slot's (its own or the shared one), and the library
+    // macros' cast steps and conditions.
+    private static void CollectTargets(Run run)
+    {
+        bool named = Targets.WantOwners;
+        bool[] toggles = CurrentToggles();
+        var shared = S.SharedSlotTarget;
+        for (int i = 0; i < SlotCount; i++)
+        {
+            if (!toggles[i]) continue;
+            var target = S.EffectiveSlotTarget(run.FormKey, i);
+            if (!target.Sticky || target.Invalid(TargetOwner.Slot) != null) continue;
+            Targets.Collect(target.Key, named ? (ReferenceEquals(target, shared) ? $"shared ({s_slotOwners[i]})" : s_slotOwners[i]) : null);
+        }
+        // An open Shared Conditions or slot page shows its target's live pick.
+        if (Macros.ShownSlotPage is int page)
+        {
+            var shown = page < 0 ? shared : S.EffectiveSlotTarget(run.FormKey, page);
+            if (shown.Sticky && shown.Invalid(TargetOwner.Slot) == null) Targets.Collect(shown.Key, named ? "open page" : null);
+        }
+        // Lines about a target: the shared conditions (their cast target is the shared one) and each toggled slot's.
+        ConditionEditor.EnemyTargets(S.GateConditions.List(S.EveryList), shared, named ? "shared conditions" : null);
+        for (int i = 0; i < SlotCount; i++)
+        {
+            if (toggles[i]) ConditionEditor.EnemyTargets(S.SlotConditions.List(SlotKey(run.FormKey, i)), S.EffectiveSlotTarget(run.FormKey, i), named ? s_slotOwners[i] : null);
+        }
+        Macros.CollectTargets();
     }
 
     private static bool AnyCursor(List<TallyKey> keys)
@@ -66,6 +117,8 @@ internal static partial class AutoCast
 
     /// <summary>The point under the cursor that skills aim at (the ground or the thing hit), or null without a player.</summary>
     internal static UnityEngine.Vector3? CursorPoint() => CursorPoint(out _);
+
+    private static readonly Func<(UnityEngine.Vector3?, UnityEngine.Transform?)> s_cursorRead = () => (CursorPoint(out var hit), hit);
 
     internal static UnityEngine.Vector3? CursorPoint(out UnityEngine.Transform? hit)
     {
@@ -81,54 +134,8 @@ internal static partial class AutoCast
         }
     }
 
-    private const float HoverFallbackMetres = 2f;
-    private static int s_hoverFrame = -1;
-    private static WorldEntry? s_hovered;
-
-    /// <summary>
-    /// The enemy under the cursor: the world entry whose object the cursor ray hits (or a parent of what it hits),
-    /// else the nearest enemy within 2 m of the cursor point (GF-79's fallback); null for none. Once per frame.
-    /// </summary>
-    internal static WorldEntry? HoveredEnemy()
-    {
-        int frame = UnityEngine.Time.frameCount;
-        if (frame == s_hoverFrame) return s_hovered;
-        s_hoverFrame = frame;
-        s_hovered = null;
-        if (CursorPoint(out var hit) is not UnityEngine.Vector3 point) return null;
-        var entries = World.Entries;
-        WorldEntry? near = null;
-        float nearest = HoverFallbackMetres;
-        for (int i = 0; i < entries.Count; i++)
-        {
-            var entry = entries[i];
-            if (entry.Kind != WorldKind.Enemy || entry.Gone || entry.Dead || !entry.Active) continue;
-            if (hit != null && IsOrParent(entry.Transform, hit))
-            {
-                s_hovered = entry;
-                return entry;
-            }
-            float d = UnityEngine.Vector3.Distance(entry.Position, point);
-            if (d <= nearest)
-            {
-                nearest = d;
-                near = entry;
-            }
-        }
-        return s_hovered = near;
-    }
-
-    // Whether the entry's transform is the hit one or one of its parents (colliders sit on child objects).
-    private static bool IsOrParent(UnityEngine.Transform? entry, UnityEngine.Transform hit)
-    {
-        if (!Game.Alive(entry)) return false;
-        var t = hit;
-        for (int depth = 0; depth < 6 && Game.Alive(t); depth++, t = t!.parent)
-        {
-            if (t!.Pointer == entry!.Pointer) return true;
-        }
-        return false;
-    }
+    /// <summary>The enemy under the cursor (the one hovered read every owner uses), or null. Once per frame.</summary>
+    internal static WorldEntry? HoveredEnemy() => Targets.Hovered();
 
     private static readonly Func<Rarity, float> s_enemyWeight = EnemyWeight;
 

@@ -34,14 +34,47 @@ internal static class AutoCastSettings
     public static readonly Toggle PauseInNonCombatZones = new(Pausing, "PauseInNonCombatZones", "Pause in non-combat zones", false);
 
     public static readonly Section Targeting = Group.Section("targeting", "Aiming");
+    // The old aiming switch and its range: kept stored (ids are a contract) and read only while no shared slot target is
+    // saved; never shown, so the HUD no longer offers the switch.
     public static readonly Toggle AimAtClosestEnemy = new(Targeting, "AimAtClosestEnemy", "Aim at closest enemy", false)
     {
-        QuickLabel = "Aim at closest enemy", Help = "Uses the cursor when nothing is in range.",
+        Help = "Uses the cursor when nothing is in range.", VisibleWhen = () => false,
     };
     public static readonly Number AimRange = new(Targeting, "AimRange", "Aim range", 20f, 2f, 60f)
     {
-        Unit = " m", VisibleWhen = () => AimAtClosestEnemy.Value, ShownWhen = "Aim at closest enemy is on",
+        Unit = " m", VisibleWhen = () => false,
     };
+    // The shared slot target and each slot's own (per form); while no shared one is saved, the old switch above and its
+    // range decide it, so saved settings act as before.
+    public static readonly TargetSetting SlotTargets = new(Targeting, "SlotTargets", "Slot target", "{\"v\":1}")
+    {
+        Help = "Where slot macros aim (it replaces Aim at closest enemy and Aim range); set on the Shared Conditions page, and a slot macro can set its own.",
+    };
+
+    private static TargetSpec? s_oldShared;
+    private static (bool On, float Range) s_oldSharedFrom;
+
+    /// <summary>
+    /// The shared slot target: the saved one, else from the old switch (off: at cursor; on: nearest within Aim range,
+    /// else at cursor).
+    /// </summary>
+    public static TargetSpec SharedSlotTarget
+    {
+        get
+        {
+            if (SlotTargets.Shared is { } shared) return shared;
+            var from = (AimAtClosestEnemy.Value, AimRange.Value);
+            if (s_oldShared == null || from != s_oldSharedFrom)
+            {
+                s_oldSharedFrom = from;
+                s_oldShared = from.Item1 ? TargetSpec.OldNearest(from.Item2) : TargetSpec.Cursor;
+            }
+            return s_oldShared;
+        }
+    }
+
+    /// <summary>A slot's (0-based) target in a form: its own, else the shared one.</summary>
+    public static TargetSpec EffectiveSlotTarget(int formKey, int slot) => SlotTargets.Slot(AutoCast.SlotKey(formKey, slot)) ?? SharedSlotTarget;
 
     // Version 3: the enemy gate is the first entry of the every-slot condition list (GateConditions); RequireEnemies,
     // EnemyRange and EnemyMinWeight are left in the files and read only by the step.
