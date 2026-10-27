@@ -157,8 +157,14 @@ internal sealed class DevBridgeFeature : Feature
     };
     public override string[] DemandGroups => new[] { MapCommands.StampGroup, MapCommands.ZoomGroup };
 
+    // The game's own value, put back on unload so a release build loaded after this one starts as the game left it.
+    private bool _runInBackground;
+
     public override void Start()
     {
+        // Bridge commands and shots only run while the game updates, so a dev build keeps updating behind other windows.
+        _runInBackground = Application.runInBackground;
+        Application.runInBackground = true;
         DevCommands.Register(Id);
         ThemeVerbs.Register(Id);
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
@@ -176,6 +182,7 @@ internal sealed class DevBridgeFeature : Feature
 
     public override void Shutdown()
     {
+        Application.runInBackground = _runInBackground;
         CoreCommands.CompatSelfTest = null;
         Ui.SettingsContent.DevSwitches = null;
         DevBridge.Reset();

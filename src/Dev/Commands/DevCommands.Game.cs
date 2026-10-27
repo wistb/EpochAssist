@@ -157,7 +157,7 @@ internal static partial class DevCommands
         string scene = GameState.Scene;
         return string.Join("; ", new[]
         {
-            Read("timeScale", () => $"{Time.timeScale:F2}, focused {Application.isFocused}"),
+            Read("timeScale", () => $"{Time.timeScale:F2}, focused {Application.isFocused}, runInBackground {Application.runInBackground}"),
             Read("typing:", () => $"game {GameState.Typing}, chat {(Game.Alive(ui) ? ui!.IsChatInputFocused.ToString() : "no UIBase")}, imgui keyboardControl {GUIUtility.keyboardControl}"),
             Read("selected", () =>
             {
