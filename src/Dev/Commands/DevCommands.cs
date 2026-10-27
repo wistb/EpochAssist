@@ -102,6 +102,7 @@ internal static partial class DevCommands
         Add("gameui", ClientCommands.GameUiUsage, "Hides or shows the game's own UI, as an edit.", ClientCommands.GameUiCommand);
         Add("ui", ClientCommands.UiUsage, "Presses a game prompt, respawn or quick move button through the dispatcher (offline only).", ClientCommands.UiCommand);
         Add("events", EventCommands.EventsUsage, "Lists the last events on the bus, or the subscriptions and producers.", EventCommands.Events);
+        Add("map", MapCommands.Usage, "Shows the minimap's zone map and reveal values, lists the game's map icons, reads the explored-volume record, or applies one reveal step.", MapCommands.Run);
         Add("interact", InteractCommands.Usage, "Lists what the game offers to use near the player, logs the game's own click path, or uses the nearest of a kind from in range (offline).", InteractCommands.Run);
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
         Add("gate", "gate", "Shows the enemy gate: open, enemies and weight in range, and the shared slot target's pick.", _ => Gate());
@@ -134,6 +135,7 @@ internal static partial class DevCommands
         EventCommands.StopWatch("bridge stopped");
         Hovered.Reset();
         MacroCommands.Reset();
+        MapCommands.Reset();
     }
 
     // instances <type> [count|all]: count 5 when not given, 1 to 50; all lists every one (into instances.txt past 40).

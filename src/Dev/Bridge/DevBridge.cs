@@ -139,6 +139,24 @@ internal sealed class DevBridgeFeature : Feature
     // The draw test pattern draws in the world layer.
     public override GuiLayer Layer => GuiLayer.World;
 
+    // The fog stamp's radius and the overlay map's scale, replaced only while `map step patch` or `map step zoom` holds them.
+    public override Requirement[] Requirements => new[]
+    {
+        Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.UpdateFoW), MapCommands.StampGroup),
+        Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.UpdateFoW_Singular), MapCommands.StampGroup),
+        Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.Update), MapCommands.ZoomGroup),
+        Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.mapParameters), MapCommands.ZoomGroup),
+        Need<Il2Cpp.UIBase>(nameof(Il2Cpp.UIBase.overlayMapOpen), MapCommands.ZoomGroup),
+    };
+    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch) };
+    public override IReadOnlyDictionary<Type, string> PatchGroups { get; } = new Dictionary<Type, string>
+    {
+        [typeof(MapCommands.StampPatch)] = MapCommands.StampGroup,
+        [typeof(MapCommands.StampSingularPatch)] = MapCommands.StampGroup,
+        [typeof(MapCommands.ZoomPatch)] = MapCommands.ZoomGroup,
+    };
+    public override string[] DemandGroups => new[] { MapCommands.StampGroup, MapCommands.ZoomGroup };
+
     public override void Start()
     {
         DevCommands.Register(Id);
