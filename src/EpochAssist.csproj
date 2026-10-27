@@ -46,6 +46,7 @@
     <Reference Include="Il2CppSystem" HintPath="$(Il2Cpp)\Il2CppSystem.dll" />
     <Reference Include="Il2CppLE" HintPath="$(Il2Cpp)\Il2CppLE.dll" />
     <Reference Include="Il2CppRewired_Core" HintPath="$(Il2Cpp)\Il2CppRewired_Core.dll" />
+    <Reference Include="Il2CppSirenix.Serialization" HintPath="$(Il2Cpp)\Il2CppSirenix.Serialization.dll" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(Il2Cpp)\UnityEngine.CoreModule.dll" />
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Il2Cpp)\UnityEngine.IMGUIModule.dll" />
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Il2Cpp)\UnityEngine.InputLegacyModule.dll" />
