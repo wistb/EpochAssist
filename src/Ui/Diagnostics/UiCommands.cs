@@ -115,7 +115,11 @@ internal static class UiCommands
         if (input == null) return "movement: no input manager";
         var mp = input.movementProcessor;
         string pos = Player.Transform is Transform t ? $"pos ({t.position.x:F2}, {t.position.z:F2}), " : string.Empty;
-        return $"movement: {pos}focused {Application.isFocused}, ours {InputGate.Blocking}, blocked {input.forceDisableInput}, mouseMoveBlocked {input.blockMouseMovementInput}, input {input.input}, lastInput {input.lastInput}, kbHeld {input.isKeyboardMovementButtonHeld}, "
+        string focus = $"focused real {InputState.RealFocused}";
+#if DEV
+        focus += $", input {Dev.VirtualInput.Describe()}";
+#endif
+        return $"movement: {pos}{focus}, ours {InputGate.Blocking}, blocked {input.forceDisableInput}, mouseMoveBlocked {input.blockMouseMovementInput}, input {input.input}, lastInput {input.lastInput}, kbHeld {input.isKeyboardMovementButtonHeld}, "
             + (Game.Alive(mp) ? $"moving {mp.IsMoving}, kbActive {mp.IsKeyboardMovementActive}" : "no movement processor");
     }
 }

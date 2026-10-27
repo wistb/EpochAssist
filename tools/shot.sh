@@ -5,11 +5,15 @@
 #   tools/shot.sh "menu open macros" "shot menu macros" "menu close" "hud panel open" "shot hud"
 # Commands: menu open [feature id]|settings [tab], menu close, menu search [text], hud panel open|close,
 #           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
-#           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name],
+#           probe [type] [filter], find [text], fonts, wait [frames|<n>ms], shot full|menu|hud [name],
 #           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off,
 #           map [icons [n]|volumes|step radius|maxdist|patch on|off],
 #           planner [trees|nodes [id]|skills|selector open|close|open passive|skills|tree|picker|inventory|close|tab <n>|mastery|gear|idols|blessings|weaver|watch on|off|import [file]|check|resolve|show [stage]|paste [text]|host [url]|off],
 #           patchcheck [game version] (saves dev/patch-check.json for tools/release.sh). Shots land in UserData/EpochAssist/dev/shots/.
+# Input (offline, game may stay unfocused; x y are game-window pixels from the top left; presses only on the menu or HUD):
+#           key <Key> [ms], down <Key>, up <Key>, click <x> <y> [left|right|middle], press <x> <y> <button> <ms>,
+#           button down|up <button> [x y], cursor <x> <y>, type <text>, input, wait <n>ms. No wheel. A batch's end lets go
+#           of every key and button. Use tools/devloader/input.ps1 only to prove real OS input, or for the game's own UI.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

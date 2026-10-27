@@ -17,6 +17,10 @@ namespace EpochAssist.Dev;
 ///            patchcheck [game version]
 ///            instances [type] [count]   inspect [target] [member.path]   statics [type]   watch [target] [member.path] [seconds]|stop
 ///            hovered
+///            key <Key> [ms]   down <Key>   up <Key>   click <x> <y> [button]   press <x> <y> <button> <ms>   cursor <x> <y>
+///            button down|up <button> [x y]   type <text>   input
+/// Input verbs press keys for the mod's own reads and post mouse and key messages to the game window (the real cursor,
+/// focus and other windows are untouched); the end of a batch lets go of everything they left held.
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
 /// </summary>
 internal static class DevBridge
@@ -29,6 +33,7 @@ internal static class DevBridge
     private static int s_waitFrames;
     private static (Func<string?> Reply, string Line)? s_pending;
     private static bool s_batchActive;
+    private static bool s_inputReleased;
 
     /// <summary>A reload asked for by a bridge command waits until the batch's results are written.</summary>
     public static bool ReloadAfterBatch;
@@ -37,6 +42,8 @@ internal static class DevBridge
 
     public static void Update()
     {
+        // Injected input takes effect at the frame's first read; this one makes sure it does even with nothing reading.
+        VirtualInput.Tick();
         if (s_pending is { } pending)
         {
             if (Commands.Poll(pending.Reply, pending.Line) is not { } reply) return;
@@ -57,6 +64,18 @@ internal static class DevBridge
         // The batch is over once its last command, pending reply and settle frames are all through.
         if (s_batchActive)
         {
+            // Nothing a batch injected outlives it: the release takes effect next frame, before "done" is written.
+            if (!s_inputReleased)
+            {
+                s_inputReleased = true;
+                var released = VirtualInput.ReleaseAll(immediate: false);
+                if (released.Count > 0)
+                {
+                    Report("ok input released: " + string.Join(", ", released));
+                    s_waitFrames = 1;
+                    return;
+                }
+            }
             Finish();
             return;
         }
@@ -72,7 +91,9 @@ internal static class DevBridge
         s_pending = null;
         s_waitFrames = 0;
         s_batchActive = false;
+        s_inputReleased = false;
         ReloadAfterBatch = false;
+        VirtualInput.ReleaseAll(immediate: true);
     }
 
     private static void Poll()
@@ -94,6 +115,9 @@ internal static class DevBridge
         {
             if (line.Trim().Length > 0) s_queue.Enqueue(line.Trim());
         }
+        // A new batch starts with nothing injected.
+        VirtualInput.ReleaseAll(immediate: true);
+        s_inputReleased = false;
         s_batchActive = true;
     }
 
@@ -166,6 +190,7 @@ internal sealed class DevBridgeFeature : Feature
         _runInBackground = Application.runInBackground;
         Application.runInBackground = true;
         DevCommands.Register(Id);
+        InputCommands.Register(Id);
         ThemeVerbs.Register(Id);
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
         Ui.SettingsContent.DevSwitches = DevCommands.DebugSwitches;

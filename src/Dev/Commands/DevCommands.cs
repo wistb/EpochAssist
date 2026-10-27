@@ -48,8 +48,15 @@ internal static partial class DevCommands
         Add("travel", "travel [scene]", "Travels to an unlocked waypoint, or lists them.", call => Plain(Travel(Arg(call, 1))));
         Add("fonts", "fonts", "Lists the fonts the game has loaded.", _ =>
             CommandResult.Ok($"fonts: {string.Join(", ", Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<Font>()).Select(f => f.name).Distinct())}"));
-        Add("wait", "wait [frames]", "Waits frames (30 when not given) before the next bridge command.", call =>
-            CommandResult.Ok(call.Line) with { Settle = int.TryParse(call.Lower(1), out int frames) ? frames : 30 });
+        Add("wait", "wait [frames|<n>ms]", "Waits frames (30 when not given), or milliseconds as input.ps1's wait, before the next bridge command.", call =>
+        {
+            if (call.Lower(1).EndsWith("ms", StringComparison.Ordinal) && int.TryParse(call.Lower(1)[..^2], out int ms))
+            {
+                float until = Time.unscaledTime + ms / 1000f;
+                return CommandResult.Ok(call.Line) with { Text = string.Empty, Pending = () => Time.unscaledTime >= until ? "ok " + call.Line : null };
+            }
+            return CommandResult.Ok(call.Line) with { Settle = int.TryParse(call.Lower(1), out int frames) ? frames : 30 };
+        });
         Add("shot", "shot full|menu|hud [name] [matte]", "Saves a screenshot of the screen, the menu or the HUD to shots/; matte gives the menu or HUD a transparent background, trimmed to what is drawn.",
             call => StartCapture(call.Lower(1), call.Args.Length > 1 ? call.Args[1] : call.Lower(1), call.Lower(3) == "matte"));
         Add("draw", "draw test|minimap|arrows|bars|roles on|off", "Draws a test pattern around the player, markers on the minimap, edge arrows for the 10 nearest rares, bars over enemies, or the colour role swatch.", DrawCommand);
