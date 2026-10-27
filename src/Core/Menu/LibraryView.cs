@@ -51,6 +51,12 @@ internal sealed class LibraryView
     public Func<string?>? Banner { get; init; }
 
     public Func<IReadOnlyList<LibraryLine>> Lines { get; init; } = () => Array.Empty<LibraryLine>();
+    /// <summary>A one-line text field after the toolbar's buttons, or none.</summary>
+    public ToolbarField? Field { get; init; }
+    /// <summary>Shown in the list while it has no lines.</summary>
+    public string EmptyText { get; init; } = "No sets for this class yet.";
+    /// <summary>Shown in the actions column while nothing is selected.</summary>
+    public string NoSelectionText { get; init; } = "Select a set or macro.";
     /// <summary>The tick box of a line was clicked (or Space on it).</summary>
     public Action<LibraryLine> Tick { get; init; } = _ => { };
     /// <summary>The selected line's key, or null.</summary>
@@ -90,4 +96,28 @@ internal sealed class LibraryView
 
     /// <summary>The line with this key in the current lines, or null.</summary>
     public LibraryLine? Line(string? key) => key == null ? null : Lines().FirstOrDefault(l => l.Key == key);
+}
+
+/// <summary>
+/// A one-line field on a library's toolbar: its text, a placeholder shown while it's empty and unfocused, and what Enter
+/// does with the text.
+/// </summary>
+internal sealed class ToolbarField
+{
+    public ToolbarField(string key, Func<string> get, Action<string> set, string placeholder, int maxLength)
+    {
+        Key = key;
+        Get = get;
+        Set = set;
+        Placeholder = placeholder;
+        MaxLength = maxLength;
+    }
+
+    public string Key { get; }
+    public Func<string> Get { get; }
+    public Action<string> Set { get; }
+    public string Placeholder { get; }
+    public int MaxLength { get; }
+    /// <summary>Enter in the field.</summary>
+    public Action? Submit { get; init; }
 }

@@ -61,6 +61,28 @@ internal static class LibraryLayout
         Footer(page, view, footer);
     }
 
+    private const float FieldWidth = 360f;
+
+    // The toolbar's text field: the placeholder while empty and unfocused, Enter hands the text to the view.
+    private static void ToolbarText(ToolbarField field, Rect rect)
+    {
+        string text = Safe.Call(field.Get, string.Empty, field.Key + ".get");
+        string control = "field." + field.Key;
+        bool focused = GUI.GetNameOfFocusedControl() == control;
+        if (focused && Event.current.type == EventType.KeyDown && Event.current.keyCode is KeyCode.Return or KeyCode.KeypadEnter && field.Submit != null)
+        {
+            Event.current.Use();
+            Safe.Run(field.Submit, field.Key + ".submit");
+            return;
+        }
+        GUI.SetNextControlName(control);
+        string typed = GUI.TextField(rect, text, field.MaxLength, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
+        if (typed != text) Safe.Run(() => field.Set(typed), field.Key + ".set");
+        if (Focus.Item(field.Key, rect)) GUI.FocusControl(control);
+        if (Event.current.type == EventType.Repaint && typed.Length == 0 && !focused)
+            Widgets.Paint(new Rect(rect.x + 6f, rect.y, rect.width - 12f, rect.height), field.Placeholder, Widgets.Style(() => Theme.FieldDim, GUI.skin.label));
+    }
+
     // Class dropdown, the toolbar's buttons, and the status tag on the right.
     private static void Toolbar(PageNode page, LibraryView view, Rect r)
     {
@@ -80,6 +102,15 @@ internal static class LibraryLayout
             if (Controls.Button(new Rect(x, r.y, w, r.height), button.Label, button.Key, button.Primary, button.Tip)) Run(button);
             GUI.enabled = enabled;
             x += w + 6f;
+        }
+        if (view.Field is { } field)
+        {
+            float w = Mathf.Min(FieldWidth, r.xMax - x - 4f);
+            if (w > 40f)
+            {
+                ToolbarText(field, new Rect(x, r.y, w, r.height));
+                x += w + 6f;
+            }
         }
         float conflict = ConflictTag.Draw(page.Node.Feature, x + 4f, r.center.y, "conflict.library");
         if (conflict > 0f) x += conflict + 10f;
@@ -162,7 +193,7 @@ internal static class LibraryLayout
             else if (target.yMax > s_treeScroll.y + visible.height) s_treeScroll.y = target.yMax - visible.height + 4f;
         }
         if (lines.Count == 0 && Event.current.type == EventType.Repaint)
-            Widgets.Paint(new Rect(tree.x + 10f, tree.y + 8f, tree.width - 20f, 40f), "No sets for this class yet.", Recoloured(Widgets.Style(() => Theme.Hint, GUI.skin.label), Theme.Secondary));
+            Widgets.Paint(new Rect(tree.x + 10f, tree.y + 8f, tree.width - 20f, 40f), view.EmptyText,Recoloured(Widgets.Style(() => Theme.Hint, GUI.skin.label), Theme.Secondary));
 
         Actions(view, actions);
     }
@@ -296,7 +327,7 @@ internal static class LibraryLayout
         var buttons = Safe.Call(() => view.Actions(selected), Array.Empty<ActionButton>(), "library.actions");
         float y = r.y;
         if (selected == null && Event.current.type == EventType.Repaint)
-            Widgets.Paint(new Rect(r.x, y, r.width, 40f), "Select a set or macro.", Recoloured(Widgets.Style(() => Theme.Hint, GUI.skin.label), Theme.Secondary));
+            Widgets.Paint(new Rect(r.x, y, r.width, 40f), view.NoSelectionText,Recoloured(Widgets.Style(() => Theme.Hint, GUI.skin.label), Theme.Secondary));
         foreach (var button in buttons)
         {
             bool enabled = GUI.enabled;
