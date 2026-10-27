@@ -80,7 +80,7 @@ public static class Runtime
             new DispatcherFeature(), new MacrosFeature(), new InteractFeature());
 #if DEV
         // Dev code isn't compiled into release builds (src/Dev/).
-        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature());
+        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature(), new InteractTraceFeature());
 #endif
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");

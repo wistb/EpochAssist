@@ -118,6 +118,7 @@ internal static partial class DevCommands
     {
         if (Event.current.type != EventType.Repaint) return;
         DrawWorldTests();
+        InteractCommands.DrawOverlay();
         if (s_drawRoles) DrawRoles();
         if (!s_drawTest || Player.Transform is not Transform t) return;
         Vector3 p = t.position;

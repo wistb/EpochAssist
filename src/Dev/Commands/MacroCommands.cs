@@ -253,6 +253,7 @@ internal static class MacroCommands
                 + $"peak {Dispatcher.PeakPressesPerSecond}/s, cap {Dispatcher.MaxPressesPerSecond}/s, t={Clock.Now.ToString("F2", s_inv)}",
         };
         for (int i = 0; i < Dispatcher.SlotCount; i++) lines.Add("slot " + SlotText(i));
+        lines.Add($"interact: pressed {Dispatcher.InteractsPressed}, refused {Dispatcher.InteractsRefused}");
         foreach (var client in Dispatcher.Clients) lines.Add(ClientText(client));
         return lines;
     }

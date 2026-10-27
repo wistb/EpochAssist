@@ -101,6 +101,7 @@ internal static partial class DevCommands
         Add("gameui", ClientCommands.GameUiUsage, "Hides or shows the game's own UI, as an edit.", ClientCommands.GameUiCommand);
         Add("ui", ClientCommands.UiUsage, "Presses a game prompt, respawn or quick move button through the dispatcher (offline only).", ClientCommands.UiCommand);
         Add("events", EventCommands.EventsUsage, "Lists the last events on the bus, or the subscriptions and producers.", EventCommands.Events);
+        Add("interact", InteractCommands.Usage, "Lists what the game offers to use near the player, logs the game's own click path, or uses the nearest of a kind from in range (offline).", InteractCommands.Run);
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
         Add("gate", "gate", "Shows the enemy gate: open, enemies and weight in range, and the shared slot target's pick.", _ => Gate());
         Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
