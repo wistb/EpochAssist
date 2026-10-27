@@ -45,9 +45,9 @@ internal static class Hud
     public static bool HitTest(Vector2 screenPoint) =>
         Shown && (s_pillScreen.Contains(screenPoint) || (s_panelOpen && s_panelScreen.Contains(screenPoint)));
 
-    private static IEnumerable<Feature> StatusFeatures => FeatureHost.All.Where(f => f.StatusName != null);
+    private static IEnumerable<Feature> StatusFeatures => FeatureHost.All.Where(f => f.StatusName != null && HudSettings.ShowsSection(f.Id));
 
-    // A feature that isn't running keeps its section, greyed; with no section at all there is no pill.
+    // A feature that isn't running keeps its section, greyed; with no section at all (or all switched off) there is no pill.
     // While the menu is open only as a preview, on General › Interface › Mini HUD.
     private static bool Shown => HudSettings.HudEnabled.Value && (!Menu.Visible || Menu.PreviewingHud) && Player.Exists && StatusFeatures.Any();
 

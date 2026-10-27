@@ -17,6 +17,7 @@ internal readonly record struct ScreenSpot(int Horizontal, int Vertical)
 internal static class HudSettings
 {
     private const string Notifications = "Notifications";
+    private const string Sections = "Visible sections";
 
     public static readonly Section Hud = Config.Group.Section("hud", "Mini HUD");
     public static readonly Toggle HudEnabled = new(Hud, "HudEnabled", "Show the mini HUD", true)
@@ -39,6 +40,21 @@ internal static class HudSettings
     {
         Step = 0.01f, Percent = true, Help = "Full opacity while the cursor is over it.",
     };
+    // One switch per pill section, keyed by feature id; a feature that isn't loaded hides its row.
+    private static Toggle Section(string featureId, string label, bool shown = true) => new(Hud, "HudShow" + featureId, label, shown)
+    {
+        Fold = Sections, VisibleWhen = () => FeatureHost.All.Any(f => f.Id == featureId),
+    };
+    private static readonly Dictionary<string, Toggle> s_sections = new()
+    {
+        ["macros"] = Section("macros", "Macros"),
+        ["interact"] = Section("interact", "Interact", shown: false),
+        ["mapreveal"] = Section("mapreveal", "Map", shown: false),
+    };
+
+    /// <summary>Whether the feature's section is on the pill; features without a switch always are.</summary>
+    public static bool ShowsSection(string featureId) => !s_sections.TryGetValue(featureId, out var toggle) || toggle.Value;
+
     // 8 keeps notifications next to the mini HUD; 0-7 are the same places as the HUD's.
     public static readonly Choice<int> ToastPlacement = new(Hud, "ToastPosition", "Position", 8,
         (0, "Top left"), (4, "Top"), (1, "Top right"), (6, "Left"), (8, "Next to HUD"), (7, "Right"), (2, "Bottom left"), (5, "Bottom"), (3, "Bottom right"))
