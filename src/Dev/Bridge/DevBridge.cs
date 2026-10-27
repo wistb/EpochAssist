@@ -44,6 +44,8 @@ internal static class DevBridge
     {
         // Injected input takes effect at the frame's first read; this one makes sure it does even with nothing reading.
         VirtualInput.Tick();
+        GameFocus.Update();
+        InputBlockWatch.Update();
         if (s_pending is { } pending)
         {
             if (Commands.Poll(pending.Reply, pending.Line) is not { } reply) return;
@@ -94,6 +96,7 @@ internal static class DevBridge
         s_inputReleased = false;
         ReloadAfterBatch = false;
         VirtualInput.ReleaseAll(immediate: true);
+        GameFocus.Release();
     }
 
     private static void Poll()
@@ -124,6 +127,7 @@ internal static class DevBridge
 
     private static void Execute(string command)
     {
+        InputBlockWatch.LastCommand = command;
         if (Commands.Run(command, "bridge", hosted: true) is not { } result) return;
         if (result.Text.Length > 0) Report(result.Text);
         s_waitFrames = result.Settle;

@@ -41,6 +41,9 @@ internal static class InputGate
     /// <summary>True while the UI holds input (also what holds the camera's wheel zoom).</summary>
     public static bool Blocking => s_blocking;
 
+    /// <summary>True while the game's input switch is on because this gate turned it on.</summary>
+    public static bool OwnsLock => s_ownsLock;
+
     public static void Apply()
     {
         bool want = Menu || Hud;

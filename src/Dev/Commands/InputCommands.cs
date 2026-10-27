@@ -44,13 +44,15 @@ internal static class InputCommands
         Add("cursor", "cursor <x> <y>", "Moves the injected pointer to a game-window pixel; a held button drags.", Cursor);
         Add("button", "button down|up <left|right|middle> [x y]", "Holds or releases a mouse button inside the game, for drags.", Button);
         Add("type", "type <text>", "Types text inside the game: letters, digits, space and US-layout punctuation.", Type);
+        Add("inputblock", "inputblock", "Shows the game's own input switch (on while the window is really unfocused) and every change to it seen this run.", _ =>
+            CommandResult.Ok(InputBlockWatch.Describe()));
         Add("input", "input", "Shows the bridge's injected keys, buttons and pointer, and real and injected focus.", _ =>
             CommandResult.Ok($"input: {VirtualInput.Describe()}, focused real {InputState.RealFocused}"));
     }
 
     private static CommandResult? Guard(CommandCall call)
     {
-        if (call.Name == "input") return null;
+        if (call.Name == "input" || call.Name == "inputblock") return null;
         if (GameState.Online == true) return CommandResult.Error($"{call.Name}: offline only");
         if (call.Source != "bridge") return CommandResult.Error($"{call.Name}: bridge only (a batch's end lets go of what it holds)");
         return null;
