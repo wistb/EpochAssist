@@ -124,6 +124,7 @@ internal static partial class ConditionKinds
             ValueText = r => $"{N(r.Number)} charge{(r.Number == 1f ? string.Empty : "s")}",
         });
         AddMoreMacroKinds();
+        AddTargetKinds();
     }
 
     private const string Never = "never";
@@ -215,7 +216,7 @@ internal static partial class ConditionKinds
             ArgSpec.Compare("above", "above", "below"), ArgSpec.Number("value", 1, 0, 1000000, 1)));
         Add(new ConditionKind("enemy.mod", "enemy", "Enemy mod")
         {
-            Args = { ArgSpec.Mod("mod"), Subject(), MinRarity(), SubjectRange() },
+            Args = { ArgSpec.Mod("mod"), Subject(), MinRarity(), SubjectRange(), TargetPickArg(), WithoutMod(), WithAilment() },
             Parts = { new PartNeed("world", "enemies") },
             Picks = s_subject,
             Check = (ctx, a) =>
@@ -234,7 +235,7 @@ internal static partial class ConditionKinds
         });
         Add(new ConditionKind("enemy.ailment", "enemy", "Enemy ailment")
         {
-            Args = { ArgSpec.Ailment("ailment"), Subject(), MinRarity(), SubjectRange() },
+            Args = { ArgSpec.Ailment("ailment"), Subject(), MinRarity(), SubjectRange(), TargetPickArg(), WithoutMod(), WithAilment() },
             Parts = { new PartNeed("world", "enemies") },
             Picks = s_subject,
             Check = (ctx, a) =>
@@ -346,29 +347,50 @@ internal static partial class ConditionKinds
 
     // ---- enemy subject args ----
 
-    private static ArgSpec Subject() => ArgSpec.Choice("subject", "nearest", "nearest", "hovered");
+    // The enemy a line is about: nearest and hovered (as before), a target (pick and limits), or the owner's cast target.
+    // A subject a newer build adds reads "needs a newer version"; builds before targets refuse "target" and "cast".
+    private static ArgSpec Subject() => ArgSpec.Choice("subject", "nearest", "nearest", "hovered", "target", "cast").NewerWhenUnknown();
     private static ArgSpec MinRarity() => ArgSpec.Choice("minRarity", "normal", "normal", "magic", "rare", "boss").AsOptional();
     private static ArgSpec SubjectRange() => ArgSpec.Number("range", 15, 1, 60, 1, " m").AsOptional();
 
     private static Rarity RarityOf(string name) => name switch { "boss" => Rarity.Boss, "rare" => Rarity.Rare, "magic" => Rarity.Magic, _ => Rarity.Normal };
 
-    private static readonly Func<ArgValues, SubjectKey> s_subject = a => a.Text("subject") == "hovered"
-        ? new SubjectKey(true, Rarity.Normal, 0f) : new SubjectKey(false, RarityOf(a.Text("minRarity")), a.Number("range"));
-
-    private static string EnemyWords(ArgValues a)
+    // Nearest and hovered lines keep the tally's subject pick, as before; target and cast lines use the targets' picks.
+    private static readonly Func<ArgValues, SubjectKey?> s_subject = a => a.Text("subject") switch
     {
-        if (a.Text("subject") == "hovered") return "Hovered enemy";
+        "hovered" => new SubjectKey(true, Rarity.Normal, 0f),
+        "nearest" => new SubjectKey(false, RarityOf(a.Text("minRarity")), a.Number("range")),
+        _ => null,
+    };
+
+    // The line's subject without its colon: "Hovered enemy", "Nearest rare or boss enemy within 15 m", "Cast target",
+    // "Rarest enemy within 20 m, rare or better".
+    private static string SubjectWords(ArgValues a)
+    {
+        switch (a.Text("subject"))
+        {
+            case "hovered":
+                return "Hovered enemy";
+            case "cast":
+                return "Cast target";
+            case "target":
+                return TargetSpec.FromKey(TargetKeyOf(a)).Words(TargetOwner.Condition);
+        }
         string rarity = a.Text("minRarity") switch { "magic" => "magic or better ", "rare" => "rare or boss ", "boss" => "boss ", _ => string.Empty };
-        return $"Nearest {rarity}enemy within {N(a.Number("range"))} m:";
+        return $"Nearest {rarity}enemy within {N(a.Number("range"))} m";
     }
+
+    // Hovered lines read as before ("Hovered enemy distance …"); the others with a colon.
+    private static string EnemyWords(ArgValues a) => a.Text("subject") == "hovered" ? "Hovered enemy" : SubjectWords(a) + ":";
 
     // The entry's enemy as the owner's scan picked it: unknown when not picked, a known "no enemy" fail when none.
     private static bool Picked(ConditionContext ctx, ArgValues a, out WorldEntry? enemy, out ConditionResult other)
     {
         enemy = null;
         other = default;
+        if (a.Text("subject") is "target" or "cast") return PickedTarget(ctx, a, out enemy, out other);
         var tally = ctx.Tally;
-        if (tally == null || tally.RefreshedAt < 0f || !tally.TryGetSubject(s_subject(a), out enemy))
+        if (tally == null || tally.RefreshedAt < 0f || s_subject(a) is not { } subject || !tally.TryGetSubject(subject, out enemy))
         {
             other = ConditionResult.Unknown(NotCounted);
             return false;
@@ -386,7 +408,7 @@ internal static partial class ConditionKinds
         string limitName = limit.Name;
         return new ConditionKind(id, "enemy", label)
         {
-            Args = { Subject(), MinRarity(), SubjectRange(), compare, limit, To() },
+            Args = { Subject(), MinRarity(), SubjectRange(), TargetPickArg(), WithoutMod(), WithAilment(), compare, limit, To() },
             Parts = { new PartNeed("world", "enemies") },
             Picks = s_subject,
             Check = (ctx, a) =>

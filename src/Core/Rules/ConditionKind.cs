@@ -33,6 +33,9 @@ internal sealed class ArgSpec
     /// <summary>A missing value reads as Default (or as no value when there is none) instead of making the entry invalid,
     /// so an argument added later leaves stored entries meaning what they meant.</summary>
     public bool Optional { get; init; }
+    /// <summary>A choice whose stored value this build doesn't know was written by a newer one: it reads "needs a newer
+    /// version" rather than "isn't one of".</summary>
+    public bool UnknownIsNewer { get; private init; }
 
     /// <summary>The comparisons a "compare" arg offers, in menu order.</summary>
     public static readonly string[] Comparisons = { "below", "above", "atLeast", "atMost", "between" };
@@ -61,7 +64,7 @@ internal sealed class ArgSpec
     /// <summary>A skill by ability id ("smbmb"); the player picks it.</summary>
     public static ArgSpec Skill(string name) => new(name, ArgKind.Skill, null);
 
-    /// <summary>A monster mod by its key; the player picks it.</summary>
+    /// <summary>A monster mod by its key (the game's hash, any int); the player picks it.</summary>
     public static ArgSpec Mod(string name) => new(name, ArgKind.Mod, null);
 
     /// <summary>An ailment by id (0–255), as buffs are; the player picks it.</summary>
@@ -72,7 +75,10 @@ internal sealed class ArgSpec
         Choice("compare", defaultValue, first.Concat(Comparisons.Where(c => !first.Contains(c))).ToArray());
 
     /// <summary>A copy that may be missing (reading as its default).</summary>
-    public ArgSpec AsOptional() => new(Name, Kind, Default) { Min = Min, Max = Max, Step = Step, Unit = Unit, Options = Options, Optional = true };
+    public ArgSpec AsOptional() => new(Name, Kind, Default) { Min = Min, Max = Max, Step = Step, Unit = Unit, Options = Options, Optional = true, UnknownIsNewer = UnknownIsNewer };
+
+    /// <summary>A copy whose unknown stored choices read "needs a newer version".</summary>
+    public ArgSpec NewerWhenUnknown() => new(Name, Kind, Default) { Min = Min, Max = Max, Step = Step, Unit = Unit, Options = Options, Optional = Optional, UnknownIsNewer = true };
 
     /// <summary>An optional number with no default: absent reads as no value (NaN).</summary>
     public static ArgSpec OptionalNumber(string name, float min, float max, float step, string unit = "") =>
@@ -124,7 +130,9 @@ internal sealed class ArgSpec
                     text = option;
                     return true;
                 }
-                reason = node == null ? $"{Name} missing" : $"{Name} isn't one of {string.Join(", ", Options)}";
+                reason = node == null ? $"{Name} missing"
+                    : UnknownIsNewer && node is JsonValue unknown && unknown.TryGetValue(out string? _) ? TargetSpec.NewerVersion
+                    : $"{Name} isn't one of {string.Join(", ", Options)}";
                 return false;
             case ArgKind.Buff:
             case ArgKind.Ailment:
@@ -136,7 +144,8 @@ internal sealed class ArgSpec
                 reason = Kind == ArgKind.Buff ? "select buff" : "select ailment";
                 return false;
             case ArgKind.Mod:
-                if (TryNumber(node, out double mod) && mod >= 0 && Math.Abs(mod - Math.Round(mod)) < 1e-6)
+                // Mod keys are the game's hashes: any int, negative ones included.
+                if (TryNumber(node, out double mod) && mod >= int.MinValue && mod <= int.MaxValue && Math.Abs(mod - Math.Round(mod)) < 1e-6)
                 {
                     number = (float)Math.Round(mod);
                     return true;
@@ -200,6 +209,8 @@ internal sealed class ArgSpec
         "atLeast" => "at least",
         "atMost" => "at most",
         "potion" => "a potion's heal",
+        "target" => "a target",
+        "cast" => "the cast target",
         _ => option,
     };
 }
@@ -283,6 +294,9 @@ internal readonly record struct ConditionResult(ConditionState State, float Numb
 internal readonly record struct ConditionContext(int Slot, WorldTally? Tally, float Now)
 {
     public string? Macro { get; init; }
+    /// <summary>What "the cast target" means for the list being checked: a slot's effective target, the shared slot
+    /// target, or a library macro's cast step's; null where the list has no cast to take it from.</summary>
+    public TargetSpec? CastTarget { get; init; }
 
     /// <summary>A slot arg as a bar slot number (1–5): 0 means the list's own slot; 0 when there is none.</summary>
     public int SlotNumber(int arg) => arg > 0 ? arg : Slot >= 0 ? Slot + 1 : 0;
@@ -315,8 +329,9 @@ internal sealed class ConditionKind
     public bool Scanned { get; init; }
     /// <summary>For scanned kinds: the range in metres the entry needs counted.</summary>
     public Func<ArgValues, float>? Range { get; init; }
-    /// <summary>For enemy kinds: which enemy the entry is about; the owner's scan picks it.</summary>
-    public Func<ArgValues, SubjectKey>? Picks { get; init; }
+    /// <summary>For enemy kinds: which enemy the entry is about, as the owner's scan picks it (null: a target's pick,
+    /// read from the targets instead).</summary>
+    public Func<ArgValues, SubjectKey?>? Picks { get; init; }
     /// <summary>For scanned kinds: what the entry needs counted (range, centre, weights); null reads Range around the
     /// hero with the owner's weights.</summary>
     public Func<ArgValues, TallyKey>? TallyKey { get; init; }

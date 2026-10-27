@@ -97,9 +97,30 @@ internal static class ConditionEditor
                 if (entry.IsGroup) i = list.End(i) - 1;
                 continue;
             }
-            if (entry.IsGroup || entry.Invalid != null || entry.KindDef?.Picks is not { } subject) continue;
-            var key = subject(entry.Values);
+            if (entry.IsGroup || entry.Invalid != null || entry.KindDef?.Picks is not { } subject || subject(entry.Values) is not { } key) continue;
             if (!into.Contains(key)) into.Add(key);
+        }
+    }
+
+    /// <summary>
+    /// Collects the kept targets that switched-on, valid lines in a tree are about (their own "target" subjects, and
+    /// "cast" subjects as the owner's cast target), so the scan picks them; owner names them for the dev verb.
+    /// </summary>
+    public static void EnemyTargets(ConditionList list, TargetSpec? castTarget, string? owner)
+    {
+        if (list.Invalid != null) return;
+        var nodes = list.Nodes;
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            var entry = nodes[i];
+            if (!entry.On)
+            {
+                if (entry.IsGroup) i = list.End(i) - 1;
+                continue;
+            }
+            if (entry.IsGroup || !ConditionKinds.SubjectTarget(entry, castTarget, out var key)) continue;
+            if (key.Pick is TargetPick.Cursor or TargetPick.Nearest or TargetPick.Hovered) continue;
+            Targets.Collect(key, owner != null ? $"{owner} line {i + 1}" : null);
         }
     }
 

@@ -385,6 +385,10 @@ internal static class RuleTreeRows
             "value" => () => (current()?.Args["as"] ?? current()?.Args["atLeast"]) is JsonValue a && a.TryGetValue(out string? s) && s == "value",
             "percent" when kind.Args.Any(a => a.Name == "as") => () => !(current()?.Args["as"] is JsonValue a && a.TryGetValue(out string? s) && s == "value"),
             "wNormal" or "wMagic" or "wRare" or "wBoss" => () => current()?.Args.ContainsKey("wNormal") == true,
+            // A line's enemy: nearest takes a rarity and range, a target its pick and limits too, the cast target none.
+            "minRarity" or "range" when kind.Args.Any(a => a.Name == "subject") => () => SubjectIs(current, "nearest") || SubjectIs(current, "target"),
+            "pick" or "withoutMod" or "withAilment" => () => SubjectIs(current, "target"),
+            "radius" => () => SubjectIs(current, "target") && current()?.Args["pick"] is JsonValue p && p.TryGetValue(out string? pick) && pick.StartsWith("area", StringComparison.Ordinal),
             _ => null,
         };
         string key = prefix + "arg." + arg.Name;
@@ -395,7 +399,7 @@ internal static class RuleTreeRows
             case ArgKind.Choice:
             case ArgKind.Rarity:
                 var options = arg.Options;
-                var shown = options.Select(o => arg.Kind == ArgKind.Rarity ? RarityLabel(o) : ArgSpec.OptionWords(o)).ToList();
+                var shown = options.Select(o => arg.Kind == ArgKind.Rarity ? RarityLabel(o) : arg.Name == "pick" ? PickLabel(o) : ArgSpec.OptionWords(o)).ToList();
                 return new ValueChoice(label, () => Array.IndexOf(options, Text()), i =>
                 {
                     if (i >= 0 && i < options.Length) Set(JsonValue.Create(options[i]));
@@ -423,15 +427,24 @@ internal static class RuleTreeRows
                 bool mods = arg.Kind == ArgKind.Mod;
                 IReadOnlyList<int> Ids() => mods ? GameData.AllMonsterMods() : GameData.AllAilments();
                 string Name(int id) => mods ? GameData.MonsterMod(id).Name ?? $"Mod {id}" : ConditionKinds.BuffName(id);
-                return new ValueChoice(label, () => Stored() is JsonValue v && v.TryGetValue(out double id) ? Ids().ToList().IndexOf((int)Math.Round(id)) : -1, i =>
+                // An optional one (a target's limit) can be cleared: "no … limit" first.
+                int first = arg.Optional ? 1 : 0;
+                string none = mods ? "no mod limit" : "no ailment limit";
+                return new ValueChoice(label, () => Stored() is JsonValue v && v.TryGetValue(out double id) ? Ids().ToList().IndexOf((int)Math.Round(id)) + first : first - 1, i =>
                 {
+                    if (arg.Optional && i == 0)
+                    {
+                        edit(e => e.Args.Remove(arg.Name));
+                        return;
+                    }
                     var ids = Ids();
-                    if (i >= 0 && i < ids.Count) Set(JsonValue.Create(ids[i]));
-                }, () => Ids().Select(Name).ToList())
+                    if (i - first >= 0 && i - first < ids.Count) Set(JsonValue.Create(ids[i - first]));
+                }, () => (arg.Optional ? new[] { none } : Array.Empty<string>()).Concat(Ids().Select(Name)).ToList())
                 {
                     Key = key,
                     Width = 190f,
-                    Shown = () => Stored() is JsonValue v && v.TryGetValue(out double id) ? Name((int)Math.Round(id)) : mods ? "Select monster mod" : "Select ailment",
+                    VisibleWhen = visible,
+                    Shown = () => Stored() is JsonValue v && v.TryGetValue(out double id) ? Name((int)Math.Round(id)) : arg.Optional ? none : mods ? "Select monster mod" : "Select ailment",
                 };
             }
             case ArgKind.Slot:
@@ -462,6 +475,13 @@ internal static class RuleTreeRows
 
     private static readonly List<string> s_slotOptions = new() { "This slot", "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5" };
 
+    private static bool SubjectIs(Func<ConditionEntry?> current, string subject) =>
+        current()?.Args["subject"] is JsonValue v && v.TryGetValue(out string? s) ? s == subject : subject == "nearest";
+
+    // A target pick's label as the Target row offers it.
+    private static string PickLabel(string name) =>
+        Array.IndexOf(TargetSpec.PickNames, name) is int i and >= 0 ? TargetSpec.Label((TargetPick)i) : name;
+
     private static string RarityLabel(string name) => name switch { "boss" => "boss", "rare" => "rare or boss", _ => "magic or better" };
 
     private static string ArgLabel(string name) => name switch
@@ -486,6 +506,10 @@ internal static class RuleTreeRows
         "wRare" => "Rare weight",
         "wBoss" => "Boss weight",
         "subject" => "Enemy",
+        "pick" => "Target",
+        "withoutMod" => "Not with",
+        "withAilment" => "Only with",
+        "radius" => "Radius",
         "minRarity" => "At least",
         "metres" => "Metres",
         "is" => "Is",
