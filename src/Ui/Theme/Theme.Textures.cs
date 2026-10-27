@@ -72,6 +72,18 @@ internal static partial class Theme
     private static float CircleDistance(float px, float py, float cx, float cy, float r) =>
         new Vector2(px - cx, py - cy).magnitude - r;
 
+    // How far a point is outside the warning triangle (apex at the top, base along the bottom), as for the other shapes.
+    private static float TriangleDistance(float px, float py)
+    {
+        float Edge(float ax, float ay, float bx, float by)
+        {
+            // Distance to the edge's line, positive on its outer side (the triangle is wound clockwise, so outward is left).
+            float nx = ay - by, ny = bx - ax, len = Mathf.Sqrt(nx * nx + ny * ny);
+            return ((px - ax) * nx + (py - ay) * ny) / len;
+        }
+        return Mathf.Max(Edge(10f, 18.5f, 18.75f, 2f), Mathf.Max(Edge(18.75f, 2f, 1.25f, 2f), Edge(1.25f, 2f, 10f, 18.5f)));
+    }
+
     private static float Coverage(float distance) => Mathf.Clamp01(0.5f - distance);
 
     private static Color Shade(Color c, float coverage) => new(c.r, c.g, c.b, c.a * coverage);

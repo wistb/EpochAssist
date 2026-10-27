@@ -62,7 +62,7 @@ internal static partial class Theme
     public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, ToastText = null!;
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
     public static Texture2D Chevron = null!, ChevronRight = null!;
-    public static Texture2D IconDot = null!, IconRing = null!, IconSquare = null!, IconBars = null!, IconDash = null!;
+    public static Texture2D IconDot = null!, IconRing = null!, IconSquare = null!, IconBars = null!, IconDash = null!, IconWarning = null!;
     public static Texture2D Swatch = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
     public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
@@ -233,6 +233,13 @@ internal static partial class Theme
         IconSquare = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 10f, 10f, 7f, 7f))));
         IconBars = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(Mathf.Min(RectDistance(x + 0.5f, y + 0.5f, 6f, 10f, 2.5f, 8f), RectDistance(x + 0.5f, y + 0.5f, 14f, 10f, 2.5f, 8f)))));
         IconDash = Paint(20, 20, (x, y) => Shade(Color.white, Coverage(RectDistance(x + 0.5f, y + 0.5f, 10f, 10f, 8f, 2.5f))));
+        // A warning triangle with its "!" cut out (rows count up from the bottom).
+        IconWarning = Paint(20, 20, (x, y) =>
+        {
+            float px = x + 0.5f, py = y + 0.5f;
+            float mark = Mathf.Min(RectDistance(px, py, 10f, 10.75f, 1.25f, 3.25f), CircleDistance(px, py, 10f, 5f, 1.35f));
+            return Shade(Color.white, Coverage(TriangleDistance(px, py)) * (1f - Coverage(mark)));
+        });
         FocusRing = Rounded(rControl + 2, rControl + 2, Color.clear, v.Focus, 2f);
         // Colour swatches: white, tinted when drawn; the ring marks the chosen one.
         Swatch = Rounded(rChip, rChip, Color.white, Color.white, 0f);

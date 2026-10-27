@@ -72,6 +72,43 @@ internal static class ModOverlap
     internal static readonly List<string> Simulated = new();
 #endif
 
+    /// <summary>The last check's report (at start, and again after a demand group is applied); null before the first.</summary>
+    public static OverlapReport? Last { get; private set; }
+
+    private static OverlapReport? s_conflictsFrom;
+    private static readonly Dictionary<string, IReadOnlyList<(string Mod, string Why)>> s_conflicts = new();
+
+    /// <summary>
+    /// Other mods in conflict with one of our features, by the last check: known mods that may affect it (with their
+    /// sentence), then owners of other patches on methods it patches. Empty before the check or with none.
+    /// </summary>
+    public static IReadOnlyList<(string Mod, string Why)> ConflictsFor(string? featureId)
+    {
+        var report = Last;
+        if (report == null || featureId == null) return Array.Empty<(string, string)>();
+        if (!ReferenceEquals(report, s_conflictsFrom))
+        {
+            s_conflictsFrom = report;
+            s_conflicts.Clear();
+        }
+        if (s_conflicts.TryGetValue(featureId, out var found)) return found;
+        var list = new List<(string Mod, string Why)>();
+        foreach (var known in report.Known)
+        {
+            if (known.Affects.Contains(featureId)) list.Add((known.Name, known.Text));
+        }
+        foreach (var overlap in report.Overlaps)
+        {
+            if (overlap.Feature != featureId) continue;
+            foreach (var owner in overlap.Others.Select(o => o.Owner).Distinct())
+            {
+                if (list.Any(c => string.Equals(c.Mod, owner, StringComparison.OrdinalIgnoreCase))) continue;
+                list.Add((owner, $"Also patches {overlap.Method}."));
+            }
+        }
+        return s_conflicts[featureId] = list;
+    }
+
     /// <summary>Every loaded mod and plugin, Epoch Assist included; read on each call.</summary>
     public static IReadOnlyList<LoadedMod> Mods() => ReadMods(new List<string>());
 
@@ -100,6 +137,7 @@ internal static class ModOverlap
         try
         {
             var report = Check();
+            Last = report;
             foreach (var overlap in report.Overlaps) Remember(overlap);
             foreach (var known in report.Known) Log.Info($"Known overlap: {known.Line}");
             foreach (string problem in report.Problems) Log.Warn($"Mod overlap check: {problem}");
@@ -118,6 +156,8 @@ internal static class ModOverlap
         try
         {
             foreach (var overlap in FeatureOverlaps(feature, group, new List<string>())) Remember(overlap);
+            // Pages show conflicts from the last report: a newly patched group's overlaps join it.
+            if (Last != null) Last = Check();
         }
         catch (Exception e)
         {

@@ -52,6 +52,47 @@ internal static class Controls
         return Focus.Item(key, r) || clicked;
     }
 
+    /// <summary>A conflict with another mod: orange, whatever the theme, so it reads as a warning next to the state colours.</summary>
+    public static readonly Color ConflictColor = new(1f, 0.514f, 0.169f);
+    private static readonly Color s_conflict = ConflictColor;
+
+    /// <summary>The "Mod conflict: <mods>" pill's width.</summary>
+    public static float ConflictPillWidth(string text) => TextCache.Width(text, Widgets.Style(() => Theme.FieldText, GUI.skin.label)) + 24f;
+
+    /// <summary>
+    /// An orange pill naming the mods in conflict with what the page is about, with the reasons as its tip; true when
+    /// clicked (it opens the Mods page).
+    /// </summary>
+    public static bool ConflictPill(Rect at, string text, string tip, string key)
+    {
+        bool clicked = GUI.Button(at, GUIContent.none, GUIStyle.none);
+        if (Event.current.type == EventType.Repaint)
+        {
+            GUIStyle style = Widgets.Style(() => Theme.FieldText, GUI.skin.label);
+            bool hover = at.Contains(Event.current.mousePosition);
+            if (Widgets.Themed)
+            {
+                Color previous = GUI.color;
+                GUI.color = new Color(s_conflict.r, s_conflict.g, s_conflict.b, (hover ? 0.32f : 0.22f) * previous.a);
+                Theme.DrawSliced(at, Theme.Flat, Theme.ChipRadius);
+                GUI.color = previous;
+            }
+            // A warning triangle before the words.
+            const float icon = 14f;
+            var iconRect = Menu.PixelSnap(new Rect(at.x + 7f, at.center.y - icon / 2f, icon, icon));
+            Color tint = GUI.color;
+            GUI.color = new Color(s_conflict.r, s_conflict.g, s_conflict.b, tint.a);
+            GUI.DrawTexture(iconRect, Theme.IconWarning);
+            GUI.color = tint;
+            // 7 px before the icon and the words right after it (the text style pads its own left); the measured width runs a
+            // little wide, so the right needs no more.
+            var label = new Rect(at.x + 22f, at.y, at.width - 24f, at.height);
+            Widgets.Paint(label, Widgets.Themed ? Widgets.Colored(text, Theme.LightText(s_conflict)) : text, style);
+        }
+        Popups.Tip(at, tip, key);
+        return Focus.Item(key, at) || clicked;
+    }
+
     private const float StatePillMax = 130f;
 
     /// <summary>A state pill's width for its text (with room for the shape), at most 130 px.</summary>

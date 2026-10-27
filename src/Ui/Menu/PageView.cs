@@ -202,6 +202,8 @@ internal static class PageView
         float tw = TextCache.Width(page.Page.Title, title);
         if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, r.y, tw, r.height), page.Page.Title, title);
         x += tw + 10f;
+        float conflict = ConflictTag.Draw(page.Node.Feature, x, r.center.y, "conflict.page");
+        if (conflict > 0f) x += conflict + 10f;
         if (StatusOf(page) is { } status) Tag(new Rect(x, r.center.y - 9f, 0f, 18f), status);
 
         float right = r.xMax;

@@ -81,6 +81,8 @@ internal static class LibraryLayout
             GUI.enabled = enabled;
             x += w + 6f;
         }
+        float conflict = ConflictTag.Draw(page.Node.Feature, x + 4f, r.center.y, "conflict.library");
+        if (conflict > 0f) x += conflict + 10f;
         // The status as plain text with its shape, right-aligned: readable on the bar, never a coloured badge.
         if (view.Status != null && Safe.Call(view.Status, new PageStatus(StatusState.Off, "off"), "library.status") is var status)
         {
@@ -324,6 +326,7 @@ internal static class LibraryLayout
         float w = Controls.ButtonWidth("Close");
         if (Controls.Button(new Rect(header.xMax - w, header.center.y - 12f, w, 24f), "Close", "page.close")) MenuRoutes.Show(library);
         if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(header.x, header.y, header.width - w - 8f, header.height), page.Page.Title, title);
+        ConflictTag.Draw(page.Node.Feature, header.x + TextCache.Width(page.Page.Title, title) + 12f, header.center.y, "conflict.page");
         float y = header.yMax + 6f;
         PageView.DrawRowList(page, page.Rows, new Rect(body.x, y, body.width, body.yMax - y));
     }
@@ -366,13 +369,17 @@ internal static class LibraryLayout
             }
             tx += bw + 10f;
         }
+        // A conflict pill follows the title; the title gives up room for it.
+        float pill = ConflictTag.Width(page.Node.Feature);
+        float room = right - tx - 8f - (pill > 0f ? pill + 12f : 0f);
+        string fitted = Controls.Fit(text, title, room);
         if (Event.current.type == EventType.Repaint)
         {
             // The title's own height, centred on the header's middle like the badge (the title style is top-aligned).
-            string fitted = Controls.Fit(text, title, right - tx - 8f);
-            float th = title.CalcHeight(new GUIContent(fitted), right - tx - 8f);
-            Widgets.Paint(new Rect(tx, Mathf.Round(header.center.y - th / 2f), right - tx - 8f, th), fitted, title);
+            float th = title.CalcHeight(new GUIContent(fitted), room);
+            Widgets.Paint(new Rect(tx, Mathf.Round(header.center.y - th / 2f), room, th), fitted, title);
         }
+        if (pill > 0f) ConflictTag.Draw(page.Node.Feature, tx + Mathf.Min(TextCache.Width(fitted, title), room) + 12f, header.center.y, "conflict.editor");
         float y = header.yMax + 6f;
         if (editor.Note != null && Safe.Call(editor.Note, null, "library.editor.note") is { } note)
         {
