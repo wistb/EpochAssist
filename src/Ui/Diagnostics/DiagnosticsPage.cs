@@ -208,21 +208,86 @@ internal static class DiagnosticsPage
 
     // ---- Mods: loaded mods, shared patch targets and known overlaps; overlaps change nothing ----
 
+    // Loaded mods with a mark each (ours, in conflict, no overlap), the overlaps grouped by the other mod, and the known
+    // mods with what they may affect; colour and icons carry what matters, the words stay as the bridge reads them.
     private static void ModsCard()
     {
-        string kind = string.Empty;
-        foreach (var (lineKind, text, note) in ModsLines(Overlap()))
+        var report = Overlap();
+        var conflicting = new HashSet<string>(report.OverlappingNames(), StringComparer.OrdinalIgnoreCase);
+        foreach (var known in report.Known) conflicting.Add(known.Name);
+
+        ProfilesPage.Heading("Loaded mods");
+        foreach (var mod in report.Mods)
         {
-            if (lineKind != kind)
+            bool conflict = !mod.Ours && (conflicting.Contains(mod.Name) || conflicting.Contains(Stem(mod.File)));
+            var (icon, colour, mark) = mod.Ours ? (Theme.IconDot, Theme.Good, "this mod")
+                : mod.Kind == "failed" ? (Theme.IconWarning, Theme.Error, "failed to load")
+                : conflict ? (Theme.IconWarning, Controls.ConflictColor, "conflict")
+                : (Theme.IconDash, Theme.Dim, "no overlap");
+            string detail = mod.Kind == "dev-loaded" ? $"build {Runtime.BuildId}, loaded by the dev loader"
+                : mod.Kind == "failed" ? mod.Error ?? mod.File
+                : $"{mod.Version} by {mod.Author} · {mod.File}{(mod.Kind == "plugin" ? ", plugin" : string.Empty)}";
+            IconLine(icon, colour, $"{mod.Name}  {Colored(detail, Theme.Dim)}", Colored(mark, Theme.LightText(colour)));
+        }
+        if (!report.Mods.Any(m => !m.Ours)) Note(Colored("No other mods.", Theme.Dim));
+        foreach (string problem in report.Problems) Note(Colored(problem, Theme.Pause));
+
+        ProfilesPage.Heading("Overlaps");
+        if (report.Overlaps.Count == 0) Note(Colored("None: no other mod patches a method ours do.", Theme.Dim));
+        foreach (var group in report.Overlaps.SelectMany(o => o.Others.Select(x => x.Owner)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            IconLine(Theme.IconWarning, Controls.ConflictColor, Colored(group, Theme.LightText(Controls.ConflictColor)), null);
+            foreach (var overlap in report.Overlaps.Where(o => o.Others.Any(x => string.Equals(x.Owner, group, StringComparison.OrdinalIgnoreCase))))
             {
-                kind = lineKind;
-                ProfilesPage.Heading(kind switch { "mod" => "Loaded mods", "overlap" => "Overlaps", _ => "Known overlaps" });
+                string kinds = string.Join(", ", overlap.Others.Where(x => string.Equals(x.Owner, group, StringComparison.OrdinalIgnoreCase))
+                    .GroupBy(x => x.Kind).Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key));
+                string feature = FeatureName(overlap.Feature) + (overlap.OursApplied ? string.Empty : " (when needed)");
+                Indented($"{Colored(feature, Theme.LightText(Theme.AccentText))}  {Colored(overlap.Method, Theme.Text)}  {Colored(kinds, Theme.Dim)}");
             }
-            if (note) Note(text);
-            else Line(text);
+        }
+
+        ProfilesPage.Heading("Known overlaps");
+        if (report.Known.Count == 0) Note(Colored("None of the loaded mods is on the known list.", Theme.Dim));
+        foreach (var known in report.Known)
+        {
+            IconLine(Theme.IconWarning, Controls.ConflictColor, Colored(known.Name, Theme.LightText(Controls.ConflictColor)), null);
+            string affects = known.Affects.Length > 0 ? $" · may affect {Colored(string.Join(", ", known.Affects.Select(FeatureName)), Theme.LightText(Theme.AccentText))}" : string.Empty;
+            Indented($"{Colored(string.Join(", ", known.Kinds), Theme.Dim)}{Colored(affects, Theme.Text)}");
+            Indented(Colored(known.Text, Theme.Secondary));
         }
         GUILayout.Space(6f);
         Note(Colored("Overlaps change nothing: every feature keeps running. They point at what to check when something acts twice or looks odd.", Theme.Dim));
+    }
+
+    private static string Stem(string file) => file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? file[..^4] : file;
+
+    // A feature's name as the menu shows it ("Macros"), else its id.
+    private static string FeatureName(string id) => FeatureHost.Find(id)?.Name ?? id;
+
+    // A line with a tinted icon before it and, when given, a word at the right.
+    private static void IconLine(Texture2D icon, Color colour, string text, string? right)
+    {
+        float width = PageView.BlockWidth;
+        GUIStyle style = Style(() => Theme.Label, GUI.skin.label);
+        Rect r = GUILayoutUtility.GetRect(width, 24f, GUILayout.ExpandWidth(true));
+        if (Event.current.type != EventType.Repaint) return;
+        var iconRect = Menu.PixelSnap(new Rect(r.x, r.center.y - 7f, 14f, 14f));
+        Color previous = GUI.color;
+        GUI.color = new Color(colour.r, colour.g, colour.b, previous.a);
+        GUI.DrawTexture(iconRect, icon);
+        GUI.color = previous;
+        float rightWidth = right != null ? TextCache.Width(RowText.StripTags(right), style) + 4f : 0f;
+        Widgets.Paint(new Rect(iconRect.xMax + 8f, r.y, r.width - 22f - rightWidth - 8f, r.height), text, style);
+        if (right != null) Widgets.Paint(new Rect(r.xMax - rightWidth, r.y, rightWidth, r.height), right, style);
+    }
+
+    // A line under an icon line, lined up with its text; long ones wrap.
+    private static void Indented(string text)
+    {
+        float width = PageView.BlockWidth - 22f;
+        GUIStyle style = Style(() => Theme.Hint, GUI.skin.label);
+        Rect r = GUILayoutUtility.GetRect(width, Controls.HintHeight(text, width) + 4f, GUILayout.ExpandWidth(true));
+        if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(r.x + 22f, r.y, r.width - 22f, r.height), text, style);
     }
 
     // The page's lines by kind (mod, overlap, known), each kind at least one line; notes (a known mod's explanation)
