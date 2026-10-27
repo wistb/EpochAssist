@@ -92,6 +92,8 @@ internal sealed class MenuPage
     public Func<string?>? Banner { get; init; }
     /// <summary>A named block that fills the page under the title row.</summary>
     public string? Block { get; init; }
+    /// <summary>Whether the header shows the Mod conflict pill; null shows it on the entry's first page only.</summary>
+    public bool? ConflictPill { get; init; }
     /// <summary>Buttons in the title row, before Reset.</summary>
     public List<ActionButton> Actions { get; } = new();
     /// <summary>Whether the title row offers Reset; null for "when the page has settings".</summary>

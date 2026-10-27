@@ -200,11 +200,13 @@ internal static class PageView
         GUIStyle title = Widgets.Style(() => Theme.PageTitle, GUI.skin.label);
         float x = r.x;
         float tw = TextCache.Width(page.Page.Title, title);
-        if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, r.y, tw, r.height), page.Page.Title, title);
+        // Centred on the row, like the tags and buttons beside it (the style draws from the top).
+        float th = title.lineHeight + title.padding.vertical;
+        if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, Mathf.Round(r.center.y - th / 2f), tw, th), page.Page.Title, title);
         x += tw + 10f;
-        float conflict = ConflictTag.Draw(page.Node.Feature, x, r.center.y, "conflict.page");
+        bool pill = page.Page.ConflictPill ?? ReferenceEquals(page.Node.Entry.Pages.FirstOrDefault(), page.Page);
+        float conflict = pill ? ConflictTag.Draw(page.Node.Feature, x, r.center.y, "conflict.page") : 0f;
         if (conflict > 0f) x += conflict + 10f;
-        if (StatusOf(page) is { } status) Tag(new Rect(x, r.center.y - 9f, 0f, 18f), status);
 
         float right = r.xMax;
         if (page.Resettable && page.Sections.Any(s => !s.IsDefault))
@@ -230,7 +232,20 @@ internal static class PageView
             right -= Controls.SwitchWidth;
             var sw = new Rect(right, r.center.y - 12f, Controls.SwitchWidth, 24f);
             if (Controls.Switch(sw, toggle.Value, "switch", toggle.Label) != toggle.Value) SettingRows.Flip(toggle, "menu page switch");
+            right -= 6f;
         }
+        // The tag goes in what's left: whole, else the state alone ("waiting"), else not at all, never under a button.
+        if (StatusOf(page) is { } status && FittedTag(status, right - x) is { } fitted) Tag(new Rect(x, r.center.y - Theme.TagHeight / 2f, 0f, Theme.TagHeight), fitted);
+    }
+
+    private static PageStatus? FittedTag(PageStatus status, float room)
+    {
+        GUIStyle style = Widgets.Style(() => Theme.Tag, GUI.skin.label);
+        if (TextCache.Width(status.Text, style) + style.padding.horizontal <= room) return status;
+        int colon = status.Text.IndexOf(':');
+        if (colon <= 0) return null;
+        var state = new PageStatus(status.State, status.Text[..colon]);
+        return TextCache.Width(state.Text, style) + style.padding.horizontal <= room ? state : null;
     }
 
     // Copy diagnostics still copies while the diagnostics feature is down, when its action is gone.
@@ -264,7 +279,7 @@ internal static class PageView
         Color color = Theme.StateText(status.State);
         if (Widgets.Themed)
         {
-            Theme.DrawSliced(r, Theme.BadgeFor(status.State), Math.Min(11, Theme.ChipRadius + 2));
+            Theme.DrawSliced(r, Theme.BadgeFor(status.State), Theme.TagRadius);
             Menu.DrawState(new Rect(r.x + 7f, Mathf.Round(r.center.y - 3.5f), 7f, 7f), status.State, color);
             Widgets.Paint(r, Widgets.Colored(status.Text, color), style);
         }

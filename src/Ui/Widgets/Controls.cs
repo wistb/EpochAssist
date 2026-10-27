@@ -74,7 +74,7 @@ internal static class Controls
             {
                 Color previous = GUI.color;
                 GUI.color = new Color(s_conflict.r, s_conflict.g, s_conflict.b, (hover ? 0.32f : 0.22f) * previous.a);
-                Theme.DrawSliced(at, Theme.Flat, Theme.ChipRadius);
+                Theme.DrawSliced(at, Theme.BadgeTint, Theme.TagRadius);
                 GUI.color = previous;
             }
             // A warning triangle before the words.

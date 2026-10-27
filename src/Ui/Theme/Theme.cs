@@ -26,6 +26,10 @@ internal static partial class Theme
     // Corner radii the drawing code slices textures with; each matches the texture it goes with.
     public static int WindowRadius => s_values.RadiusWindow;
     public static int ChipRadius => s_values.RadiusChip;
+    /// <summary>The corner radius of header tags (a page's state and a mod conflict), so they match.</summary>
+    public static int TagRadius => Math.Min(11, ChipRadius + 2);
+    /// <summary>The height of header tags.</summary>
+    public const float TagHeight = 18f;
     public static int PillRadius => Math.Min(16, s_values.RadiusWindow + 2);
     // Concentric with the pill's corner: the pill's radius less the gap between the two edges, so both curves share a
     // centre at any Corners setting; at most half the slot (a circle). Where the pill's corner is smaller than the gap
@@ -66,6 +70,8 @@ internal static partial class Theme
     public static Texture2D Swatch = null!, Dot = null!, Ring = null!, Square = null!, Bars = null!, Dash = null!, FocusRing = null!, ChipOff = null!, ChipOn = null!, ChipPaused = null!;
     public static Texture2D PipOn = null!, PipOff = null!, PipPaused = null!;
     public static Texture2D BadgeActive = null!, BadgeWaiting = null!, BadgeHolding = null!, BadgePaused = null!, BadgeOff = null!;
+    /// <summary>A white badge, tinted when drawn: the state badges' shape in any colour (the conflict pill's orange).</summary>
+    public static Texture2D BadgeTint = null!;
 
     /// <summary>The themed skin, or null to draw with the default one.</summary>
     public static GUISkin? Skin
@@ -249,6 +255,7 @@ internal static partial class Theme
         BadgeHolding = Rounded(rBadge, rBadge, v.BadgeHolding, v.BadgeHolding, 0f);
         BadgePaused = Rounded(rBadge, rBadge, v.BadgePaused, v.BadgePaused, 0f);
         BadgeOff = Rounded(rBadge, rBadge, v.BadgeOff, v.BadgeOff, 0f);
+        BadgeTint = Rounded(rBadge, rBadge, Color.white, Color.white, 0f);
 
         int rPill = PillRadius;
         Pill = new GUIStyle { border = Offset(Slice(rPill)) };

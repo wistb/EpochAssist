@@ -253,7 +253,8 @@ internal static class TreeView
             x += 14f;
         }
         Color text = selected ? Theme.Text : heading ? Theme.Text : row.Item is { State: StatusState.Off } ? Theme.Dim : Theme.Secondary;
-        float dotRoom = 18f;
+        bool conflict = row.Kind == Kind.Node && node.Feature is { } withConflicts && ModOverlap.ConflictsFor(withConflicts.Id).Count > 0;
+        float dotRoom = conflict ? 34f : 18f;
         Widgets.Paint(new Rect(x, r.y, r.xMax - x - dotRoom, r.height), Controls.Fit(row.Label, style, r.xMax - x - dotRoom),
             Widgets.Themed && (selected || row.Item is { State: StatusState.Off }) ? Recoloured(style, text) : style);
 
@@ -270,6 +271,8 @@ internal static class TreeView
                 : feature.Status.State;
             Menu.DrawState(dot, state, state == StatusState.Off ? Theme.Faint : Theme.StateColor(state));
         }
+        // Another mod conflicts with the feature: the conflict pill's warning triangle, before the dot.
+        if (conflict) Theme.Tinted(Menu.PixelSnap(new Rect(dot.x - 17f, Mathf.Round(r.center.y - 6f), 12f, 12f)), Theme.IconWarning, Controls.ConflictColor);
         GUI.color = previous;
     }
 

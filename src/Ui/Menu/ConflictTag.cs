@@ -20,7 +20,7 @@ internal static class ConflictTag
     {
         if (Words(feature) is not { } words) return 0f;
         float w = Controls.ConflictPillWidth(words.Text);
-        if (Controls.ConflictPill(new Rect(x, Mathf.Round(cy - 11f), w, 22f), words.Text, words.Tip, key) && MenuRoutes.Resolve(ModsPage) is { } mods) MenuRoutes.Show(mods);
+        if (Controls.ConflictPill(new Rect(x, Mathf.Round(cy - Theme.TagHeight / 2f), w, Theme.TagHeight), words.Text, words.Tip, key) && MenuRoutes.Resolve(ModsPage) is { } mods) MenuRoutes.Show(mods);
         return w;
     }
 
