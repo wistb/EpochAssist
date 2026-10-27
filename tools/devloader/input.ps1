@@ -1,5 +1,5 @@
 # Sends real keyboard and mouse input to the game window, for in-game checks driven from WSL (offline only).
-# Dev only; never shipped. Usage: powershell.exe -NoProfile -ExecutionPolicy Bypass -File devloader/input.ps1 <step> [<step>...]
+# Dev only; never shipped. Usage: powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/devloader/input.ps1 <step> [<step>...]
 # Steps:  focus | restore | wait <ms> | key <Key> [ms] | down <Key> | up <Key> | type <text> (letters, digits, space, . and -)
 #         click <x> <y> [left|right|middle|x1|x2] | press <x> <y> <button> <ms> | move <x> <y> | wheel <x> <y> <notches, + up> | shot <png path>
 #         (x, y: pixels in the game window's client area, top-left origin; Key: a System.Windows.Forms.Keys name such as

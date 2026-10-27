@@ -83,8 +83,8 @@ if [ "$mode" = deploy ]; then
 fi
 
 if [ "$mode" = dev ]; then
-    build_project "$root/devloader/EpochAssist.DevLoader.csproj"
-    loader="$root/devloader/bin/Debug/net6.0/win-x64/EpochAssist.DevLoader.dll"
+    build_project "$root/tools/devloader/EpochAssist.DevLoader.csproj"
+    loader="$root/tools/devloader/bin/Debug/net6.0/win-x64/EpochAssist.DevLoader.dll"
     mkdir -p "$mods"
     if [ ! -f "$mods/EpochAssist.DevLoader.dll" ]; then
         wait_for cp "$loader" "$mods/EpochAssist.DevLoader.dll"

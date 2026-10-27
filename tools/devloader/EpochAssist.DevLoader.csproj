@@ -18,7 +18,7 @@
   </ItemDefinitionGroup>
 
   <ItemGroup>
-    <Compile Include="..\src\Core\Host\NullableAttributes.cs" Link="NullableAttributes.cs" />
+    <Compile Include="..\..\src\Core\Host\NullableAttributes.cs" Link="NullableAttributes.cs" />
     <Reference Include="MelonLoader" HintPath="$(ML)\net6\MelonLoader.dll" />
     <Reference Include="Il2CppInterop.Runtime" HintPath="$(ML)\net6\Il2CppInterop.Runtime.dll" />
     <Reference Include="Il2Cppmscorlib" HintPath="$(Il2Cpp)\Il2Cppmscorlib.dll" />
