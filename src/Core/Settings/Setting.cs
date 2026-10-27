@@ -28,6 +28,8 @@ internal abstract class Setting
     public Func<bool>? VisibleWhen { get; init; }
     /// <summary>What makes a hidden setting show ("Run macros is on"), for search. Code only, nothing stored.</summary>
     public string? ShownWhen { get; init; }
+    /// <summary>Also listed on General › Keybinds with the keys (a choice that goes with a key). Keys always are.</summary>
+    public bool WithKeybinds { get; init; }
 
     public bool Visible => VisibleWhen?.Invoke() ?? true;
     public abstract bool IsDefault { get; }

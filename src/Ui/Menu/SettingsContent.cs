@@ -26,9 +26,15 @@ internal static class SettingsContent
         },
         new MenuEntry(MenuCategory.Combat, order: 81)
         {
+            Title = "Keybinds",
+            Folder = MenuEntry.General,
+            Pages = { Keybinds() },
+        },
+        new MenuEntry(MenuCategory.Combat, order: 82)
+        {
             Title = "Interface",
             Folder = MenuEntry.General,
-            Pages = { new MenuPage(HudSettings.Hud), Appearance(), new MenuPage(Section("keys")) },
+            Pages = { new MenuPage(HudSettings.Hud), Appearance() },
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)
         {
@@ -45,7 +51,7 @@ internal static class SettingsContent
             Title = "History",
             Pages = { SessionHistory() },
         },
-        new MenuEntry(MenuCategory.Combat, order: 82)
+        new MenuEntry(MenuCategory.Combat, order: 83)
         {
             Title = "Diagnostics",
             Folder = MenuEntry.General,
@@ -59,6 +65,22 @@ internal static class SettingsContent
             },
         },
     };
+
+    // Every key a player can set, under a heading per settings group (General first, then each feature's), with the
+    // choices that go with them. The same settings stay on their own pages; both rows change one value. No page reset:
+    // it would reach into every feature's settings.
+    private static MenuPage Keybinds()
+    {
+        var page = new MenuPage("Keybinds") { Resettable = false };
+        foreach (var group in SettingsRegistry.Groups)
+        {
+            var keys = group.All.Where(s => s is Key or Hotkey or Choice<UnityEngine.KeyCode> || s.WithKeybinds).ToList();
+            if (keys.Count == 0) continue;
+            page.Rows.Add(new HeadingRow(group.Name) { Key = "heading." + group.Id });
+            page.Rows.AddRange(keys.Select(s => new SettingRow(s) { Key = $"{group.Id}.{s.Id}" }));
+        }
+        return page;
+    }
 
     // The current session's stats, then the drops the loot filter showed.
     private static MenuPage CurrentSession()

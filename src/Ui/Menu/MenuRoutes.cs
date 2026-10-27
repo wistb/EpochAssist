@@ -16,7 +16,7 @@ internal static class MenuRoutes
     public const string Profiles = General + "/profiles";
 
     // The old Settings tabs, by index: Mini HUD, Appearance, Keybinds, Diagnostics › Overview, Profiles.
-    private static readonly string[] s_settingsTabs = { MiniHud, General + "/interface/appearance", General + "/interface/keybinds", Overview, Profiles };
+    private static readonly string[] s_settingsTabs = { MiniHud, General + "/interface/appearance", General + "/keybinds", Overview, Profiles };
 
     private static string s_path = string.Empty;
     private static readonly Dictionary<string, string> s_lastByNode = new();
