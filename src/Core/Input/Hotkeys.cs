@@ -184,20 +184,25 @@ internal static class Hotkeys
 
     private static bool Down(KeyCode key) => Input.GetKey(key) && !s_ignored.Contains(key);
 
+    /// <summary>Set by a feature that uses the arrow keys while the menu is open (the overlay map's pan on the map
+    /// pages); while it returns true the menu leaves the arrows alone.</summary>
+    public static Func<bool>? MenuArrowsTaken;
+
     private static MenuNav ReadMenuNav(bool fieldFocused)
     {
+        bool arrows = !(MenuArrowsTaken?.Invoke() ?? false);
         bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
         bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
         int move = Input.GetKeyDown(KeyCode.Tab) ? (shift ? -1 : 1) : 0;
         bool tab = move != 0;
-        if (Input.GetKeyDown(KeyCode.DownArrow)) move = 1;
-        else if (Input.GetKeyDown(KeyCode.UpArrow)) move = -1;
+        if (arrows && Input.GetKeyDown(KeyCode.DownArrow)) move = 1;
+        else if (arrows && Input.GetKeyDown(KeyCode.UpArrow)) move = -1;
         bool enter = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
         bool search = ctrl && Input.GetKeyDown(KeyCode.F);
         int page = Input.GetKeyDown(KeyCode.PageDown) ? 1 : Input.GetKeyDown(KeyCode.PageUp) ? -1 : 0;
         if (fieldFocused) return new MenuNav(move, enter, 0, page, search, tab);
         bool activate = enter || Input.GetKeyDown(KeyCode.Space);
-        int adjust = Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
+        int adjust = !arrows ? 0 : Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
         return new MenuNav(move, activate, adjust, page, search, tab);
     }
 

@@ -22,8 +22,8 @@ internal static class KnownMods
 
     public static readonly IReadOnlyList<KnownOverlap> All = new[]
     {
-        new KnownOverlap(new[] { "LastEpoch_Hud", "LEHud", "Last Epoch HUD" }, new[] { Autocaster, "overlay", "map", "auto pick-up" }, new[] { "macros", "dispatch", "game", "interact" },
-            "Has its own autocast and loot pick-up, and patches the same skill bar and echo methods; two autocasters press skills twice, and both mods may reach for the same item (the game gives it once)."),
+        new KnownOverlap(new[] { "LastEpoch_Hud", "LEHud", "Last Epoch HUD" }, new[] { Autocaster, "overlay", "map", "auto pick-up" }, new[] { "macros", "dispatch", "game", "interact", "mapreveal" },
+            "Has its own autocast, loot pick-up and minimap reveal, and patches the same skill bar and echo methods; two autocasters press skills twice, both mods may reach for the same item (the game gives it once), and both change the minimap's reveal (the last one to write it wins)."),
         new KnownOverlap(new[] { "Terrible Tooltips", "medick_Terrible_Tooltips" }, new[] { "tooltips" }, new[] { "gameui" },
             "Also changes item tooltips; lines a feature adds to tooltips may sit oddly or twice."),
         new KnownOverlap(new[] { "FallenStar's Auto Enabler", "Fallen_Auto_Enabler" }, new[] { "auto use" }, new[] { "interact" },
