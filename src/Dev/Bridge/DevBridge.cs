@@ -171,13 +171,15 @@ internal sealed class DevBridgeFeature : Feature
         Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.Update), MapCommands.ZoomGroup),
         Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.mapParameters), MapCommands.ZoomGroup),
         Need<Il2Cpp.UIBase>(nameof(Il2Cpp.UIBase.overlayMapOpen), MapCommands.ZoomGroup),
+        Need<Il2CppRewired.Integration.UnityUI.RewiredPointerInputModule.UnityInputSource>(GameUiPointer.Member, GameUiPointer.Group),
     };
-    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch) };
+    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch), typeof(GameUiPointer.ScreenPositionPatch) };
     public override IReadOnlyDictionary<Type, string> PatchGroups { get; } = new Dictionary<Type, string>
     {
         [typeof(MapCommands.StampPatch)] = MapCommands.StampGroup,
         [typeof(MapCommands.StampSingularPatch)] = MapCommands.StampGroup,
         [typeof(MapCommands.ZoomPatch)] = MapCommands.ZoomGroup,
+        [typeof(GameUiPointer.ScreenPositionPatch)] = GameUiPointer.Group,
     };
     public override string[] DemandGroups => new[] { MapCommands.StampGroup, MapCommands.ZoomGroup };
 

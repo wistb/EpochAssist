@@ -131,13 +131,14 @@ internal static class InputCommands
         return Run(reply, new Script().Do(() => VirtualInput.QueuePointer(p)).Do(() => VirtualInput.PostButton(button, down)));
     }
 
-    // Unity takes a posted click as a real mouse button, which the game would act on at the real cursor; presses go only
-    // where the mod's menu or HUD takes them (and holds them from the game).
+    // Unity takes a posted click as a real mouse button. The game's world ignores it, and its UI aims at the bridge
+    // pointer while GameUiPointer's patch is in; without the patch the UI would take it at the real cursor, so presses
+    // then go only where the mod's menu or HUD takes them.
     private static CommandResult? OffModUi(CommandCall call, Vector2 at) =>
         // The menu's hit test is its rectangle whether or not it is open.
-        (Ui.Menu.Visible && InputGate.MenuHitTest?.Invoke(at) == true) || InputGate.HudHitTest?.Invoke(at) == true
+        GameUiPointer.Available || (Ui.Menu.Visible && InputGate.MenuHitTest?.Invoke(at) == true) || InputGate.HudHitTest?.Invoke(at) == true
             ? null
-            : CommandResult.Error($"{call.Name}: {at.x:F0} {at.y:F0} is not on the menu or the HUD (the game would take the click at the real cursor)");
+            : CommandResult.Error($"{call.Name}: {at.x:F0} {at.y:F0} is not on the menu or the HUD, and the game UI pointer patch is missing (the game would take the click at the real cursor)");
 
     private static CommandResult Type(CommandCall call)
     {
