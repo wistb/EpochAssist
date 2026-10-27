@@ -8,8 +8,7 @@ namespace EpochAssist.Features;
 // seen this zone, under the player's Reach), and a marker on what the feature uses next. Nothing is read while off.
 internal static partial class Interact
 {
-    private static readonly Color s_itemRing = new(0.35f, 1f, 0.45f, 0.85f);
-    private static readonly Color s_objectRing = new(1f, 0.75f, 0.3f, 0.85f);
+    private const float RingAlpha = 0.85f;
     private static readonly Color s_next = new(1f, 1f, 1f, 0.95f);
 
     /// <summary>The rings and the next-use marker, from the feature's OnGUI (repaint passes only).</summary>
@@ -18,19 +17,22 @@ internal static partial class Interact
         if (!S.ShowReach.Value || s_run is not { } run || Event.current?.type != EventType.Repaint) return;
         if (Player.Transform is not { } player || !Game.Alive(player)) return;
         var at = player.position;
-        if (KindOn(Keys) || KindOn(Materials) || KindOn(Filtered)) Draw.WorldCircle(at, Math.Min(S.Reach.Value, ItemReach) - ReachMargin, RingColor(S.ItemRingColor, s_itemRing), 2f);
+        if (KindOn(Keys) || KindOn(Materials) || KindOn(Filtered)) Draw.WorldCircle(at, Math.Min(S.Reach.Value, ItemReach) - ReachMargin, RingColor(S.ItemRingColor), 2f);
         float objects = 0f;
         foreach (var kind in Kinds)
         {
             if (!kind.IsItem && KindOn(kind) && run.GameReach.TryGetValue(kind.Id, out var reach)) objects = Math.Max(objects, reach.Max);
         }
-        if (objects > 0f) Draw.WorldCircle(at, Math.Min(S.Reach.Value, objects) - ReachMargin, RingColor(S.ObjectRingColor, s_objectRing), 2f);
+        if (objects > 0f) Draw.WorldCircle(at, Math.Min(S.Reach.Value, objects) - ReachMargin, RingColor(S.ObjectRingColor), 2f);
         if (NextPoint(run) is { } next) Draw.WorldMarker(next + Vector3.up * 1.5f, s_next, 14f);
     }
 
-    // The player's colour, kept as see-through as the default rings.
-    private static Color RingColor(ColorSetting setting, Color fallback) =>
-        setting.TryGetColor(out var color) ? new Color(color.r, color.g, color.b, fallback.a) : fallback;
+    // The player's colour, else the setting's default (the one its Default swatch shows), a little see-through.
+    private static Color RingColor(ColorSetting setting)
+    {
+        if (!setting.TryGetColor(out var color)) ColorSetting.TryParse(setting.EmptyHex, out color);
+        return new Color(color.r, color.g, color.b, RingAlpha);
+    }
 
     // What the feature is using now, else the best candidate of its last scan.
     private static Vector3? NextPoint(Run run)

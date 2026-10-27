@@ -86,6 +86,7 @@ internal sealed class InteractFeature : Feature
                     KindRow(S.Chests, Interact.Chests),
                     KindRow(S.RunePrisons, Interact.RunePrisons),
                     KindRow(S.Forges, Interact.Forges),
+                    KindRow(S.Rifts, Interact.Rifts),
                     new HeadingRow("Pick up"),
                     KindRow(S.Keys, Interact.Keys),
                     KindRow(S.Materials, Interact.Materials),
@@ -102,6 +103,11 @@ internal sealed class InteractFeature : Feature
                 Rows =
                 {
                     new SettingRow(S.HudCount),
+                    new HeadingRow("Counted on the mini HUD") { VisibleWhen = () => S.HudCount.Value },
+                    new SettingRow(S.HudShrines), new SettingRow(S.HudChests), new SettingRow(S.HudRunePrisons),
+                    new SettingRow(S.HudForges), new SettingRow(S.HudRifts), new SettingRow(S.HudKeys),
+                    new SettingRow(S.HudMaterials), new SettingRow(S.HudFilter),
+                    new HeadingRow("Notifications"),
                     new SettingRow(S.NotifyEach),
                     new HeadingRow("Counts"),
                     new HintRow(Interact.CountsText) { Key = "hint.counts" },

@@ -42,6 +42,10 @@ internal static class InteractSettings
     {
         Help = "Starts the echo's forge event.",
     };
+    public static readonly Toggle Rifts = new(Use, "Rifts", "Unstable rifts", false)
+    {
+        Help = "Starts the rift's event.",
+    };
 
     public static readonly Section Pickup = Group.Section("pickup", "Pick up");
     public static readonly Toggle Keys = new(Pickup, "Keys", "Keys", false)
@@ -74,6 +78,16 @@ internal static class InteractSettings
     public static readonly Section Feedback = Group.Section("feedback", "Feedback");
     public static readonly Toggle HudCount = new(Feedback, "HudCount", "Show count on the mini HUD", false);
     public static readonly Toggle NotifyEach = new(Feedback, "NotifyEach", "Notify each use", false);
+    // Which kinds the mini HUD count adds up; all of them until the player leaves some out.
+    private static Toggle Counted(string id, string label) => new(Feedback, id, label, true) { VisibleWhen = () => HudCount.Value, ShownWhen = "Show count on the mini HUD is on" };
+    public static readonly Toggle HudShrines = Counted("HudShrines", "Shrines");
+    public static readonly Toggle HudChests = Counted("HudChests", "Chests");
+    public static readonly Toggle HudRunePrisons = Counted("HudRunePrisons", "Rune prisons");
+    public static readonly Toggle HudForges = Counted("HudForges", "Forges");
+    public static readonly Toggle HudRifts = Counted("HudRifts", "Unstable rifts");
+    public static readonly Toggle HudKeys = Counted("HudKeys", "Keys");
+    public static readonly Toggle HudMaterials = Counted("HudMaterials", "Materials");
+    public static readonly Toggle HudFilter = Counted("HudFilter", "Loot filter items");
 
     public static readonly Section Debug = Group.Section("debug", "Debug");
     public static readonly Toggle ShowReach = new(Debug, "ShowReach", "Show reach", false)
@@ -85,15 +99,17 @@ internal static class InteractSettings
     {
         ("Green", "#59FF73"), ("Orange", "#FFBF4D"), ("Cyan", "#33D6FF"), ("Purple", "#B98CFF"), ("Red", "#FF5C5C"), ("White", "#FFFFFF"),
     };
+    /// <summary>The rings' colours when none is chosen.</summary>
+    public const string ItemRingDefault = "#59FF73", ObjectRingDefault = "#FFBF4D";
     public static readonly ColorSetting ItemRingColor = new(Debug, "ItemRingColor", "Item reach colour")
     {
-        EmptyLabel = "Default", Swatches = s_ringSwatches, VisibleWhen = () => ShowReach.Value, ShownWhen = ReachShown,
+        EmptyLabel = "Default", EmptyHex = ItemRingDefault, Swatches = s_ringSwatches, VisibleWhen = () => ShowReach.Value, ShownWhen = ReachShown,
         Help = "Keys, materials and loot.",
     };
     public static readonly ColorSetting ObjectRingColor = new(Debug, "ObjectRingColor", "Object reach colour")
     {
-        EmptyLabel = "Default", Swatches = s_ringSwatches, VisibleWhen = () => ShowReach.Value, ShownWhen = ReachShown,
-        Help = "Shrines, chests, rune prisons and forges.",
+        EmptyLabel = "Default", EmptyHex = ObjectRingDefault, Swatches = s_ringSwatches, VisibleWhen = () => ShowReach.Value, ShownWhen = ReachShown,
+        Help = "Shrines, chests and events.",
     };
 
     public static void Register() => Group.Register();

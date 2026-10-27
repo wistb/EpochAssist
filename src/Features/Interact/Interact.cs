@@ -275,7 +275,7 @@ internal static partial class Interact
     private static void Pick(Run run, Vector3 player)
     {
         run.HasBest = false;
-        if (KindOn(Shrines) || KindOn(Chests) || KindOn(RunePrisons) || KindOn(Forges)) OfferObjects(run, player);
+        if (KindOn(Shrines) || KindOn(Chests) || KindOn(RunePrisons) || KindOn(Forges) || KindOn(Rifts)) OfferObjects(run, player);
         if (!run.ItemsHeld && (KindOn(Keys) || KindOn(Materials) || KindOn(Filtered))) OfferItems(run, player);
     }
 
@@ -308,7 +308,7 @@ internal static partial class Interact
             if (kind == null || ListenerOf(run, entry) is not { } listener) continue;
             OfferListener(run, kind, entry.Name, listener, player, me);
         }
-        if (!chests && !KindOn(RunePrisons) && !KindOn(Forges)) return;
+        if (!chests && !KindOn(RunePrisons) && !KindOn(Forges) && !KindOn(Rifts)) return;
         if (Clock.Now >= run.NextListedScan)
         {
             run.NextListedScan = Clock.Now + ListedScanSeconds;
@@ -427,13 +427,16 @@ internal static partial class Interact
         return parts.Count > 0 ? string.Join(", ", parts) : "not seen yet in this zone";
     }
 
-    /// <summary>Uses this session, every kind together.</summary>
+    /// <summary>Uses this session of the kinds the mini HUD counts.</summary>
     public static int SessionTotal
     {
         get
         {
             int total = 0;
-            foreach (var n in s_sessionCounts.Values) total += n;
+            foreach (var kind in Kinds)
+            {
+                if (kind.Counted.Value && s_sessionCounts.TryGetValue(kind.Id, out int n)) total += n;
+            }
             return total;
         }
     }

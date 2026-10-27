@@ -8,9 +8,10 @@ namespace EpochAssist.Features;
 /// <summary>One kind the feature uses: its switch, the requirement group it needs, and whether it is a ground item.</summary>
 internal sealed class InteractKind
 {
-    public InteractKind(string id, string label, string one, Toggle toggle, string group, bool isItem)
+    public InteractKind(string id, string label, string one, Toggle toggle, Toggle counted, string group, bool isItem)
     {
         Id = id;
+        Counted = counted;
         Label = label;
         One = one;
         Toggle = toggle;
@@ -23,6 +24,8 @@ internal sealed class InteractKind
     /// <summary>One of the kind, for a use without a name of its own ("Used Rune prison").</summary>
     public string One { get; }
     public Toggle Toggle { get; }
+    /// <summary>Whether the mini HUD count adds this kind's uses.</summary>
+    public Toggle Counted { get; }
     /// <summary>The feature's optional group the kind needs; while it is missing the kind is unavailable.</summary>
     public string Group { get; }
     public bool IsItem { get; }
@@ -36,15 +39,16 @@ internal static partial class Interact
     public const string FilterGroup = "items: filter verdict";
     public const string InventoryGroup = "items: inventory count";
 
-    public static readonly InteractKind Shrines = new("shrines", "Shrines", "Shrine", S.Shrines, ObjectsGroup, false);
-    public static readonly InteractKind Chests = new("chests", "Chests", "Chest", S.Chests, ObjectsGroup, false);
-    public static readonly InteractKind RunePrisons = new("runeprisons", "Rune prisons", "Rune prison", S.RunePrisons, ObjectsGroup, false);
-    public static readonly InteractKind Forges = new("forges", "Forges", "Forge", S.Forges, ObjectsGroup, false);
-    public static readonly InteractKind Keys = new("keys", "Keys", "Key", S.Keys, ItemsGroup, true);
-    public static readonly InteractKind Materials = new("materials", "Materials", "Material", S.Materials, ItemsGroup, true);
-    public static readonly InteractKind Filtered = new("filter", "Loot filter items", "Item", S.FilterShown, FilterGroup, true);
+    public static readonly InteractKind Shrines = new("shrines", "Shrines", "Shrine", S.Shrines, S.HudShrines, ObjectsGroup, false);
+    public static readonly InteractKind Chests = new("chests", "Chests", "Chest", S.Chests, S.HudChests, ObjectsGroup, false);
+    public static readonly InteractKind RunePrisons = new("runeprisons", "Rune prisons", "Rune prison", S.RunePrisons, S.HudRunePrisons, ObjectsGroup, false);
+    public static readonly InteractKind Forges = new("forges", "Forges", "Forge", S.Forges, S.HudForges, ObjectsGroup, false);
+    public static readonly InteractKind Rifts = new("rifts", "Unstable rifts", "Unstable rift", S.Rifts, S.HudRifts, ObjectsGroup, false);
+    public static readonly InteractKind Keys = new("keys", "Keys", "Key", S.Keys, S.HudKeys, ItemsGroup, true);
+    public static readonly InteractKind Materials = new("materials", "Materials", "Material", S.Materials, S.HudMaterials, ItemsGroup, true);
+    public static readonly InteractKind Filtered = new("filter", "Loot filter items", "Item", S.FilterShown, S.HudFilter, FilterGroup, true);
 
-    public static readonly InteractKind[] Kinds = { Shrines, Chests, RunePrisons, Forges, Keys, Materials, Filtered };
+    public static readonly InteractKind[] Kinds = { Shrines, Chests, RunePrisons, Forges, Rifts, Keys, Materials, Filtered };
 
     // Base types the game gives crafting materials and keys (affix shards, runes, glyphs; keys). The loot filter never
     // judges these, so only their own switches pick them up.
@@ -57,6 +61,9 @@ internal static partial class Interact
     private const string RunePrisonName = "Rune Prison Visuals";
     // An echo's forge: using it starts its event (its own switch). It can trigger again, so a used one is remembered.
     private const string ForgeName = "Client_Forge";
+    // An echo's unstable rift: using it starts its event where the player stands (the Time Beast rift, which moves the
+    // player, is never one). It can trigger again too.
+    private const string RiftName = "Client_UnstableRift";
 
     // Kept below the game's reach, so a frame of movement can't put the call past the edge: the game's click handler
     // walks the character to anything farther.
@@ -97,6 +104,7 @@ internal static partial class Interact
             string name = t!.gameObject.name;
             if (name.Contains(RunePrisonName)) return RunePrisons;
             if (name.Contains(ForgeName)) return Forges;
+            if (name.Contains(RiftName)) return Rifts;
             foreach (var marker in s_echoChestNames)
             {
                 if (name.Contains(marker)) return Chests;
