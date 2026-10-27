@@ -29,6 +29,8 @@ internal sealed class Number : Setting<float>
     public float Max { get; }
     /// <summary>Values snap to multiples of this.</summary>
     public float Step { get; init; } = 1f;
+    /// <summary>Drawn as a slider across its range instead of a field with steppers.</summary>
+    public bool Slider { get; init; }
     public string Unit { get; init; } = string.Empty;
     public bool Percent { get; init; }
     /// <summary>For settings that move the UI itself (scale): the value applies when the slider is let go.</summary>

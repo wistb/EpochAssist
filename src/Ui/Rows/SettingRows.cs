@@ -51,6 +51,7 @@ internal static class SettingRows
     {
         Choice<int> c => ChoiceLabels(c),
         Choice<KeyCode> c => ChoiceLabels(c),
+        Choice<string> c => ChoiceLabels(c),
         Pick p => PickOptions(p).Options,
         ColorSetting c => ColorPicker.Options(c),
         _ => Array.Empty<string>(),
@@ -76,8 +77,9 @@ internal static class SettingRows
     public static float ControlWidth(Setting setting) => setting switch
     {
         Toggle => Controls.SwitchWidth,
+        Number { Slider: true } => Slider.Width,
         Number => NumberField.Width,
-        Choice<int> or Choice<KeyCode> or Pick => Dropdown.WidthFor(OptionLabels(setting)),
+        Choice<int> or Choice<KeyCode> or Choice<string> or Pick => Dropdown.WidthFor(OptionLabels(setting)),
         ColorSetting color => ColorPicker.WidthFor(color),
         Key or Hotkey => KeyWidth(setting),
         _ => 120f,
@@ -105,6 +107,7 @@ internal static class SettingRows
         Number n => n.Format(n.Value),
         Choice<int> c => c.ValueLabel,
         Choice<KeyCode> c => c.ValueLabel,
+        Choice<string> c => c.ValueLabel,
         Pick p => PickOptions(p).Index >= 0 ? p.Value : "missing: " + p.Value,
         ColorSetting c => c.Value.Length > 0 ? c.Value : c.EmptyLabel,
         Key or Hotkey => KeyParts(setting).Text,
@@ -114,8 +117,9 @@ internal static class SettingRows
     public static string KindText(Setting setting) => setting switch
     {
         Toggle => "switch",
+        Number { Slider: true } => "slider",
         Number => "number",
-        Choice<int> or Choice<KeyCode> or Pick => "dropdown",
+        Choice<int> or Choice<KeyCode> or Choice<string> or Pick => "dropdown",
         ColorSetting => "colour",
         Key or Hotkey => "key",
         _ => "setting",
@@ -143,6 +147,9 @@ internal static class SettingRows
             case Toggle toggle:
                 if (Controls.Switch(new Rect(r.x, r.y, Controls.SwitchWidth, r.height), toggle.Value, key, tip) != toggle.Value) Flip(toggle, "menu");
                 break;
+            case Number { Slider: true } number:
+                Slider.Draw(r, key, number, tip);
+                break;
             case Number number:
                 NumberField.Draw(r, key, number, tip);
                 break;
@@ -150,6 +157,9 @@ internal static class SettingRows
                 Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip);
                 break;
             case Choice<KeyCode> choice:
+                Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip);
+                break;
+            case Choice<string> choice:
                 Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip);
                 break;
             case Pick pick:

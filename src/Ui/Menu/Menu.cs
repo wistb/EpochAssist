@@ -165,6 +165,7 @@ internal static class Menu
             Focus.Reset();
             Popups.Reset();
             NumberField.Reset();
+            Slider.Reset();
             GUIUtility.keyboardControl = 0;
             Config.Save();
         }
