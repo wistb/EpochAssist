@@ -31,7 +31,7 @@ internal static partial class Theme
     public static Texture2D Flat = null!, FieldBg = null!, FieldOpen = null!, InputBox = null!, InputFocus = null!, PopupBg = null!;
     public static Texture2D ButtonBg = null!, ButtonHover = null!, PrimaryBg = null!, PrimaryHover = null!, HighlightBg = null!, SelectionBg = null!, HoverBg = null!;
     public static Texture2D SmallOff = null!, SmallOffHover = null!, SmallOn = null!, SmallOnHover = null!;
-    public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!;
+    public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, TreeCollapseAll = null!, TreeExpandAll = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!;
     public static Texture2D TagBg = null!, SidebarFill = null!;
 
     private static void BuildMenu(GUISkin skin, ThemeValues v)
@@ -132,6 +132,9 @@ internal static partial class Theme
         // The tree's expanders: a smaller chevron than the dropdowns', drawn at its own size so it stays sharp.
         TreeChevron = Paint(8, 8, (x, y) => Shade(Color.white, SmallChevron(x + 0.5f, y + 0.5f)));
         TreeChevronRight = Paint(8, 8, (x, y) => Shade(Color.white, SmallChevron(x + 0.5f, y + 0.5f, right: true)));
+        // Collapse all and expand all: two chevrons pointing toward each other, or away.
+        TreeCollapseAll = Paint(8, 12, (x, y) => Shade(Color.white, DoubleChevron(x + 0.5f, y + 0.5f, inward: true)));
+        TreeExpandAll = Paint(8, 12, (x, y) => Shade(Color.white, DoubleChevron(x + 0.5f, y + 0.5f, inward: false)));
         // Stepper arrows, white and tinted when drawn: small triangles (the game's fonts have no arrow glyphs).
         StepUp = Paint(8, 5, (x, y) => Shade(Color.white, Mathf.Clamp01(Triangle(x + 0.5f, y + 0.5f, up: true))));
         StepDown = Paint(8, 5, (x, y) => Shade(Color.white, Mathf.Clamp01(Triangle(x + 0.5f, y + 0.5f, up: false))));
@@ -172,6 +175,23 @@ internal static partial class Theme
     }
 
     // A chevron in an 8 x 8 texture: two strokes meeting low in the middle, or at the right (rows count from the bottom).
+    // Two of the tree's chevrons, stacked in an 8 × 12 box (y up): pointing toward the middle, or away from it.
+    private static float DoubleChevron(float px, float py, bool inward)
+    {
+        static float Segment(float px, float py, float ax, float ay, float bx, float by)
+        {
+            float dx = bx - ax, dy = by - ay;
+            float t = Mathf.Clamp01(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
+            float ex = px - (ax + t * dx), ey = py - (ay + t * dy);
+            return Mathf.Sqrt(ex * ex + ey * ey);
+        }
+        float Chevron(float tipY, float armY) => Mathf.Min(Segment(px, py, 1.5f, armY, 4f, tipY), Segment(px, py, 4f, tipY, 6.5f, armY));
+        float d = inward
+            ? Mathf.Min(Chevron(7.5f, 10f), Chevron(4.5f, 2f))
+            : Mathf.Min(Chevron(10f, 7.5f), Chevron(2f, 4.5f));
+        return Mathf.Clamp01(1.25f - d);
+    }
+
     private static float SmallChevron(float px, float py, bool right = false)
     {
         static float Segment(float px, float py, float ax, float ay, float bx, float by)

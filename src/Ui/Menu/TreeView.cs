@@ -3,11 +3,11 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// The compact tree on the left (200 px): the menu's search, then the shown tab's folders and nodes, each node with its
-// groups, items and pages on 20 px rows. The search shows its results across every tab on the page and narrows the tree
-// to the names that match. A node carries its feature's on/off dot; a node that isn't running is dimmed and shows its
-// state's shape. The page shown has the selection fill. Left and Right close and open folders and nodes, or move to the
-// parent or first child.
+// The compact tree on the left (200 px): a collapse-all button and the menu's search, then the shown tab's folders and
+// nodes, each node with its groups, items and pages on 20 px rows. The search shows its results across every tab on the
+// page and narrows the tree to the names that match. A node carries its feature's on/off dot; a node that isn't running
+// is dimmed and shows its state's shape. The page shown has the selection fill. Left and Right close and open folders
+// and nodes, or move to the parent or first child.
 internal static class TreeView
 {
     public const float Width = 200f;
@@ -116,11 +116,14 @@ internal static class TreeView
     public static void Draw(Rect area)
     {
         Focus.Scope = string.Empty;
-        var filter = new Rect(area.x + 6f, area.y + 6f, area.width - 12f, FilterHeight);
+        // The button sits in the top-level rows' chevron column (their x + 6), the search to its right.
+        var collapse = new Rect(area.x + 6f, area.y + 6f, 12f, FilterHeight);
+        var filter = new Rect(collapse.xMax + 4f, area.y + 6f, area.xMax - 6f - collapse.xMax - 4f, FilterHeight);
         SearchField(filter);
 
         var tab = MenuRoutes.Page?.Node.Tab;
         if (tab == null) return;
+        CollapseAll(collapse, tab);
         var rows = Rows(tab);
         var view = new Rect(area.x, filter.yMax + 6f, area.width, area.yMax - filter.yMax - 8f);
         float content = rows.Sum(r => RowHeight * r.Open);
@@ -202,6 +205,22 @@ internal static class TreeView
         if (Event.current.type != EventType.Repaint) return;
         if (Menu.Search.Length == 0 && !SearchFocused) Widgets.Paint(field, "Search", Widgets.Style(() => Theme.FieldDim, GUI.skin.label));
         else if (hasText && Widgets.Themed) Theme.Tinted(new Rect(clear.center.x - 5f, clear.center.y - 5f, 10f, 10f), Theme.Cross, clear.Contains(Event.current.mousePosition) ? Theme.Text : Theme.Dim);
+    }
+
+    // Closes every folder and node in the tab, or opens them all again once all are closed.
+    private static void CollapseAll(Rect r, MenuTab tab)
+    {
+        var keys = tab.Nodes.SelectMany(n => new[] { n.FolderPath, n.Leaf ? null : n.Path }).OfType<string>().Distinct().ToList();
+        if (keys.Count == 0) return;
+        bool allClosed = keys.All(s_closed.Contains);
+        if (GUI.Button(r, GUIContent.none, GUIStyle.none))
+        {
+            if (allClosed) s_closed.ExceptWith(keys);
+            else s_closed.UnionWith(keys);
+        }
+        if (Event.current.type == EventType.Repaint && Widgets.Themed)
+            Theme.Tinted(new Rect(r.x + 2f, Mathf.Round(r.center.y - 6f), 8f, 12f), allClosed ? Theme.TreeExpandAll : Theme.TreeCollapseAll,
+                r.Contains(Event.current.mousePosition) ? Theme.Text : Theme.Dim);
     }
 
     /// <summary>Lets go of the search field (Esc), at the next GUI pass.</summary>
