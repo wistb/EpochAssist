@@ -46,6 +46,9 @@ internal abstract class Feature
     /// <summary>A non-null name puts the feature on the HUD pill, showing its Status.</summary>
     public virtual string? StatusName => null;
 
+    /// <summary>A short text after the status name on the HUD pill ("Interact 12"); null for none.</summary>
+    public virtual string? StatusBadge => null;
+
     /// <summary>What the feature is doing, for the HUD, menu and bridge.</summary>
     public virtual FeatureStatus Status =>
         State == FeatureState.Running ? new FeatureStatus(StatusState.Active, string.Empty, null) : FeatureStatus.Off(LastError ?? string.Empty);

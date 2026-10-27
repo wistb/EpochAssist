@@ -138,7 +138,8 @@ internal static class Hud
         {
             bool running = feature.State == FeatureState.Running;
             FeatureStatus status = running ? feature.Status : FeatureStatus.Off(feature.Status.Detail);
-            var label = new GUIContent(feature.StatusName);
+            // A badge reads as part of the label, so the section's width includes it.
+            var label = new GUIContent(feature.StatusBadge is { } badge ? $"{feature.StatusName} {badge}" : feature.StatusName);
             float labelWidth = Theme.PillLabel.CalcSize(label).x;
             float sectionWidth = 8f + 8f + labelWidth + (status.Slots is { Length: > 0 } slots ? 8f + slots.Length * PipSize + (slots.Length - 1) * 3f : 0f);
             float end = sectionWidth + (status.Slots != null ? 8f : 12f);
