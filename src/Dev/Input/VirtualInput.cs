@@ -24,6 +24,7 @@ internal static class VirtualInput
     // Keys pressed to type a character, whose window message was the character.
     private static readonly HashSet<KeyCode> s_typedKeys = new();
     private static Vector2? s_pointer;
+    private static int s_wheelPending, s_wheel;
     private static int s_tickFrame = -1;
     private static bool s_releasing;
 
@@ -50,6 +51,16 @@ internal static class VirtualInput
     {
         Tick();
         return s_releasedKeys.Contains(key);
+    }
+
+    /// <summary>Wheel notches this frame (+ is up), for the game's own UI.</summary>
+    public static int Wheel
+    {
+        get
+        {
+            Tick();
+            return s_wheel;
+        }
     }
 
     public static bool AnyHeld
@@ -113,6 +124,14 @@ internal static class VirtualInput
         if (point is { } p) WindowMessages.Move(p, Flags());
     }
 
+    /// <summary>Turns the wheel at the next frame, for one frame (+ is up).</summary>
+    public static void QueueWheel(int notches)
+    {
+        s_wheelPending += notches;
+        s_releasing = false;
+        Active = true;
+    }
+
     public static bool IsHeld(KeyCode key)
     {
         for (int i = s_pending.Count - 1; i >= 0; i--)
@@ -171,6 +190,7 @@ internal static class VirtualInput
             s_pressedKeys.Clear();
             s_releasedKeys.Clear();
             s_pending.Clear();
+            s_wheel = s_wheelPending = 0;
             s_typedKeys.Clear();
             s_releasing = false;
             Active = false;
@@ -208,6 +228,8 @@ internal static class VirtualInput
         s_tickFrame = frame;
         if (s_pressedKeys.Count > 0) s_pressedKeys.Clear();
         if (s_releasedKeys.Count > 0) s_releasedKeys.Clear();
+        s_wheel = s_wheelPending;
+        s_wheelPending = 0;
         if (s_pending.Count == 0) return;
 
         foreach (var c in s_pending)

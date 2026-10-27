@@ -6,8 +6,8 @@ namespace EpochAssist.Dev;
 /// <summary>
 /// The bridge's input verbs, named after tools/devloader/input.ps1's steps: they press keys, click, hold, point and
 /// type inside the game through VirtualInput, without moving the real cursor or taking focus. Coordinates are
-/// game-window pixels from the top left. There is no wheel (Unity takes no posted wheel); PageUp and PageDown scroll
-/// the menu. Offline only, and bridge only, so the end of a batch can let go of what a verb left held.
+/// game-window pixels from the top left. The wheel reaches only the game's own panels (Unity takes no posted wheel, so
+/// the mod's menu doesn't scroll by it). Offline only, and bridge only, so the end of a batch can let go of what a verb left held.
 /// </summary>
 internal static class InputCommands
 {
@@ -43,6 +43,7 @@ internal static class InputCommands
         Add("press", "press <x> <y> <left|right|middle> <ms>", "Holds a mouse button at a game-window pixel for a time.", Press);
         Add("cursor", "cursor <x> <y>", "Moves the injected pointer to a game-window pixel; a held button drags.", Cursor);
         Add("button", "button down|up <left|right|middle> [x y]", "Holds or releases a mouse button inside the game, for drags.", Button);
+        Add("wheel", "wheel <x> <y> <notches>", "Turns the wheel over the game's own panels (+ is up); the mod's menu takes no wheel.", Wheel);
         Add("type", "type <text>", "Types text inside the game: letters, digits, space and US-layout punctuation.", Type);
         Add("inputblock", "inputblock", "Shows the game's own input switch (on while the window is really unfocused) and every change to it seen this run.", _ =>
             CommandResult.Ok(InputBlockWatch.Describe()));
@@ -141,6 +142,18 @@ internal static class InputCommands
         GameUiPointer.Available || (Ui.Menu.Visible && InputGate.MenuHitTest?.Invoke(at) == true) || InputGate.HudHitTest?.Invoke(at) == true
             ? null
             : CommandResult.Error($"{call.Name}: {at.x:F0} {at.y:F0} is not on the menu or the HUD, and the game UI pointer patch is missing (the game would take the click at the real cursor)");
+
+    private static CommandResult Wheel(CommandCall call)
+    {
+        if (!TryPoint(call, 1, out var at, out var error)) return error!;
+        if (call.Args.Length < 3 || !int.TryParse(call.Args[2], out int notches) || notches == 0)
+            return CommandResult.Error("usage: wheel <x> <y> <notches, + is up>");
+        if (!GameUiPointer.Available) return CommandResult.Error("wheel: the game UI pointer patch is missing, so nothing would take it");
+        return Run($"wheel {at.x:F0} {at.y:F0} {notches}", new Script()
+            .Do(() => VirtualInput.QueuePointer(at))
+            .Do(() => VirtualInput.QueueWheel(notches))
+            .Do(() => { }));
+    }
 
     private static CommandResult Type(CommandCall call)
     {

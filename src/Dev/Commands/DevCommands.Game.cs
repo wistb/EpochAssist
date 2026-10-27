@@ -35,6 +35,9 @@ internal static partial class DevCommands
         {
             return CommandResult.Error($"{call.Line}: usage move <x> <y> [true|false]");
         }
+        // input.ps1's "move" moves the pointer; pixel numbers here would walk the character instead.
+        if (Mathf.Abs(mx) > 1f || Mathf.Abs(my) > 1f)
+            return CommandResult.Error($"{call.Line}: move walks the character in a direction from -1 to 1 (such as move 0 1); to move the pointer use cursor <x> <y>");
         mpm!.ProcessKeyboardMovement(new Vector2(mx, my), call.Lower(3) != "false");
         return CommandResult.Ok(call.Line);
     }

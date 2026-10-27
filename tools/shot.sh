@@ -13,8 +13,9 @@
 # Input (offline, game may stay unfocused; x y are game-window pixels from the top left): reaches the mod's menu and HUD,
 #           the game's panels and the game's key actions (movement, map, skills; aimed skills need a cursor step first).
 #           key <Key> [ms], down <Key>, up <Key>, click <x> <y> [left|right|middle], press <x> <y> <button> <ms>,
-#           button down|up <button> [x y], cursor <x> <y>, type <text>, input, wait <n>ms. No wheel. A batch's end lets go
-#           of every key and button. Use tools/devloader/input.ps1 only to prove real OS input reaches the game.
+#           button down|up <button> [x y], cursor <x> <y>, wheel <x> <y> <notches> (game panels only; the mod's menu
+#           takes no wheel), type <text>, input, inputblock, wait <n>ms. move walks the character, it never moves the
+#           pointer. A batch's end lets go of every key and button. Use tools/devloader/input.ps1 only to prove real OS input reaches the game.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

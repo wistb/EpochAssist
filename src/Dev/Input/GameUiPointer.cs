@@ -26,6 +26,18 @@ internal static class GameUiPointer
         }
     }
 
+    public const string WheelMember = "Rewired_UI_IMouseInputSource_get_wheelDelta";
+
+    // The game's UI scrolls by its mouse source's wheel; Unity takes no posted wheel, so the bridge's comes in here.
+    [HarmonyPatch(typeof(RewiredPointerInputModule.UnityInputSource), WheelMember)]
+    internal static class WheelPatch
+    {
+        private static void Postfix(ref Vector2 __result)
+        {
+            if (VirtualInput.Active && VirtualInput.Wheel is int notches && notches != 0) __result = new Vector2(0f, notches);
+        }
+    }
+
     /// <summary>Whether the patch is in place: the dev feature runs and the game has the member.</summary>
     public static bool Available => Core.FeatureHost.Find("dev") is { State: Core.FeatureState.Running } dev && dev.Has(Group);
 }

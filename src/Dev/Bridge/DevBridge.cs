@@ -18,7 +18,7 @@ namespace EpochAssist.Dev;
 ///            instances [type] [count]   inspect [target] [member.path]   statics [type]   watch [target] [member.path] [seconds]|stop
 ///            hovered
 ///            key <Key> [ms]   down <Key>   up <Key>   click <x> <y> [button]   press <x> <y> <button> <ms>   cursor <x> <y>
-///            button down|up <button> [x y]   type <text>   input
+///            button down|up <button> [x y]   wheel <x> <y> <notches>   type <text>   input
 /// Input verbs press keys for the mod's own reads and post mouse and key messages to the game window (the real cursor,
 /// focus and other windows are untouched); the end of a batch lets go of everything they left held.
 /// Screenshots: Unity saves the full screen, then the mod crops it and writes shots/[name].png.
@@ -177,13 +177,14 @@ internal sealed class DevBridgeFeature : Feature
         Need<Il2CppLE.UI.Minimap.Minimap>(nameof(Il2CppLE.UI.Minimap.Minimap.mapParameters), MapCommands.ZoomGroup),
         Need<Il2Cpp.UIBase>(nameof(Il2Cpp.UIBase.overlayMapOpen), MapCommands.ZoomGroup),
         Need<Il2CppRewired.Integration.UnityUI.RewiredPointerInputModule.UnityInputSource>(GameUiPointer.Member, GameUiPointer.Group),
+        Need<Il2CppRewired.Integration.UnityUI.RewiredPointerInputModule.UnityInputSource>(GameUiPointer.WheelMember, GameUiPointer.Group),
         Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButton), GameActions.Group),
         Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButtonDown), GameActions.Group),
         Need<Il2CppRewired.Player>(nameof(Il2CppRewired.Player.GetButtonUp), GameActions.Group),
         Need<Application>(nameof(Application.isFocused), GameFocus.Group),
         Need<Il2Cpp.EpochInputManager>(nameof(Il2Cpp.EpochInputManager.GetMousePosition), GameActions.Group),
     };
-    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch), typeof(GameUiPointer.ScreenPositionPatch),
+    public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch), typeof(GameUiPointer.ScreenPositionPatch), typeof(GameUiPointer.WheelPatch),
         typeof(GameActions.ButtonPatch), typeof(GameActions.ButtonDownPatch), typeof(GameActions.ButtonUpPatch), typeof(GameActions.MousePositionPatch),
         typeof(GameFocus.IsFocusedPatch) };
     public override IReadOnlyDictionary<Type, string> PatchGroups { get; } = new Dictionary<Type, string>
@@ -192,6 +193,7 @@ internal sealed class DevBridgeFeature : Feature
         [typeof(MapCommands.StampSingularPatch)] = MapCommands.StampGroup,
         [typeof(MapCommands.ZoomPatch)] = MapCommands.ZoomGroup,
         [typeof(GameUiPointer.ScreenPositionPatch)] = GameUiPointer.Group,
+        [typeof(GameUiPointer.WheelPatch)] = GameUiPointer.Group,
         [typeof(GameActions.ButtonPatch)] = GameActions.Group,
         [typeof(GameActions.ButtonDownPatch)] = GameActions.Group,
         [typeof(GameActions.ButtonUpPatch)] = GameActions.Group,
