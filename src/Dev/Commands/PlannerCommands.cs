@@ -23,8 +23,6 @@ internal static class PlannerCommands
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
     // The frames measured before a link paste, to compare the longest frame while it runs with.
     private const float BaselineSeconds = 10f;
-    // The game's panels are found by an object search, so it's repeated at most this often while one isn't found.
-    private const float FindSeconds = 0.5f;
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
@@ -49,6 +47,7 @@ internal static class PlannerCommands
         "nodes" => Nodes(call),
         "skills" => Skills(),
         "selector" => Selector(call),
+        "screen" => ScreenCommand(call),
         "open" => OpenCommand(call),
         "tab" => Tab(call),
         "mastery" => Mastery(),
@@ -73,15 +72,23 @@ internal static class PlannerCommands
         s_watch = null;
         s_watchLast = string.Empty;
         Planner.Fetch.TestHost(null);
-        s_panels.Clear();
+        Planner.Panels.Forget();
     }
 
+    // The feature's view: its switch, the character (mode and slot only), the active build and stage, the allocation's
+    // signature, the guided panel open, the marks and the last fetch.
     private static CommandResult Status()
     {
+        var feature = FeatureHost.Find("planner");
+        string running = feature == null ? "not registered" : feature.State.ToString().ToLowerInvariant();
+        var build = Planner.ActiveBuild;
+        string active = build != null ? $"{build.Id} \"{build.Name}\" stage {Planner.ActiveStage + 1} of {build.Stages.Count}" : "none";
+        var allocation = Planner.CurrentAllocation;
+        string signature = allocation != null ? $"{allocation.Signature:X16}{(allocation.Stale ? " (stale)" : string.Empty)}" : "none";
         var last = Planner.Fetch.Last;
         string fetch = Planner.Fetch.Busy ? "running" : last != null ? $"{last.State} ({last.Status}, {last.Bytes} bytes, {F(last.Ms)} ms)" : "none";
-        return CommandResult.Ok($"planner: build {(s_build != null ? $"{s_build.Id} ({s_build.Stages.Count} stages)" : "none")}, open {OpenPanels()}, "
-            + $"watch {(s_watch is { Pending: true } ? "on" : "off")}, test host {Planner.Fetch.TestHostNow ?? "none"}, last fetch {fetch}");
+        return CommandResult.Ok($"planner: switch {(PlannerSettings.Enabled.Value ? "on" : "off")} ({running}), character {Planner.CharacterLabel ?? "none"}, "
+            + $"build {active}, signature {signature}, open {Planner.OpenPanel}, marks {Planner.Marks.Count}, last fetch {fetch}");
     }
 
     // ---- trees ----
@@ -126,27 +133,10 @@ internal static class PlannerCommands
 
     // ---- nodes and skills ----
 
-    // The game's panels by type, found once and checked for being open each time.
-    private static readonly Dictionary<Type, (UnityEngine.Object? Found, float NextFind)> s_panels = new();
+    // The game's panels by type, found once and checked for being open each time, the same way the feature finds them.
+    private static T? Panel<T>() where T : Component => Planner.Panels.Find<T>();
 
-    private static T? Panel<T>() where T : Component
-    {
-        s_panels.TryGetValue(typeof(T), out var entry);
-        if (entry.Found is T found && Game.Alive(found)) return found;
-        if (Clock.Now < entry.NextFind) return null;
-        T? live = null;
-        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<T>(), true))
-        {
-            var t = obj.TryCast<T>();
-            if (!Game.Alive(t)) continue;
-            live = t;
-            if (t!.gameObject.activeInHierarchy) break;
-        }
-        s_panels[typeof(T)] = (live, Clock.Now + FindSeconds);
-        return live;
-    }
-
-    private static bool Open(Component? c) => Game.Alive(c) && c!.gameObject.activeInHierarchy;
+    private static bool Open(Component? c) => Planner.Panels.Open(c);
 
     private static string OpenPanels()
     {
@@ -187,6 +177,14 @@ internal static class PlannerCommands
             var node = tree.getNode(id);
             if (!Game.Alive(node)) return CommandResult.Ok($"planner nodes {id}: not in tree {tree.treeID}");
             var lines = new List<string> { $"ok planner nodes {id}: {node!.nodeName}, rect {Rect(node.transform)}" };
+            // Every image under the node, so a mark can borrow the hexagon frame's sprite.
+            foreach (var image in node.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+            {
+                if (!Game.Alive(image) || image.name == "EA.PlannerMark") continue;
+                var sprite = image.sprite;
+                lines.Add($"image '{image.name}': sprite {(Game.Alive(sprite) ? $"'{sprite!.name}' tex '{sprite.texture?.name}' {sprite.rect.width}x{sprite.rect.height} border {sprite.border}" : "none")}, "
+                    + $"type {image.type}, colour {image.color}, active {image.gameObject.activeInHierarchy}, rect {Rect(image.transform)}");
+            }
             for (var t = node.transform; t != null; t = t.parent)
                 lines.Add($"{t.name}  local scale {V(t.localScale)}  lossy {V(t.lossyScale)}  pos {V(t.localPosition)}{(t.gameObject.activeSelf ? string.Empty : "  inactive")}");
             return new CommandResult(DevOutput.Reply("planner", lines));
@@ -241,6 +239,16 @@ internal static class PlannerCommands
                         lines.Add($"  offered {AbilityText(icon.ability)} slot {icon.slotToSpec} rect {Rect(icon.transform)}");
                 }
             }
+            // The five specialisation slots above an open tree, with the images that draw them.
+            foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<SpecialisedAbilityIcon>(), false))
+            {
+                var slot = obj.TryCast<SpecialisedAbilityIcon>();
+                if (!Game.Alive(slot)) continue;
+                lines.Add($"  slot icon {slot!.abilityNumber} {AbilityText(slot.ability)} rect {Rect(slot.transform)}");
+                foreach (var image in slot.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                    if (Game.Alive(image) && image.name != "EA.PlannerMark")
+                        lines.Add($"    image '{image.name}' sprite '{(Game.Alive(image.sprite) ? image.sprite!.name : "none")}' active {image.gameObject.activeInHierarchy} alpha {image.color.a:0.##} rect {Rect(image.transform)}");
+            }
             var spec = page.SkillsSpecialisationUIManager;
             if (Game.Alive(spec))
                 lines.Add($"skill respec: respeccing {spec!.Respeccing}, button {Control(spec.respecButton)}, stop {Control(spec.stopRespeccingButton)}");
@@ -268,6 +276,42 @@ internal static class PlannerCommands
             default: return CommandResult.Error("planner selector: usage planner selector open|close");
         }
         return CommandResult.Ok($"planner selector {call.Lower(2)}: open {selector.IsMenuOpened}");
+    }
+
+    // The menu UI scale and the resolution before the first change, so `restore` puts back exactly what was there.
+    private static (float Scale, int Width, int Height, FullScreenMode Mode)? s_screenBefore;
+
+    // planner screen [scale <v>|size <w> <h>|restore]: checks that marks stay on their nodes when the game's UI scale
+    // or the resolution changes; the scale goes through the game's own setting, which it saves.
+    private static CommandResult ScreenCommand(CommandCall call)
+    {
+        var gameplay = Il2CppLE.Settings.SettingsManager.Gameplay;
+        if (gameplay == null) return CommandResult.Error("planner screen: no gameplay settings");
+        string Now() => $"menu scale {gameplay.GetUIScale(UIScalingGroup.Menu).ToString("0.##", s_inv)}, {Screen.width}x{Screen.height} {Screen.fullScreenMode}";
+        void Remember() => s_screenBefore ??= (gameplay.GetUIScale(UIScalingGroup.Menu), Screen.width, Screen.height, Screen.fullScreenMode);
+        switch (call.Lower(2))
+        {
+            case "":
+                return CommandResult.Ok($"planner screen: {Now()}");
+            case "scale":
+                if (!float.TryParse(call.Lower(3), NumberStyles.Float, s_inv, out float scale)) return CommandResult.Error("planner screen: usage planner screen scale <value>");
+                Remember();
+                gameplay.SetUIScale(UIScalingGroup.Menu, scale);
+                return CommandResult.Ok($"planner screen scale: {Now()}");
+            case "size":
+                if (!int.TryParse(call.Lower(3), out int w) || !int.TryParse(call.Lower(4), out int h)) return CommandResult.Error("planner screen: usage planner screen size <w> <h>");
+                Remember();
+                Screen.SetResolution(w, h, Screen.fullScreenMode);
+                return CommandResult.Ok($"planner screen size: asked {w}x{h}");
+            case "restore":
+                if (s_screenBefore is not { } before) return CommandResult.Ok($"planner screen restore: nothing changed; {Now()}");
+                gameplay.SetUIScale(UIScalingGroup.Menu, before.Scale);
+                Screen.SetResolution(before.Width, before.Height, before.Mode);
+                s_screenBefore = null;
+                return CommandResult.Ok($"planner screen restore: asked scale {before.Scale.ToString("0.##", s_inv)}, {before.Width}x{before.Height} {before.Mode}");
+            default:
+                return CommandResult.Error("planner screen: usage planner screen [scale <v>|size <w> <h>|restore]");
+        }
     }
 
     private static string Control(GameObject? go) =>
@@ -566,6 +610,7 @@ internal static class PlannerCommands
         Planner.ForgetResolution(build.Id);
         s_build = build;
         var lines = new List<string> { $"ok planner import {name}: {build.Id} \"{build.Name}\" by {build.Author ?? "-"}, game {build.GameVersion ?? "-"}, {build.Stages.Count} stages, first {build.FirstStage + 1}" };
+        lines.Add("library: " + Planner.Add(build));
         // Resolved first, so Maxroll's skill names show with the ids they matched.
         var resolution = Planner.Resolve(build);
         lines.AddRange(StageLines(build));
@@ -743,7 +788,7 @@ internal static class PlannerCommands
         if (!PasteKind.Recognise(text).IsLink)
         {
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
-            var result = Planner.Fetch.Paste(text);
+            var result = Planner.Paste(text);
             double ms = FrameTimes.Ms(System.Diagnostics.Stopwatch.GetTimestamp() - start);
             if (result.Build != null) s_build = result.Build;
             return CommandResult.Ok($"planner paste: {result.Message} ({F(ms)} ms on the main thread)");
@@ -762,18 +807,19 @@ internal static class PlannerCommands
                 {
                     before = Math.Max(before, frame);
                     if (Clock.Now < baselineEnd) return null;
-                    var result = Planner.Fetch.Paste(text);
+                    var result = Planner.Paste(text);
                     startWords = result.Message;
                     if (!result.Started) return $"ok planner paste: {result.Message}";
                     started = true;
                     return null;
                 }
                 during = Math.Max(during, frame);
-                var attempt = Planner.Fetch.Poll() ?? (Planner.Fetch.Busy ? null : Planner.Fetch.Last);
+                // The feature's poll may take it first; then it's the last fetch, already in the library.
+                var attempt = Planner.PollFetch() ?? (Planner.Fetch.Busy ? null : Planner.Fetch.Last);
                 if (attempt == null) return null;
                 if (attempt.Build != null) s_build = attempt.Build;
                 return $"ok planner paste: {startWords} → {attempt.State}, status {attempt.Status}, {F(attempt.Ms)} ms, {attempt.Bytes} bytes, "
-                    + $"longest frame {F(during)} ms (10 s before: {F(before)} ms); {Planner.Words.Outcome(attempt)}";
+                    + $"longest frame {F(during)} ms (10 s before: {F(before)} ms); {Planner.ImportOutcome}";
             },
         };
     }
