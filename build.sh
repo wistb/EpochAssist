@@ -102,6 +102,10 @@ if [ "$mode" = dev ]; then
     mkdir -p "$dev"
     cp "$out/EpochAssist.pdb" "$dev/EpochAssist.pdb.tmp" && mv -f "$dev/EpochAssist.pdb.tmp" "$dev/EpochAssist.pdb"
     cp "$out/EpochAssist.dll" "$dev/EpochAssist.dll.tmp" && mv -f "$dev/EpochAssist.dll.tmp" "$dev/EpochAssist.dll"
+    # The planner fixtures are local only; the game reads them from the dev folder.
+    if [ -d "$root/.reference/fixtures/planner" ]; then
+        rm -rf "$dev/fixtures/planner" && mkdir -p "$dev/fixtures" && cp -r "$root/.reference/fixtures/planner" "$dev/fixtures/planner"
+    fi
     echo "Dev build in $dev; the game reloads it within a second"
 fi
 

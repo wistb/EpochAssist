@@ -8,6 +8,7 @@
 #           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name],
 #           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off,
 #           map [icons [n]|volumes|step radius|maxdist|patch on|off],
+#           planner [trees|nodes [id]|skills|selector open|close|open passive|skills|tree|picker|inventory|close|tab <n>|mastery|gear|idols|blessings|weaver|watch on|off|import [file]|check|resolve|show [stage]|paste [text]|host [url]|off],
 #           patchcheck [game version] (saves dev/patch-check.json for tools/release.sh). Shots land in UserData/EpochAssist/dev/shots/.
 set -euo pipefail
 
