@@ -46,6 +46,12 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   loot filter hides are never picked up.
   Every kind starts switched off. Optional: a hold key to pause it or to use things only while held, a count on the
   mini HUD (choose which kinds it counts), a notification for each use, and rings showing the reach.
+- **Map Reveal** (Configuration tab): shows the whole zone on the overlay map and the corner minimap, with the game's
+  own icons for shrines, rune prisons, caches, tomb chests and entrances, omen windows, nemesis and forges, without
+  walking up to them first. The overlay map can zoom out past the game's widest (the arrow keys pan it at a matching
+  speed), and the corner minimap can have its own zoom. Map look styles the ground, a thicker outline and the edges
+  (Slate, Clear or the game's own), and your own marker can be another of the game's icons, turned, tinted, scaled
+  and nudged. It changes only how the map is drawn: what you've explored and your game settings stay as they are.
 - **Session**: the Session tab shows this session's XP and gold per hour, drops by rarity, the drops your loot
   filter shows, deaths and echoes, and your past sessions. They are kept in `UserData/EpochAssist/sessions/` within
   limits you set; **Export CSV** writes them as two spreadsheet files. Switch it off under History.
