@@ -30,7 +30,6 @@ is drawn (`tools/shot.sh …`; shots land in `UserData/EpochAssist/dev/shots/`):
 | `hud` | The mini HUD with its quick toggles open (slots 1 and 3 ticked for the shot) | `run autocast.slot.1`, `run autocast.slot.3`, `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close`, the two slots off again |
 | `profiles` | Config › General › Profiles | `menu open combat/general/profiles`, `wait 90`, `shot menu profiles matte` |
 | `appearance` | Config › General › Interface › Appearance | `menu open combat/general/interface/appearance`, `wait 90`, `shot menu appearance matte` |
-| `keybinds` | Config › General › Interface › Keybinds | `menu open combat/general/interface/keybinds`, `wait 90`, `shot menu keybinds matte` |
 | `diagnostics` | Config › General › Diagnostics › Overview, offline (the summary names the mode; a dev build's says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time; an unfocused game runs few frames a second, so the wait takes longer) | `menu open combat/general/diagnostics/overview`, `wait 900`, `shot menu diagnostics matte` |
 | `settings-hud` | Config › General › Interface › Mini HUD, second image under Mini HUD (the HUD preview pokes 4 px past the menu's left and top edges; trim the image to the menu's 1600 × 1360) | `menu open combat/general/interface/mini-hud`, `wait 90`, `shot menu settings-hud matte` |
 

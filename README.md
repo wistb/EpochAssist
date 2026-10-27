@@ -69,12 +69,6 @@ Open the Config tab at the top of the menu. The search box above the tree on the
   ![Settings: Appearance](nexus/media/appearance.png)
 
   </details>
-- **Keybinds**: change any key.
-  <details><summary>Screenshot</summary>
-
-  ![Settings: Keybinds](nexus/media/keybinds.png)
-
-  </details>
 - **Diagnostics**: **Copy diagnostics** puts the mod's state on the clipboard for a bug report, without names or folder
   paths. **Mods** lists the other mods loaded and where they patch the same game code. Nothing is sent anywhere.
   <details><summary>Screenshot</summary>
