@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -222,6 +222,8 @@ internal static class PlannerCommands
             AddIcons(lines, "mastery 1", page.masteryClass1PanelIcons);
             AddIcons(lines, "mastery 2", page.masteryClass2PanelIcons);
             AddIcons(lines, "mastery 3", page.masteryClass3PanelIcons);
+            foreach (var (n, icon) in new[] { (1, page.masteryAbilityPanelIcon1), (2, page.masteryAbilityPanelIcon2), (3, page.masteryAbilityPanelIcon3) })
+                if (Game.Alive(icon)) lines.Add($"  mastery skill {n} {AbilityText(icon!.ability)} {(icon.gameObject.activeInHierarchy ? "shown" : "hidden")} rect {Rect(icon.transform)}");
             var specialised = Panel<SpecializedSkillsUIManager>();
             var icons = Open(specialised) ? specialised!._specializedSkillIcons : null;
             for (int i = 0; icons != null && i < icons.Count; i++)
@@ -304,6 +306,10 @@ internal static class PlannerCommands
             case "inventory":
                 ui!.openInventory(false, false, false, 0, false);
                 return CommandResult.Ok($"planner open inventory: UIBase.openInventory; open {ui.IsInventoryOpen()}");
+            // The mastery choice the game offers after its story quest; opening it here skips that quest.
+            case "mastery":
+                ui!.openMasteryPanel(false, false);
+                return CommandResult.Ok($"planner open mastery: UIBase.openMasteryPanel; open {ui.IsMasteryPanelOpen()}");
             case "close":
                 ui!.closeInventory();
                 ui.closePassiveTree();
@@ -311,7 +317,7 @@ internal static class PlannerCommands
                 if (Game.Alive(AbilityBarSelectorManager.instance) && AbilityBarSelectorManager.instance!.IsMenuOpened) AbilityBarSelectorManager.instance.CloseMenu(false);
                 return CommandResult.Ok($"planner open close: open {OpenPanels()}");
             default:
-                return CommandResult.Error("planner open: usage planner open passive|skills|tree <slot>|picker <slot>|inventory|close");
+                return CommandResult.Error("planner open: usage planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close");
         }
     }
 
