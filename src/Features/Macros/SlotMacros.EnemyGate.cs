@@ -1,9 +1,9 @@
 using EpochAssist.Core;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
-internal static partial class AutoCast
+internal static partial class SlotMacros
 {
     // The unscanned part, each update; the count itself is the enemy scan job.
     private static void UpdateEnemyGate(Run run)
@@ -53,7 +53,7 @@ internal static partial class AutoCast
         }
         catch (Exception e)
         {
-            Log.ErrorThrottled("autocast:targets", $"Target refresh failed: {e.Message}", 30);
+            Log.ErrorThrottled("macros:targets", $"Target refresh failed: {e.Message}", 30);
         }
         if (!SharedNearest(out float range)) return;
         try
@@ -63,11 +63,11 @@ internal static partial class AutoCast
         catch (Exception e)
         {
             run.ClosestEnemy = null;
-            Log.ErrorThrottled("autocast:enemies", $"Autocast enemy scan failed: {e.Message}", 30);
+            Log.ErrorThrottled("macros:enemies", $"Macros enemy scan failed: {e.Message}", 30);
         }
     }
 
-    // Whether the shared slot target is the old switch's nearest (else at cursor): the scan finds that enemy, as before.
+    // Whether the shared slot target is nearest within a range, else at cursor: the scan finds that enemy and the send re-checks it.
     private static bool SharedNearest(out float range)
     {
         var shared = S.SharedSlotTarget;
@@ -166,7 +166,7 @@ internal static partial class AutoCast
     }
 
     /// <summary>The gate entry's numbers as of the last count: whether it is on, its range, the enemies and their weight in
-    /// that range, and whether it lets autocast cast (for the Every slot page's readout and the dev gate verb).</summary>
+    /// that range, and whether it lets the slot macros cast (for the Every slot page's readout and the dev gate verb).</summary>
     public static (bool On, float Range, int Count, float Weight, bool Open, bool Counted) GateNow
     {
         get

@@ -169,7 +169,7 @@ internal sealed class TargetSpec
         WithAilment = key.WithAilment,
     };
 
-    /// <summary>The nearest enemy within a range, else at cursor: the old "nearest" aim and the old slot aiming switch.</summary>
+    /// <summary>The nearest enemy within a range, else at cursor: a cast step's "nearest" aim.</summary>
     public static TargetSpec OldNearest(float range) => new() { Pick = TargetPick.Nearest, Range = range };
 
     /// <summary>The old "hovered" aim: the hovered enemy anywhere in reach, else at cursor.</summary>

@@ -1,6 +1,6 @@
 using EpochAssist.Core;
 using UnityEngine;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
@@ -219,7 +219,7 @@ internal static partial class Macros
         if (number == PlayerModel.BarUnknown) return Skip(run, "bar unknown");
         run.CastSlot = number;
         // The first holder keeps a slot: a slot macro channelling it isn't interrupted.
-        if (AutoCast.SlotChannelHeld(number - 1)) return WaitFor(run, $"held by slot macro {number}", now, timeout);
+        if (SlotMacros.SlotChannelHeld(number - 1)) return WaitFor(run, $"held by slot macro {number}", now, timeout);
         var slot = PlayerModel.Slot(number);
         if (slot?.Ready == false)
         {
@@ -307,7 +307,7 @@ internal static partial class Macros
         if (target.Pick == TargetPick.Cursor || target.Newer != null) return AtCursor(null);
         if (target.Legacy)
         {
-            var enemy = target.Pick == TargetPick.Hovered ? AutoCast.HoveredEnemy() : World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = target.Range });
+            var enemy = target.Pick == TargetPick.Hovered ? SlotMacros.HoveredEnemy() : World.Nearest(new WorldQuery { Kind = WorldKind.Enemy, Alive = true, Active = true, Range = target.Range });
             if (enemy is { Gone: false, Dead: false }) return new Aimed(enemy.Position, null, false, Targets.EnemyWords(enemy));
             return AtCursor(target.Pick == TargetPick.Hovered ? "no hovered enemy" : $"no enemy within {ArgSpec.Format(target.Range)} m");
         }
@@ -329,7 +329,7 @@ internal static partial class Macros
 
     private static Vector3 CursorOrHero(out Transform? hit)
     {
-        Vector3? point = AutoCast.CursorPoint(out hit);
+        Vector3? point = SlotMacros.CursorPoint(out hit);
         if (point is Vector3 p) return p;
         hit = null;
         return Player.Transform is Transform t ? t.position : Vector3.zero;

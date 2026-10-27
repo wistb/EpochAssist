@@ -13,7 +13,7 @@ internal sealed class TargetDoc
     private static readonly JsonDocumentOptions s_readOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
     public int Version { get; private init; } = FormatVersion;
-    /// <summary>The shared slot target, or null while none is saved (the old aiming switch then decides).</summary>
+    /// <summary>The shared slot target, or null while none is saved (slot macros then aim at the cursor).</summary>
     public TargetSpec? Shared { get; set; }
     /// <summary>Slots' own targets by "form/slot" key, in stored order.</summary>
     public List<KeyValuePair<string, TargetSpec>> Slots { get; } = new();
@@ -195,7 +195,7 @@ internal sealed class TargetSetting : Setting<string>
         var doc = TargetDoc.Parse(value, out _);
         if (doc == null) return "?";
         if (doc.ReadOnly) return "made by a newer version";
-        string shared = doc.Shared != null ? doc.Shared.Words(TargetOwner.Slot) : "as the old aiming switch";
+        string shared = doc.Shared != null ? doc.Shared.Words(TargetOwner.Slot) : "at cursor";
         return doc.Slots.Count == 0 ? shared : $"{shared}; {doc.Slots.Count} slot{(doc.Slots.Count == 1 ? string.Empty : "s")} with their own";
     }
 

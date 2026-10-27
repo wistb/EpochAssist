@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// Chips across the page (Autocast's slots) and number groups (several numbers on one row, each labelled above).
+// Chips across the page (the slot macros) and number groups (several numbers on one row, each labelled above).
 internal static class ChipRows
 {
     public static void Register()

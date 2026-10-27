@@ -218,7 +218,7 @@ internal static class Conditions
 /// <summary>
 /// The condition lists features expose by name, for the dev cond and why verbs: a setting (with a short name for its
 /// whole document, "gate"), the list names it offers, how a name maps to a key, and the context a check of that list
-/// uses. AutoCast registers "every" and "1"–"5"; a name it doesn't list may still resolve ("-1/2").
+/// uses. The slot macros register "every" and "1"–"5"; a name it doesn't list may still resolve ("-1/2").
 /// </summary>
 internal static class ConditionTargets
 {

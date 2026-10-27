@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace EpochAssist.Features;
 
-internal static partial class AutoCast
+internal static partial class SlotMacros
 {
-    // Toggled slots pulse while autocast may cast (the enemy gate holding it counts); they turn blue while paused
+    // Toggled slots pulse while the slot macros may cast (the enemy gate holding it counts); they turn blue while paused
     // or while the hold-to-pause key is held.
     private static void UpdateIcons(Run run)
     {

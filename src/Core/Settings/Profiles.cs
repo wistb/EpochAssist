@@ -8,7 +8,7 @@ namespace EpochAssist.Core;
 /// Settings profiles: Default is the global settings in MelonPreferences; any other
 /// profile is a full set of every setting in UserData/EpochAssist/profiles/&lt;id&gt;.json. Each character uses one
 /// profile (Default until it picks another), remembered in UserData/EpochAssist/characters/&lt;key&gt;.json with the
-/// character's own data (autocast's slot toggles). While a character on a profile other than Default plays, every
+/// character's own data (the slot macros' toggles). While a character on a profile other than Default plays, every
 /// setting reads and writes that profile; out of game the Default profile is in use. A file this build can't read is
 /// left alone and Default is used instead.
 /// </summary>

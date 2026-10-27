@@ -1,9 +1,9 @@
 using EpochAssist.Core;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
-internal static partial class AutoCast
+internal static partial class SlotMacros
 {
     /// <summary>
     /// A run's condition verdicts, made each update: the every-slot list (its verdict drives the every-slot pause rule)
@@ -107,7 +107,7 @@ internal static partial class AutoCast
     /// <summary>The form whose lists apply now: the run's, or human out of game.</summary>
     public static int CurrentFormKey => s_run?.FormKey ?? HumanFormKey;
 
-    /// <summary>The every-slot list passes (true while autocast doesn't run).</summary>
+    /// <summary>The every-slot list passes (true while the slot macros don't run).</summary>
     public static bool EveryPasses => s_run?.Verdicts.EveryVerdict.Passed ?? true;
 
     /// <summary>The slot is toggled and its own conditions hold it back (chips show Paused, tree items Holding).</summary>
@@ -124,10 +124,10 @@ internal static partial class AutoCast
         CastTarget = slot >= 0 ? S.EffectiveSlotTarget(CurrentFormKey, slot) : S.SharedSlotTarget,
     };
 
-    /// <summary>Whether autocast counts enemies now (for the editor's "not counted (autocast off)").</summary>
+    /// <summary>Whether the slot macros count enemies now (for the editor's "not counted (macros off)").</summary>
     internal static bool Scanning => s_run is { Active: true };
 
-    // The every-slot list, each update while running (the pause rule needs it even while that rule holds autocast).
+    // The every-slot list, each update while running (the pause rule needs it even while that rule holds the slot macros).
     private static void CheckEvery(Run run)
     {
         long start = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -203,7 +203,7 @@ internal static partial class AutoCast
         string state = client != null ? Dispatcher.StatusOf(client).State.ToString().ToLowerInvariant() : "off";
         int form = CurrentFormKey;
         double ms = run?.Verdicts.LastSecondMs ?? 0.0;
-        lines.Add($"ok autocast {(run is { Active: true } ? "running" : "off")}, form {(form == HumanFormKey ? "human" : "transform")} ({form}), status {state}, "
+        lines.Add($"ok slot macros {(run is { Active: true } ? "running" : "off")}, form {(form == HumanFormKey ? "human" : "transform")} ({form}), status {state}, "
             + $"conditions {ms.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)} ms");
 
         var every = S.GateConditions.List(S.EveryList);

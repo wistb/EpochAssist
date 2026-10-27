@@ -80,7 +80,7 @@ internal sealed class PageNode
         _ => Array.Empty<Setting>(),
     };
 
-    /// <summary>"Config › Autocast", for the breadcrumb.</summary>
+    /// <summary>"Config › Macros", for the breadcrumb.</summary>
     public string Crumb => Node.Leaf ? Node.Place : Node.Crumb;
 }
 

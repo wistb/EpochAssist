@@ -10,7 +10,7 @@ namespace EpochAssist.Core;
 /// </summary>
 internal static class WorldSources
 {
-    // AutoCast's rule, kept for parity: these alignments are enemies.
+    // The slot macros' rule, kept for parity: these alignments are enemies.
     private const string HostileAlignmentName = "Evil";
     private const string HostileNeutralAlignmentName = "HostileNeutral";
 

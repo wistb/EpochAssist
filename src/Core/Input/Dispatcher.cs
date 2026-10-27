@@ -17,8 +17,8 @@ internal static partial class Dispatcher
     public const int SlotCount = 5;
     private const float PressSpacingSeconds = 0.1f;
 
-    /// <summary>The most automated presses in any one second: AutoCast's highest second measured on
-    /// five slots (43) plus 25%, so it never holds AutoCast back; it bounds every client together.</summary>
+    /// <summary>The most automated presses in any one second: the slot macros' highest second measured on
+    /// five slots (43) plus 25%, so it never holds SlotMacros back; it bounds every client together.</summary>
     public const int MaxPressesPerSecond = 54;
 
     // The game's input action for each bar slot (Ability1..5), for the manual hold check.

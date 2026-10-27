@@ -2,18 +2,18 @@ using EpochAssist.Core;
 using Il2Cpp;
 using UnityEngine;
 using Feature = EpochAssist.Core.Feature;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
 /// <summary>
-/// Per-slot skill autocast. Hold the modifier key and press a skill's own keybind to toggle
-/// autocast for that slot. Casts are requested from the dispatcher, which checks the pause rules
+/// Slot macros: each bar slot's skill cast by itself while toggled. Hold the modifier key and press a skill's own
+/// keybind to toggle that slot. Casts are requested from the dispatcher, which checks the pause rules
 /// and sends them through the game's UseAbilityProcessor, the entry point a real key press uses.
 /// Toggles come from the hotkey layer, which reads the keys bound to each slot, because the game drops
 /// the skill press when modifier+key is a binding of its own (Ctrl+F is its search field).
 /// </summary>
-internal static partial class AutoCast
+internal static partial class SlotMacros
 {
     private struct Slot
     {
@@ -32,7 +32,7 @@ internal static partial class AutoCast
     private static readonly Color s_rangeRingHoldingColor = new(1f, 1f, 1f, 0.4f);
 
     private static readonly bool[] s_noToggles = new bool[SlotCount];
-    private const string SlotsKey = "autocast.slots";
+    private const string SlotsKey = "macros.slots";
 
     /// <summary>
     /// Everything one run of the feature changes. Made in Start and dropped in Shutdown once its effects on the game
@@ -77,7 +77,7 @@ internal static partial class AutoCast
 
 
     /// <summary>The shared slot target in words and what it picks now (for the dev gate verb): the scan's nearest enemy
-    /// for the old switch's target, else the picker's.</summary>
+    /// for a nearest target, else the picker's.</summary>
     internal static (string Words, string Pick) SlotTargetNow
     {
         get
@@ -96,7 +96,7 @@ internal static partial class AutoCast
 
     public const int Slots = SlotCount;
 
-    /// <summary>The dispatcher's view of autocast while it runs.</summary>
+    /// <summary>The dispatcher's view of the slot macros while they run.</summary>
     public static DispatchClient? Client => s_run?.Client;
 
     public static string? SlotAbilityName(int slot) => s_run?.Slots[slot].Ability?.abilityName;
@@ -179,7 +179,7 @@ internal static partial class AutoCast
         if ((run.ZonePaused || run.EntryPaused) && Dispatcher.PlainPressThisFrame)
         {
             run.ZonePaused = run.EntryPaused = false;
-            Log.Info("Autocast: resumed");
+            Log.Info("Macros: resumed");
         }
 
         UpdateEnemyGate(run);
@@ -198,7 +198,7 @@ internal static partial class AutoCast
         }
         catch (Exception e)
         {
-            Log.ErrorThrottled("autocast:icons", $"Autocast icon update failed: {e.Message}", 30);
+            Log.ErrorThrottled("macros:icons", $"Macros icon update failed: {e.Message}", 30);
         }
     }
 
@@ -226,7 +226,7 @@ internal static partial class AutoCast
         if (status == run.LastLoggedStatus) return;
 
         run.LastLoggedStatus = status;
-        Log.Debug($"Autocast status: {status}");
+        Log.Debug($"Macros status: {status}");
     }
 
     /// <summary>
@@ -291,14 +291,14 @@ internal static partial class AutoCast
         RegisterConditionTargets(feature);
         // Toggle keys in conditions start off with every run.
         ConditionToggles.Clear();
-        Actions.Register(feature.Id, "autocast.toggle", "Macros", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
+        Actions.Register(feature.Id, "macros.toggle", "Macros", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
         for (int i = 0; i < SlotCount; i++)
         {
             int slot = i;
-            Actions.Register(feature.Id, $"autocast.slot.{slot + 1}", $"Toggle slot {slot + 1}", () => ToggleSlot(slot), () => IsSlotToggled(slot));
+            Actions.Register(feature.Id, $"macros.slot.{slot + 1}", $"Toggle slot {slot + 1}", () => ToggleSlot(slot), () => IsSlotToggled(slot));
         }
-        // Holding the modifier and pressing a slot's key runs autocast.slot.N.
-        Hotkeys.SetSlotChords(() => S.ModifierKey.Value, "autocast.slot.");
+        // Holding the modifier and pressing a slot's key runs macros.slot.N.
+        Hotkeys.SetSlotChords(() => S.ModifierKey.Value, "macros.slot.");
         // Starting in game (a restart or a dev reload) is an entry too.
         if (GameState.InGame) PauseForEntry(run);
     }
@@ -336,9 +336,9 @@ internal static partial class AutoCast
 
     private static void PauseForEntry(Run run)
     {
-        if (!run.EntryPaused) Log.Info($"Autocast: paused on entering the game (scene '{GameState.Scene}')");
+        if (!run.EntryPaused) Log.Info($"Macros: paused on entering the game (scene '{GameState.Scene}')");
         run.EntryPaused = true;
-        if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Macros paused. Use a skill to resume.", ToastKind.Info);
+        if (CurrentToggles().Any(on => on)) Toasts.Show("macros", "Macros paused. Use a skill to resume.", ToastKind.Info);
     }
 
     // The dispatcher lets go of held slots as soon as the zone-pause rule is active. With no slot on there is nothing to
@@ -347,21 +347,21 @@ internal static partial class AutoCast
     {
         if (!run.ZonePaused)
         {
-            Log.Info($"Autocast: paused (scene '{GameState.Scene}')");
-            if (CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Macros paused. Use a skill to resume.", ToastKind.Info);
+            Log.Info($"Macros: paused (scene '{GameState.Scene}')");
+            if (CurrentToggles().Any(on => on)) Toasts.Show("macros", "Macros paused. Use a skill to resume.", ToastKind.Info);
         }
         run.ZonePaused = true;
     }
 
-    /// <summary>Lets go of everything autocast holds: channels (through the dispatcher), toggles, tinted icons.</summary>
+    /// <summary>Lets go of everything the slot macros hold: channels (through the dispatcher), toggles, tinted icons.</summary>
     public static void Shutdown()
     {
         Hotkeys.SetSlotChords(null, null);
         Targets.Cursor = null;
         Targets.Weight = null;
         Targets.Clear();
-        ConditionTargets.Remove("autocast");
-        ConditionKeys.Remove("autocast");
+        ConditionTargets.Remove("macros");
+        ConditionKeys.Remove("macros");
         var run = s_run;
         if (run == null) return;
         Macros.Shutdown();
@@ -521,7 +521,7 @@ internal static partial class AutoCast
     private static bool IsOnCooldown(int slot, Ability? ability) =>
         ability != null && PlayerModel.Slot(slot + 1)?.Ready == false;
 
-    // A shared target aimed from the scan, as the old switch did: nearest within its range, else at cursor (that is
+    // A shared target aimed from the scan: nearest within its range, else at cursor (that is
     // GetTargetPosition), and at cursor itself.
     private static bool SharedAimedInScan(TargetSpec shared) => shared.Pick == TargetPick.Cursor || (shared.Legacy && shared.Pick == TargetPick.Nearest);
 

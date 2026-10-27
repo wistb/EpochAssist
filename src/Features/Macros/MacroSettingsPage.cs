@@ -1,5 +1,5 @@
 using EpochAssist.Core;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
@@ -7,7 +7,7 @@ namespace EpochAssist.Features;
 // search): Keys, Pausing and Enemies, each a card with its settings (the slot macros' shared target is on the Shared
 // Conditions page). Run macros and the debug
 // switches are the library's footer. The menu draws it.
-internal static class AutoCastMenu
+internal static class MacroSettingsPage
 {
     /// <summary>
     /// The settings page as cards: Keys beside Pausing, then Enemies across the page.
@@ -31,7 +31,7 @@ internal static class AutoCastMenu
 
     /// <summary>
     /// The shared slot target's rows (the Shared Conditions page), in the cast step's rows and words; its first change
-    /// saves it (until then the old aiming switch decides). Changes go through the Macros tab's undo.
+    /// saves it (until then slot macros aim at the cursor). Changes go through the Macros tab's undo.
     /// </summary>
     internal static IEnumerable<MenuRow> SharedTargetRows() => TargetRows.Rows(new TargetRows.Access
     {
@@ -43,15 +43,15 @@ internal static class AutoCastMenu
             Macros.History.Watch();
             if (!S.SlotTargets.SetShared(target ?? TargetSpec.Cursor, out string reason)) Log.WarnThrottled("aiming:edit", $"Slot target not changed: {reason}");
         },
-        StartRange = () => S.AimRange.Value,
+        StartRange = () => S.StartRange,
         Blocked = () => S.SlotTargets.Doc.ReadOnly ? "made by a newer version" : null,
     });
 
     internal static string SlotHint(int slot)
     {
         if (!Player.Exists) return $"Slot {slot + 1} · not in game";
-        string skill = AutoCast.SlotAbilityName(slot) ?? "no skill";
-        int form = AutoCast.CurrentFormKey;
+        string skill = SlotMacros.SlotAbilityName(slot) ?? "no skill";
+        int form = SlotMacros.CurrentFormKey;
         return $"Slot {slot + 1}: {skill} · {(form == -1 ? "human form" : $"form {form}")}";
     }
 
@@ -59,12 +59,12 @@ internal static class AutoCastMenu
     {
         bool toggled = Status.Slots?[slot] ?? false;
         if (!toggled) return new PageStatus(StatusState.Off, "off");
-        if (AutoCast.SlotNoTarget(slot)) return new PageStatus(StatusState.Holding, "no target");
-        return AutoCast.SlotWaiting(slot) ? new PageStatus(StatusState.Holding, "waiting") : new PageStatus(StatusState.Active, "casting");
+        if (SlotMacros.SlotNoTarget(slot)) return new PageStatus(StatusState.Holding, "no target");
+        return SlotMacros.SlotWaiting(slot) ? new PageStatus(StatusState.Holding, "waiting") : new PageStatus(StatusState.Active, "casting");
     }
 
-    // The dispatcher's status while autocast runs, otherwise off.
-    internal static FeatureStatus Status => FeatureHost.Get<AutoCastFeature>()?.Status ?? FeatureStatus.Off(string.Empty);
+    // The dispatcher's status while the slot macros run, otherwise off.
+    internal static FeatureStatus Status => FeatureHost.Get<MacrosFeature>()?.Status ?? FeatureStatus.Off(string.Empty);
 
 
     // Off when no entry is on, casting while the list passes, holding while it fails.
@@ -73,13 +73,13 @@ internal static class AutoCastMenu
         if (!S.GateConditions.List(S.EveryList).Entries.Any(e => e.On)) return new PageStatus(StatusState.Off, "off");
         // Outside the game (character select) its last check isn't current.
         if (!GameState.InGame) return new PageStatus(StatusState.Waiting, Macros.NoLiveData);
-        return AutoCast.EveryPasses ? new PageStatus(StatusState.Active, "casting") : new PageStatus(StatusState.Paused, "holding");
+        return SlotMacros.EveryPasses ? new PageStatus(StatusState.Active, "casting") : new PageStatus(StatusState.Paused, "holding");
     }
 
     private static (string, StatusState?) GateReadout()
     {
-        var gate = AutoCast.GateNow;
-        if (!gate.Counted) return (AutoCast.Scanning ? "not counted yet" : "not counted (autocast off)", StatusState.Waiting);
+        var gate = SlotMacros.GateNow;
+        if (!gate.Counted) return (SlotMacros.Scanning ? "not counted yet" : "not counted (macros off)", StatusState.Waiting);
         return ($"{gate.Count} enemies, weight {gate.Weight:F0} · {(gate.Open ? "casting" : "holding")}", gate.Open ? StatusState.Active : StatusState.Paused);
     }
 }

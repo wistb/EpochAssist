@@ -46,7 +46,7 @@ internal static partial class PlayerModel
                 Ability? ability = s_barAbilities[i];
                 if (!Game.Alive(ability))
                 {
-                    // The fallback AutoCast used: the ability list's slot.
+                    // The fallback the slot macros used: the ability list's slot.
                     abilityList ??= Game.LocalTree?.playerAbilityList;
                     ability = abilityList?.getAbility(i);
                 }

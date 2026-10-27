@@ -1,7 +1,7 @@
 using EpochAssist.Core;
 using UnityEngine;
 using Feature = EpochAssist.Core.Feature;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
@@ -9,7 +9,7 @@ namespace EpochAssist.Features;
 /// Library macros (contracts/engine.md): each frame the start check over the character's class's enabled macros in
 /// library order, at most one start per frame, one run at a time, a higher macro taking over between steps; the run's
 /// steps sent through the library and drinks clients, sending steps at least 0.1 s apart, cancelled on every cause in
-/// the contract. Part of the Macros feature (AutoCast); everything it holds is in its engine object, made in Start and
+/// the contract. Part of the Macros feature (SlotMacros); everything it holds is in its engine object, made in Start and
 /// dropped in Shutdown (the dispatcher lets go of what the clients hold).
 /// </summary>
 internal static partial class Macros
@@ -124,16 +124,16 @@ internal static partial class Macros
         if (Time.frameCount != s_cursorFrame)
         {
             s_cursorFrame = Time.frameCount;
-            s_cursor = AutoCast.CursorPoint();
+            s_cursor = SlotMacros.CursorPoint();
         }
         return s_cursor;
     }
 
     /// <summary>The context a library macro's trees are checked in: its id, the feature's tally, now.</summary>
-    internal static ConditionContext ContextOf(Macro macro) => AutoCast.ContextFor(-1) with { Macro = macro.Id, CastTarget = CastTargetOf(macro, 0) };
+    internal static ConditionContext ContextOf(Macro macro) => SlotMacros.ContextFor(-1) with { Macro = macro.Id, CastTarget = CastTargetOf(macro, 0) };
 
     /// <summary>The context of a step's tree: a wait until's cast target is the next cast step's, a channel's its own.</summary>
-    internal static ConditionContext ContextOf(Macro macro, int step) => AutoCast.ContextFor(-1) with { Macro = macro.Id, CastTarget = StepCastTarget(macro, step) };
+    internal static ConditionContext ContextOf(Macro macro, int step) => SlotMacros.ContextFor(-1) with { Macro = macro.Id, CastTarget = StepCastTarget(macro, step) };
 
     // "The cast target" for a tree: the first switched-on cast step's from a step on, or null with none.
     private static TargetSpec? CastTargetOf(Macro macro, int from)
@@ -210,7 +210,7 @@ internal static partial class Macros
     /// their targets are picked then, so the page's live pick has a value.</summary>
     internal static int? ShownSlotPage => !EditorShowing || s_editing is not { } key ? null
         : key == EveryKey ? -1
-        : key.StartsWith(SlotsKey + "/") && int.TryParse(key[(SlotsKey.Length + 1)..], out int slot) && slot is >= 1 and <= AutoCast.Slots ? slot - 1 : null;
+        : key.StartsWith(SlotsKey + "/") && int.TryParse(key[(SlotsKey.Length + 1)..], out int slot) && slot is >= 1 and <= SlotMacros.Slots ? slot - 1 : null;
 
     /// <summary>The sticky targets of the class's enabled macros (and the running and open ones): each switched-on cast
     /// step's.</summary>
@@ -724,10 +724,10 @@ internal static partial class Macros
             + $"running {(run != null ? $"{run.Macro.Name} step {run.StepIndex + 1}" : "none")}, t={now.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
         if (name == null)
         {
-            for (int i = 0; i < AutoCast.Slots; i++)
+            for (int i = 0; i < SlotMacros.Slots; i++)
             {
-                var status = AutoCastMenu.SlotStatus(i);
-                lines.Add($"slot macro {i + 1} {AutoCast.SlotAbilityName(i) ?? "-"}: {status.Text}{(SlotInUse(i) ? " (in use by a macro)" : string.Empty)}");
+                var status = MacroSettingsPage.SlotStatus(i);
+                lines.Add($"slot macro {i + 1} {SlotMacros.SlotAbilityName(i) ?? "-"}: {status.Text}{(SlotInUse(i) ? " (in use by a macro)" : string.Empty)}");
             }
         }
         foreach (var set in doc.Sets)

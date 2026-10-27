@@ -125,7 +125,7 @@ internal enum ChipState { Off, Paused, On }
 
 internal sealed record Chip(string Number, string Label, ChipState State);
 
-/// <summary>Labelled chips across the page (Autocast's slots). Shown only while the feature runs.</summary>
+/// <summary>Labelled chips across the page (the slot macros). Shown only while the feature runs.</summary>
 internal sealed class ChipStrip : MenuRow
 {
     public ChipStrip(Func<IReadOnlyList<Chip>> chips) => Chips = chips;

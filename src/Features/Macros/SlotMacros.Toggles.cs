@@ -1,10 +1,10 @@
 using System.Text.Json.Nodes;
 using EpochAssist.Core;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
-internal static partial class AutoCast
+internal static partial class SlotMacros
 {
     public static bool IsSlotToggled(int slot) => CurrentToggles()[slot];
 
@@ -15,7 +15,7 @@ internal static partial class AutoCast
         return run != null && run.TogglesByForm.TryGetValue(run.FormKey, out var toggles) ? toggles : s_noToggles;
     }
 
-    // Slots toggle only while autocast is on; switching it off forgets them.
+    // Slots toggle only while Run macros is on; switching it off forgets them.
     private static void ToggleSlot(int slot)
     {
         if (s_run is { } run && S.Enabled.Value) Toggle(run, slot);
@@ -35,7 +35,7 @@ internal static partial class AutoCast
             for (int i = 0; i < SlotCount; i++) toggles[i] = slots[i] is JsonValue v && v.TryGetValue(out bool on) && on;
             run.TogglesByForm[key] = toggles;
         }
-        if (run.EntryPaused && CurrentToggles().Any(on => on)) Toasts.Show("autocast", "Autocast paused. Use a skill to resume.", ToastKind.Info);
+        if (run.EntryPaused && CurrentToggles().Any(on => on)) Toasts.Show("macros", "Macros paused. Use a skill to resume.", ToastKind.Info);
     }
 
     // Kept in the character's profile while one is loaded.
@@ -92,12 +92,12 @@ internal static partial class AutoCast
         if (toggles[slot] && (run.ZonePaused || run.EntryPaused))
         {
             run.ZonePaused = run.EntryPaused = false;
-            Log.Info("Autocast: resumed");
+            Log.Info("Macros: resumed");
         }
         SaveToggles(run);
 
         bool paused = run.Client != null && Dispatcher.StatusOf(run.Client, RuleKind.Momentary).State == StatusState.Paused;
-        Log.Info($"Autocast: slot {slot + 1} ({run.Slots[slot].Ability?.abilityName ?? "?"}) {(toggles[slot] ? "ON" : "off")}{(paused ? " (paused)" : string.Empty)}");
+        Log.Info($"Macros: slot {slot + 1} ({run.Slots[slot].Ability?.abilityName ?? "?"}) {(toggles[slot] ? "ON" : "off")}{(paused ? " (paused)" : string.Empty)}");
     }
 
     private static void ClearToggles(Run run)

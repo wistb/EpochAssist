@@ -96,12 +96,12 @@ internal sealed class MenuPage
     public List<ActionButton> Actions { get; } = new();
     /// <summary>Whether the title row offers Reset; null for "when the page has settings".</summary>
     public bool? Resettable { get; init; }
-    /// <summary>False: not listed under its node in the tree; reached from a tree item that opens it (Autocast's slot
+    /// <summary>False: not listed under its node in the tree; reached from a tree item that opens it (a slot macro's
     /// pages), search, the bridge and page keys.</summary>
     public bool InTree { get; init; } = true;
 }
 
-/// <summary>A tree row that expands to items and opens no page of its own (Autocast's "Slots").</summary>
+/// <summary>A tree row that expands to items and opens no page of its own (the library's "Slots").</summary>
 internal sealed record TreeGroup(string Title, Func<IReadOnlyList<TreeItem>> Items);
 
 /// <summary>An item under a tree group: a number in the accent colour when on, a label and a state dot. Opens a page, or the entry's first.</summary>

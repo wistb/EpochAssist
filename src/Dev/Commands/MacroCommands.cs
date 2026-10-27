@@ -93,9 +93,9 @@ internal static class MacroCommands
             case "targets" when call.Lower(2) == "screen":
                 return new CommandResult(DevOutput.Reply("macro", ScreenLines()));
             case "hovered":
-                return CommandResult.Ok(Features.AutoCast.HoveredEnemy() is { } h
-                    ? $"macro hovered: {h.Name} {h.Distance.ToString("F1", s_inv)} m, rarity {h.Rarity}, cursor {(Features.AutoCast.CursorPoint() is { } c ? c.ToString() : "none")}"
-                    : $"macro hovered: none, cursor {(Features.AutoCast.CursorPoint() is { } p ? p.ToString() : "none")}");
+                return CommandResult.Ok(Features.SlotMacros.HoveredEnemy() is { } h
+                    ? $"macro hovered: {h.Name} {h.Distance.ToString("F1", s_inv)} m, rarity {h.Rarity}, cursor {(Features.SlotMacros.CursorPoint() is { } c ? c.ToString() : "none")}"
+                    : $"macro hovered: none, cursor {(Features.SlotMacros.CursorPoint() is { } p ? p.ToString() : "none")}");
             case "casts":
                 var casts = new List<string> { $"ok macro casts: signal {PlayerModel.CastSignal}, class {PlayerModel.ClassName ?? "?"} ({PlayerModel.ClassId?.ToString(s_inv) ?? "?"})" };
                 for (int i = 1; i <= Dispatcher.SlotCount + 1; i++)
@@ -116,7 +116,7 @@ internal static class MacroCommands
             case "add" when call.Args.Length >= 2:
                 return CommandResult.Ok("macro add: " + Features.Macros.Import(call.Rest(2)));
             case "code" when call.Args.Length >= 2:
-                if (Features.AutoCastSettings.LibraryDoc.Doc.Find(call.Args[1]).Set is not { } shared) return CommandResult.Error($"macro code: no set {call.Args[1]}");
+                if (Features.MacroSettings.LibraryDoc.Doc.Find(call.Args[1]).Set is not { } shared) return CommandResult.Error($"macro code: no set {call.Args[1]}");
                 var (code, error) = ShareCode.Encode(shared);
                 return code != null ? CommandResult.Ok($"macro code {call.Args[1]} ({code.Length} chars, {(ShareCode.Compressed == true ? "deflate" : "uncompressed")}): {code}")
                     : CommandResult.Error($"macro code: {error}");
@@ -180,7 +180,7 @@ internal static class MacroCommands
             string owners = pick.Owners.Count > 0 ? string.Join(", ", pick.Owners) : "(owners named from the next scan)";
             lines.Add($"[{owners}] {TargetSpec.FromKey(pick.Key).Words(TargetOwner.Condition)} → {Targets.Describe(pick)}");
         }
-        var (words, pickNow) = Features.AutoCast.SlotTargetNow;
+        var (words, pickNow) = Features.SlotMacros.SlotTargetNow;
         lines.Add($"slot target: {words} → {pickNow}");
         return lines;
     }
@@ -227,7 +227,7 @@ internal static class MacroCommands
     // Every set and macro: ids, class, on, state.
     private static List<string> ListLines()
     {
-        var doc = Features.AutoCastSettings.LibraryDoc.Doc;
+        var doc = Features.MacroSettings.LibraryDoc.Doc;
         var lines = new List<string>
         {
             $"ok macro list: v{doc.Version}{(doc.ReadOnly ? " (newer, read-only)" : string.Empty)}, {doc.Sets.Count} sets, class shown {Features.Macros.PickedClass}, character {PlayerModel.ClassName ?? "?"} ({PlayerModel.ClassId?.ToString(s_inv) ?? "?"})",
@@ -257,7 +257,7 @@ internal static class MacroCommands
         return lines;
     }
 
-    // "autocast (skills): sent 1: 97, 3: 1580; refused spacing 4021, frame taken 12; drinks 0"
+    // "macros: slots (skills): sent 1: 97, 3: 1580; refused spacing 4021, frame taken 12; drinks 0"
     private static string ClientText(DispatchClient client)
     {
         var sent = Enumerable.Range(0, Dispatcher.SlotCount).Where(i => client.Sent[i] > 0).Select(i => $"{i + 1}: {client.Sent[i]}");

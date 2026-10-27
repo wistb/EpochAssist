@@ -15,23 +15,23 @@ internal static class ConditionCommands
 
     public const string WhyUsage = "why [<slot 1-5>] | why macros | why macro <name>";
 
-    // why [slot]: every slot's verdict with each condition's value and result, from AutoCast.
+    // why [slot]: every slot's verdict with each condition's value and result, from the slot macros.
     public static CommandResult Why(CommandCall call)
     {
         if (call.Lower(1) is "macros" or "macro")
         {
-            if (FeatureHost.Find("autocast") is not { State: FeatureState.Running }) return CommandResult.Error("why: macros aren't running");
+            if (FeatureHost.Find("macros") is not { State: FeatureState.Running }) return CommandResult.Error("why: macros aren't running");
             if (call.Lower(1) == "macro" && call.Args.Length < 2) return CommandResult.Error($"why: usage {WhyUsage}");
             return new CommandResult(DevOutput.Reply("why", Features.Macros.Explain(call.Lower(1) == "macro" ? call.Rest(2) : null)));
         }
         int? slot = null;
         if (call.Args.Length >= 1)
         {
-            if (!int.TryParse(call.Lower(1), out int n) || n is < 1 or > Features.AutoCast.Slots) return CommandResult.Error($"why: usage {WhyUsage}");
+            if (!int.TryParse(call.Lower(1), out int n) || n is < 1 or > Features.SlotMacros.Slots) return CommandResult.Error($"why: usage {WhyUsage}");
             slot = n - 1;
         }
-        if (FeatureHost.Find("autocast") is not { State: FeatureState.Running }) return CommandResult.Error("why: autocast isn't running");
-        return new CommandResult(DevOutput.Reply("why", Features.AutoCast.Explain(slot)));
+        if (FeatureHost.Find("macros") is not { State: FeatureState.Running }) return CommandResult.Error("why: macros aren't running");
+        return new CommandResult(DevOutput.Reply("why", Features.SlotMacros.Explain(slot)));
     }
 
     public static CommandResult Cond(CommandCall call) => call.Lower(1) switch
@@ -266,7 +266,7 @@ internal static class ConditionCommands
         return CommandResult.Ok($"doc {target.DocName}: {target.Setting.Value}");
     }
 
-    // cond bench [n]: times n passes of every registered list (AutoCast's every-slot list and five slot lists), each as a
+    // cond bench [n]: times n passes of every registered list (the shared conditions and five slot lists), each as a
     // frame's first check (model reads not yet cached), and prints the mean per pass.
     private static CommandResult Bench(CommandCall call)
     {

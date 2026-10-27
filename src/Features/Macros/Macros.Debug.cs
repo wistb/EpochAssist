@@ -1,6 +1,6 @@
 using EpochAssist.Core;
 using UnityEngine;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
@@ -104,7 +104,7 @@ internal static partial class Macros
     private static void DrawRanges(Engine engine)
     {
         var rings = new Dictionary<(float Range, bool Cursor), bool>();
-        AutoCast.SlotRanges(rings);
+        SlotMacros.SlotRanges(rings);
         foreach (var set in SetsOf(engine))
         {
             if (!set.On || !set.AppliesTo(engine.Class)) continue;

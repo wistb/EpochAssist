@@ -32,13 +32,13 @@ internal sealed record ProfileExport(string Name, string Exported, JsonObject Ro
     /// <summary>After Apply: condition lists that kept entries this version can't read ("Shared Conditions: 1").</summary>
     public List<string> Unreadable { get; } = new();
 
-    /// <summary>"Autocast (from version 2)" for each migrated group, for the import result.</summary>
+    /// <summary>"Macros (from version 2)" for each migrated group, for the import result.</summary>
     public IEnumerable<string> MigratedNames =>
         SettingsRegistry.Groups.Where(g => Migrated.ContainsKey(g.Id)).Select(g => $"{g.Name} (from version {Migrated[g.Id].From})");
 }
 
 /// <summary>
-/// Exports and imports profiles, whole, by segment (a settings section such as Mini HUD, Keys or Autocast's Enemy gate)
+/// Exports and imports profiles, whole, by segment (a settings section such as Mini HUD, Keys or the Macros' Enemy gate)
 /// or setting by setting (chosen by key, group/section/setting). An export is a JSON text, written to UserData/EpochAssist/exports/ and copied to the clipboard; an import reads
 /// one from there or the clipboard and sets the chosen segments' values in the profile in use.
 /// </summary>

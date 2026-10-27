@@ -26,7 +26,7 @@ internal static class World
     /// <summary>The game's own hovered enemy (the top enemy bar's actor), the same in both modes.</summary>
     public const string HoveredEnemy = "world: hovered enemy";
 
-    /// <summary>Active entries and entries this close are refreshed every frame (AutoCast's largest aim range).</summary>
+    /// <summary>Active entries and entries this close are refreshed every frame (the largest target range).</summary>
     public const float NearRadius = 60f;
     /// <summary>The refresh's time per frame: hot entries, then cold ones while it lasts (not Feature.BudgetMs).</summary>
     private const double RefreshSliceMs = 0.5;

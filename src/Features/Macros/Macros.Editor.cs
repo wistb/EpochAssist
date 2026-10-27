@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using EpochAssist.Core;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
@@ -81,7 +81,7 @@ internal static partial class Macros
         if (!s_liveUntil.TryGetValue(step, out var state)) s_liveUntil[step] = state = new TreeState();
         if (state.Frame != UnityEngine.Time.frameCount)
         {
-            Conditions.Check(until, CurrentMacro(setId, macroId) is { } m ? ContextOf(m, step) : AutoCast.ContextFor(-1), state);
+            Conditions.Check(until, CurrentMacro(setId, macroId) is { } m ? ContextOf(m, step) : SlotMacros.ContextFor(-1), state);
             state.Frame = UnityEngine.Time.frameCount;
         }
         return state;

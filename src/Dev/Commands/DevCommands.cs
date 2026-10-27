@@ -93,7 +93,7 @@ internal static partial class DevCommands
         Add("player", "player", "Shows how the player is found: the finder, the player objects, their components and actors.", _ =>
             CommandResult.Ok($"player: {PlayerFacts()}"));
         Add("cond", ConditionCommands.CondUsage, "Lists, edits and checks condition lists by name.", ConditionCommands.Cond);
-        Add("why", ConditionCommands.WhyUsage, "Shows why each autocast slot casts or waits: its conditions' values and results.", ConditionCommands.Why);
+        Add("why", ConditionCommands.WhyUsage, "Shows why each slot macro casts or waits: its conditions' values and results.", ConditionCommands.Why);
         Add("model", ModelCommands.Usage, "Shows the player and world models, looks up game data, or simulates a missing model part.", ModelCommands.Run);
         Add("edits", ClientCommands.EditsUsage, "Applies, lists and removes test game edits (owned by the crash test feature), or writes a value past the registry.", ClientCommands.EditsCommand);
         Add("look", ClientCommands.LookUsage, "Outlines or tints the nearest enemies, recolours effects near the player, or changes an outline group's colour.", ClientCommands.LookCommand);
@@ -102,7 +102,7 @@ internal static partial class DevCommands
         Add("ui", ClientCommands.UiUsage, "Presses a game prompt, respawn or quick move button through the dispatcher (offline only).", ClientCommands.UiCommand);
         Add("events", EventCommands.EventsUsage, "Lists the last events on the bus, or the subscriptions and producers.", EventCommands.Events);
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
-        Add("gate", "gate", "Shows autocast's enemy gate: open, enemies and weight in range, and the closest enemy within aim range.", _ => Gate());
+        Add("gate", "gate", "Shows the enemy gate: open, enemies and weight in range, and the shared slot target's pick.", _ => Gate());
         Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
         Commands.AddDevVerb("mods", "simulate", owner, ModsSimulate);
         SessionCommands.Register(owner);
@@ -256,13 +256,13 @@ internal static partial class DevCommands
         return new CommandResult(panel.StartsWith("ok") ? $"ok {call.Line}" : panel) { Settle = SettleFrames };
     }
 
-    // gate: autocast's enemy gate (the every-slot list's gate entry) as it decides, and the shared slot target's pick,
+    // gate: the slot macros' enemy gate (the every-slot list's gate entry) as it decides, and the shared slot target's pick,
     // for comparing transitions and aim across builds; the name is the one the nameplate shows.
     private static CommandResult Gate()
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        var (words, pick) = Features.AutoCast.SlotTargetNow;
-        var gate = Features.AutoCast.GateNow;
+        var (words, pick) = Features.SlotMacros.SlotTargetNow;
+        var gate = Features.SlotMacros.GateNow;
         string counted = gate.Counted ? string.Empty : " (not counted)";
         return CommandResult.Ok($"gate: open {gate.Open}, {(gate.On ? "on" : "off")}, range {gate.Range.ToString("0.##", inv)}, count {gate.Count}, "
             + $"weight {gate.Weight.ToString("0.##", inv)}{counted}, slot target: {words} → {pick}, t {Time.unscaledTime.ToString("F2", inv)}");

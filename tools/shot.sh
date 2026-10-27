@@ -2,7 +2,7 @@
 # Drives a dev build in the running game through UserData/EpochAssist/dev/commands.txt and prints the results.
 # Usage: tools/shot.sh [command...]   (no commands: "shot menu")
 #   tools/shot.sh "menu open settings" "shot menu settings"
-#   tools/shot.sh "menu open autocast" "shot menu autocast" "menu close" "hud panel open" "shot hud"
+#   tools/shot.sh "menu open macros" "shot menu macros" "menu close" "hud panel open" "shot hud"
 # Commands: menu open [feature id]|settings [tab], menu close, menu search [text], hud panel open|close,
 #           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
 #           probe [type] [filter], find [text], fonts, wait [frames], shot full|menu|hud [name],

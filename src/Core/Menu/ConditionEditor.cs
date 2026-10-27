@@ -16,7 +16,7 @@ internal static class ConditionEditor
     /// <summary>
     /// The editor for one list of a setting. key is read each draw (a form change shows at once); context gives the
     /// readouts their slot and the owner's enemy tally; scanning tells whether the owner counts enemies now (for "not
-    /// counted (autocast off)"); keptTip is the remove button's tip on a kept entry.
+    /// counted (macros off)"); keptTip is the remove button's tip on a kept entry.
     /// </summary>
     public static ListRow List(ConditionSetting setting, Func<string> key, Func<ConditionContext> context, string label,
         Func<bool>? scanning = null, string keptTip = "This condition can be switched off, not removed.")
@@ -336,7 +336,7 @@ internal static class ConditionEditor
             if (!entry.On) return ("off", StatusState.Off);
             var result = Result(index);
             string text = Conditions.ValueText(entry, result);
-            if (result.State == ConditionState.Unknown && result.Reason == ConditionKinds.NotCounted && _scanning?.Invoke() == false) text = "not counted (autocast off)";
+            if (result.State == ConditionState.Unknown && result.Reason == ConditionKinds.NotCounted && _scanning?.Invoke() == false) text = "not counted (macros off)";
             return result.State switch
             {
                 ConditionState.Pass => (text, StatusState.Active),

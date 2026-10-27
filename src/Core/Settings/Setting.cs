@@ -26,7 +26,7 @@ internal abstract class Setting
     /// <summary>Settings sharing a fold are shown together under a collapsible header.</summary>
     public string? Fold { get; init; }
     public Func<bool>? VisibleWhen { get; init; }
-    /// <summary>What makes a hidden setting show ("Aim at closest enemy is on"), for search. Code only, nothing stored.</summary>
+    /// <summary>What makes a hidden setting show ("Run macros is on"), for search. Code only, nothing stored.</summary>
     public string? ShownWhen { get; init; }
 
     public bool Visible => VisibleWhen?.Invoke() ?? true;

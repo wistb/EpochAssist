@@ -2,7 +2,7 @@ namespace EpochAssist.Core;
 
 /// <summary>
 /// Toggle keys in conditions: an on/off per chord text, flipped by a press of that chord (the hotkey layer, gated like
-/// every key it reads). Not stored: every state starts off and is cleared when AutoCast starts; zones keep them.
+/// every key it reads). Not stored: every state starts off and is cleared when the Macros feature starts; zones keep them.
 /// </summary>
 internal static class ConditionToggles
 {

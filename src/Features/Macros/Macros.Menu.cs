@@ -1,5 +1,5 @@
 using EpochAssist.Core;
-using S = EpochAssist.Features.AutoCastSettings;
+using S = EpochAssist.Features.MacroSettings;
 
 namespace EpochAssist.Features;
 
@@ -49,7 +49,7 @@ internal static partial class Macros
         Switch = S.Enabled,
         Layout = MenuLayout.Library,
         Library = View,
-        Pages = { new MenuPage("Library") { Resettable = false }, AutoCastMenu.SettingsPage() },
+        Pages = { new MenuPage("Library") { Resettable = false }, MacroSettingsPage.SettingsPage() },
     };
 
     private const string SlotsKey = "slots", EveryKey = "slots/every";
@@ -83,13 +83,13 @@ internal static partial class Macros
         var lines = new List<LibraryLine>
         {
             new(SlotsKey, 0, "Slots", SlotsState(), StatusState.Active, null, true),
-            new(EveryKey, 1, "Shared Conditions", AutoCastMenu.EveryStatus().Text, AutoCastMenu.EveryStatus().State, null, false),
+            new(EveryKey, 1, "Shared Conditions", MacroSettingsPage.EveryStatus().Text, MacroSettingsPage.EveryStatus().State, null, false),
         };
-        for (int i = 0; i < AutoCast.Slots; i++)
+        for (int i = 0; i < SlotMacros.Slots; i++)
         {
-            var status = AutoCastMenu.SlotStatus(i);
-            lines.Add(new($"{SlotsKey}/{i + 1}", 1, $"Slot {i + 1}: {AutoCast.SlotAbilityName(i) ?? "-"}", status.Text, status.State,
-                AutoCastMenu.Status.Slots?[i] ?? false, false));
+            var status = MacroSettingsPage.SlotStatus(i);
+            lines.Add(new($"{SlotsKey}/{i + 1}", 1, $"Slot {i + 1}: {SlotMacros.SlotAbilityName(i) ?? "-"}", status.Text, status.State,
+                MacroSettingsPage.Status.Slots?[i] ?? false, false));
         }
         var doc = S.LibraryDoc.Doc;
         foreach (var set in doc.SetsOf(MacroSet.AllClasses).Concat(doc.SetsOf(PickedClass)))
@@ -108,7 +108,7 @@ internal static partial class Macros
 
     private static string SlotsState()
     {
-        int on = AutoCastMenu.Status.Slots?.Count(t => t) ?? 0;
+        int on = MacroSettingsPage.Status.Slots?.Count(t => t) ?? 0;
         return on == 0 ? "no slot on" : $"{on} on";
     }
 
@@ -134,7 +134,7 @@ internal static partial class Macros
         if (line.Key.StartsWith(SlotsKey + "/") && int.TryParse(line.Key[(SlotsKey.Length + 1)..], out int slot))
         {
             // The same toggle the chord flips.
-            Core.Actions.Run($"autocast.slot.{slot}", "menu library");
+            Core.Actions.Run($"macros.slot.{slot}", "menu library");
             return;
         }
         var (setId, macroId) = Split(line.Key);
@@ -223,7 +223,7 @@ internal static partial class Macros
     {
         if (s_editors.TryGetValue(key, out var editor)) return editor;
         if (key == EveryKey) editor = EveryEditor();
-        else if (key.StartsWith(SlotsKey + "/") && int.TryParse(key[(SlotsKey.Length + 1)..], out int slot) && slot is >= 1 and <= AutoCast.Slots) editor = SlotEditor(slot - 1);
+        else if (key.StartsWith(SlotsKey + "/") && int.TryParse(key[(SlotsKey.Length + 1)..], out int slot) && slot is >= 1 and <= SlotMacros.Slots) editor = SlotEditor(slot - 1);
         else editor = MacroEditor(key);
         if (editor == null)
         {
@@ -264,7 +264,7 @@ internal static partial class Macros
         if (!s_liveLists.TryGetValue(prefix, out var state)) s_liveLists[prefix] = state = new TreeState();
         if (state.Frame != UnityEngine.Time.frameCount)
         {
-            Conditions.Check(list, AutoCast.ContextFor(slot), state);
+            Conditions.Check(list, SlotMacros.ContextFor(slot), state);
             state.Frame = UnityEngine.Time.frameCount;
         }
         LiveFrame();
@@ -295,7 +295,7 @@ internal static partial class Macros
             RuleTreeRows.Add(rows, ListTree("shared", S.GateConditions, () => S.EveryList, () => -1));
             rows.Add(new HeadingRow("Shared target"));
             rows.Add(new HintRow(() => "Where slot macros aim, unless a slot macro sets its own target.") { Key = "target.hint" });
-            rows.AddRange(AutoCastMenu.SharedTargetRows());
+            rows.AddRange(MacroSettingsPage.SharedTargetRows());
         }))
         { Place = () => "Slots" };
         editor.Buttons.Add(Button("Undo", "undo", Undo, () => History.CanUndo, "Takes back the last change on this tab"));
@@ -308,8 +308,8 @@ internal static partial class Macros
     private static LibraryEditor SlotEditor(int slot)
     {
         string key = $"{SlotsKey}/{slot + 1}";
-        Func<string> listKey = () => AutoCast.SlotKey(AutoCast.CurrentFormKey, slot);
-        var editor = new LibraryEditor(key, () => AutoCast.SlotAbilityName(slot) ?? "No skill in this slot", () => SlotRows(key, slot, listKey))
+        Func<string> listKey = () => SlotMacros.SlotKey(SlotMacros.CurrentFormKey, slot);
+        var editor = new LibraryEditor(key, () => SlotMacros.SlotAbilityName(slot) ?? "No skill in this slot", () => SlotRows(key, slot, listKey))
         {
             Badge = () => (slot + 1).ToString(),
             Place = () => "Slots",
@@ -325,7 +325,7 @@ internal static partial class Macros
     private static string SlotContext(int slot)
     {
         if (!Player.Exists) return "Slot macro · not in game";
-        int form = AutoCast.CurrentFormKey;
+        int form = SlotMacros.CurrentFormKey;
         return $"Slot macro · {(form == -1 ? "human form" : $"form {form}")}";
     }
 
@@ -347,7 +347,7 @@ internal static partial class Macros
             rows.Add(new HeadingRow("Trigger"));
             RuleTreeRows.Add(rows, ListTree($"slot{slot + 1}", S.SlotConditions, listKey, () => slot));
             rows.Add(new HeadingRow("Sequence"));
-            rows.Add(new HintRow(() => $"1. Cast slot {slot + 1} ({AutoCast.SlotAbilityName(slot) ?? "whatever is there"}), tapped, or held while it channels.") { Key = "sequence" });
+            rows.Add(new HintRow(() => $"1. Cast slot {slot + 1} ({SlotMacros.SlotAbilityName(slot) ?? "whatever is there"}), tapped, or held while it channels.") { Key = "sequence" });
             // Its own target for this form, or the shared one (set on the Shared Conditions page).
             rows.Add(new HeadingRow("Target"));
             rows.Add(new HintRow(() => SlotContext(slot)) { Key = "target.form" });
@@ -362,7 +362,7 @@ internal static partial class Macros
                     if (!S.SlotTargets.SetSlot(listKey(), target, out string reason)) Report($"Target not changed: {reason}.", ToastKind.Warning);
                 },
                 SameAs = () => S.SharedSlotTarget,
-                StartRange = () => S.SharedSlotTarget.Pick == TargetPick.Cursor ? S.AimRange.Value : S.SharedSlotTarget.Range,
+                StartRange = () => S.SharedSlotTarget.Pick == TargetPick.Cursor ? S.StartRange : S.SharedSlotTarget.Range,
                 Blocked = () => S.SlotTargets.Doc.ReadOnly ? "made by a newer version" : null,
             }).ToList();
             rows.Add(targetRows[0]);
@@ -400,7 +400,7 @@ internal static partial class Macros
             Report($"Slot {slot + 1} has no skill to copy.", ToastKind.Warning);
             return;
         }
-        string listKey = AutoCast.SlotKey(AutoCast.CurrentFormKey, slot);
+        string listKey = SlotMacros.SlotKey(SlotMacros.CurrentFormKey, slot);
         var own = S.SlotConditions.List(listKey);
         var shared = S.GateConditions.List(S.EveryList);
         if (own.Invalid != null || shared.Invalid != null)
@@ -443,7 +443,7 @@ internal static partial class Macros
             };
             // The cast step aims where the slot did; "don't cast" becomes "skip the step".
             var step = MacroStep.New("cast", skill);
-            var target = S.EffectiveSlotTarget(AutoCast.CurrentFormKey, slot);
+            var target = S.EffectiveSlotTarget(SlotMacros.CurrentFormKey, slot);
             step.SetTarget(target.Else == "hold" ? target.WithElse("skip") : target);
             macro.Actions.Add(step);
             macro.SyncReady();

@@ -4,9 +4,9 @@ using Feature = EpochAssist.Core.Feature;
 
 namespace EpochAssist.Features;
 
-internal sealed class AutoCastFeature : Feature
+internal sealed class MacrosFeature : Feature
 {
-    public override string Id => "autocast";
+    public override string Id => "macros";
     public override string Name => "Macros";
     public override GuiLayer Layer => GuiLayer.World;
     public override string[] Needs => new[] { "game", "dispatch", "hotkeys", "player", "world" };
@@ -37,11 +37,11 @@ internal sealed class AutoCastFeature : Feature
 
     /// <summary>The slot macros' status from the dispatcher while it runs, or a library run's.</summary>
     public override FeatureStatus Status =>
-        State == FeatureState.Running && AutoCast.Client is { } client ? AutoCast.StatusOf(client) : base.Status;
+        State == FeatureState.Running && SlotMacros.Client is { } client ? SlotMacros.StatusOf(client) : base.Status;
 
-    public override void RegisterSettings() => AutoCastSettings.Register();
-    public override void Start() => AutoCast.Start(this);
-    public override void Update() => AutoCast.OnUpdate();
-    public override void OnGUI() => AutoCast.OnGUI();
-    public override void Shutdown() => AutoCast.Shutdown();
+    public override void RegisterSettings() => MacroSettings.Register();
+    public override void Start() => SlotMacros.Start(this);
+    public override void Update() => SlotMacros.OnUpdate();
+    public override void OnGUI() => SlotMacros.OnGUI();
+    public override void Shutdown() => SlotMacros.Shutdown();
 }
