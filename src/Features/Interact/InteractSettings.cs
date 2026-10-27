@@ -15,32 +15,32 @@ internal static class InteractSettings
     };
     public static readonly Hotkey HoldKey = new(Main, "HoldKey", "Hold key", string.Empty, HotkeyKind.Hold, HotkeyScope.Gameplay)
     {
-        Clearable = true, Help = "Hold it to stop using things for a moment, or to use things only while held (below).",
+        Clearable = true, Help = "Pause while held, or use only while held.",
     };
     public const string HoldPauses = "pause";
     public const string HoldUses = "use";
     public static readonly Choice<string> HoldMode = new(Main, "HoldMode", "While held", HoldPauses, (HoldPauses, "Pause"), (HoldUses, "Use"))
     {
         WithKeybinds = true, VisibleWhen = () => HoldKey.Value.Length > 0, ShownWhen = "a hold key is set",
-        Help = "Pause: uses nothing while the key is held. Use: uses nothing unless it is held.",
+        Help = "Pause: nothing while held. Use: only while held.",
     };
 
     public static readonly Section Use = Group.Section("use", "Use");
     public static readonly Toggle Shrines = new(Use, "Shrines", "Shrines", false)
     {
-        Help = "Activates a shrine once you are within its reach.",
+        Help = "Activates shrines.",
     };
     public static readonly Toggle Chests = new(Use, "Chests", "Chests", false)
     {
-        Help = "Opens chests, caches and echo reward chests once you are within their reach.",
+        Help = "Opens chests, caches and reward chests.",
     };
     public static readonly Toggle RunePrisons = new(Use, "RunePrisons", "Rune prisons", false)
     {
-        Help = "Opens a rune prison, freeing the Exiled Mage to fight, once you are within its reach.",
+        Help = "Frees the Exiled Mage to fight.",
     };
     public static readonly Toggle Forges = new(Use, "Forges", "Forges", false)
     {
-        Help = "Starts an echo's forge event once you are within its reach.",
+        Help = "Starts the echo's forge event.",
     };
 
     public static readonly Section Pickup = Group.Section("pickup", "Pick up");
@@ -52,20 +52,20 @@ internal static class InteractSettings
     {
         Help = "Affix shards, runes and glyphs.",
     };
-    public static readonly Toggle FilterShown = new(Pickup, "FilterShown", "Items my loot filter shows", false)
+    public static readonly Toggle FilterShown = new(Pickup, "FilterShown", "Loot filter items", false)
     {
-        Help = "Also picks up every item your loot filter shows. Items it hides are never picked up. Shards, runes, glyphs and keys follow their own switches.",
+        Help = "What your filter shows. Materials and keys have their own switches.",
     };
 
     public static readonly Section Pace = Group.Section("reach", "Reach and pace");
     // Up to the farthest reach the game allows anything (item pick-up, 5.6 m); each kind stays under its own.
     public static readonly Number Reach = new(Pace, "Reach", "Reach", 5.6f, 0.5f, 5.6f)
     {
-        Step = 0.1f, Unit = " m", Slider = true, Help = "Uses objects only this close, and never farther than the game itself allows.",
+        Step = 0.1f, Unit = " m", Slider = true, Help = "Never farther than the game allows.",
     };
     public static readonly Number MinWait = new(Pace, "MinWait", "Wait between uses", 0.25f, 0.15f, 2f)
     {
-        Step = 0.05f, Unit = " s", Help = "At least this long between two uses; a little longer at random.",
+        Step = 0.05f, Unit = " s", Help = "Plus a little at random.",
     };
     public const string Everywhere = "everywhere";
     public const string NotInTown = "not-town";
@@ -78,7 +78,7 @@ internal static class InteractSettings
     public static readonly Section Debug = Group.Section("debug", "Debug");
     public static readonly Toggle ShowReach = new(Debug, "ShowReach", "Show reach", false)
     {
-        Help = "Draws the reach around your character and marks what it will use next.",
+        Help = "Rings around you and a mark on what's next.",
     };
     private const string ReachShown = "Show reach is on";
     private static readonly (string, string)[] s_ringSwatches =
@@ -88,12 +88,12 @@ internal static class InteractSettings
     public static readonly ColorSetting ItemRingColor = new(Debug, "ItemRingColor", "Item reach colour")
     {
         EmptyLabel = "Default", Swatches = s_ringSwatches, VisibleWhen = () => ShowReach.Value, ShownWhen = ReachShown,
-        Help = "The ring for keys, materials and loot.",
+        Help = "Keys, materials and loot.",
     };
     public static readonly ColorSetting ObjectRingColor = new(Debug, "ObjectRingColor", "Object reach colour")
     {
         EmptyLabel = "Default", Swatches = s_ringSwatches, VisibleWhen = () => ShowReach.Value, ShownWhen = ReachShown,
-        Help = "The ring for shrines, chests and rune prisons.",
+        Help = "Shrines, chests, rune prisons and forges.",
     };
 
     public static void Register() => Group.Register();
