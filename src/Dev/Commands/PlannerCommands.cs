@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -46,6 +46,8 @@ internal static class PlannerCommands
         "trees" => Trees(),
         "nodes" => Nodes(call),
         "skills" => Skills(),
+        "icons" => Icons(),
+        "tooltips" => Tooltips(),
         "selector" => Selector(call),
         "screen" => ScreenCommand(call),
         "open" => OpenCommand(call),
@@ -185,6 +187,13 @@ internal static class PlannerCommands
                 lines.Add($"image '{image.name}': sprite {(Game.Alive(sprite) ? $"'{sprite!.name}' tex '{sprite.texture?.name}' {sprite.rect.width}x{sprite.rect.height} border {sprite.border}" : "none")}, "
                     + $"type {image.type}, colour {image.color}, active {image.gameObject.activeInHierarchy}, rect {Rect(image.transform)}");
             }
+            // And its texts, so a label can match the point counter's font.
+            foreach (var text in node.GetComponentsInChildren<Il2CppTMPro.TMP_Text>(true))
+                if (Game.Alive(text))
+                    lines.Add($"tmp '{text.name}': '{text.text}' font '{text.font?.name}' material '{text.fontSharedMaterial?.name}' size {text.fontSize} style {text.fontStyle} colour {text.color} active {text.gameObject.activeInHierarchy} rect {Rect(text.transform)}");
+            foreach (var text in node.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+                if (Game.Alive(text) && !text.name.StartsWith("EA."))
+                    lines.Add($"text '{text.name}': '{text.text}' font '{text.font?.name}' size {text.fontSize} colour {text.color} active {text.gameObject.activeInHierarchy}");
             for (var t = node.transform; t != null; t = t.parent)
                 lines.Add($"{t.name}  local scale {V(t.localScale)}  lossy {V(t.lossyScale)}  pos {V(t.localPosition)}{(t.gameObject.activeSelf ? string.Empty : "  inactive")}");
             return new CommandResult(DevOutput.Reply("planner", lines));
@@ -260,6 +269,75 @@ internal static class PlannerCommands
             lines.Add($"passive respec: respeccing {passive.respeccing}, button active {passive.IsRespecButtonActive}, respec all {(Game.Alive(all) ? $"{Control(all!.gameObject)} interactable {all.interactable}" : "none")}");
         }
         if (lines.Count == 1) lines[0] += "; no skill panel open";
+        return new CommandResult(DevOutput.Reply("planner", lines));
+    }
+
+    // planner tooltips: active objects named like a tooltip anywhere (outermost of nested ones) with their screen rects,
+    // components and first text, to find the panel a hover hint should stay clear of.
+    private static CommandResult Tooltips()
+    {
+        var lines = new List<string> { $"ok planner tooltips: open {OpenPanels()}" };
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<RectTransform>(), false))
+        {
+            var rect = obj.TryCast<RectTransform>();
+            if (!Game.Alive(rect) || !rect!.gameObject.activeInHierarchy || !rect.name.Contains("tooltip", StringComparison.OrdinalIgnoreCase)) continue;
+            bool inner = false;
+            for (var up = rect.parent; up != null && !inner; up = up.parent)
+                inner = up.name.Contains("tooltip", StringComparison.OrdinalIgnoreCase) && up.GetComponent<Canvas>() == null;
+            if (inner || rect.GetComponent<Canvas>() != null) continue;
+            var types = string.Join(", ", rect.GetComponents<Component>().Where(c => c != null).Select(c => c.GetIl2CppType().Name));
+            var text = rect.GetComponentsInChildren<Il2CppTMPro.TMP_Text>(false).FirstOrDefault(x => Game.Alive(x) && !string.IsNullOrWhiteSpace(x.text))?.text;
+            lines.Add($"{GameTypes.PathOf(rect.gameObject)} [{types}] rect {Rect(rect)} text '{(text == null ? string.Empty : text.Substring(0, Math.Min(30, text.Length)))}'");
+        }
+        if (lines.Count == 1) lines[0] += "; none";
+        return new CommandResult(DevOutput.Reply("planner", lines));
+    }
+
+    // planner icons: the images that draw one icon of each skill choice kind, to find the frame a mark copies.
+    private static CommandResult Icons()
+    {
+        var lines = new List<string> { $"ok planner icons: open {OpenPanels()}" };
+        void Dump(string kind, Component? icon)
+        {
+            if (!Game.Alive(icon)) return;
+            lines.Add($"{kind} '{icon!.name}' active {icon.gameObject.activeInHierarchy} rect {Rect(icon.transform)}");
+            foreach (var image in icon.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                if (Game.Alive(image))
+                    lines.Add($"  image '{image.name}' sprite '{(Game.Alive(image.sprite) ? image.sprite!.name : "none")}' active {image.gameObject.activeInHierarchy} alpha {image.color.a:0.##} sibling {image.transform.GetSiblingIndex()} parent '{image.transform.parent?.name}' rect {Rect(image.transform)}");
+        }
+        var bar = Game.BarIcons;
+        for (int i = 0; bar != null && i < bar.Count; i++)
+        {
+            var icon = bar[i];
+            if (!Game.Alive(icon) || icon!.abilityNumber != 1) continue;
+            Dump("bar", icon);
+            if (icon.transform.parent is { } slot) Dump("bar slot", slot.TryCast<RectTransform>());
+        }
+        var selector = AbilityBarSelectorManager.instance;
+        if (Game.Alive(selector) && selector!.IsMenuOpened && selector._abilitySelectionIcons is { Count: > 3 } picks) Dump("pick", picks[3]);
+        var page = Panel<SkillsPanelManager>();
+        if (Open(page))
+        {
+            if (page!.baseClassPanelIcons is { Count: > 0 } icons) Dump("page", icons[0]);
+            Dump("mastery skill", page.masteryAbilityPanelIcon1);
+            var specialised = Panel<SpecializedSkillsUIManager>();
+            if (Open(specialised) && specialised!._specializedSkillIcons is { Count: > 0 } slots) Dump("specialised", slots[0]);
+        }
+        // Node labels and their plates, which sit in the node container rather than under a mark.
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<UnityEngine.UI.Graphic>(), true))
+        {
+            var part = obj.TryCast<UnityEngine.UI.Graphic>();
+            if (!Game.Alive(part) || !part!.name.StartsWith("EA.PlannerMark.")) continue;
+            lines.Add($"{part.name} parent '{part.transform.parent?.name}' active {part.gameObject.activeInHierarchy} colour #{ColorUtility.ToHtmlStringRGBA(part.color)} rect {Rect(part.transform)}");
+        }
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<UnityEngine.UI.Image>(), false))
+        {
+            var image = obj.TryCast<UnityEngine.UI.Image>();
+            if (!Game.Alive(image) || image!.name != "EA.PlannerMark") continue;
+            var holder = image.transform.parent;
+            var owner = holder != null ? holder.parent : null;
+            lines.Add($"mark on '{owner?.name}/{holder?.name}' colour #{ColorUtility.ToHtmlStringRGBA(image.color)} rect {Rect(image.transform)}");
+        }
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
