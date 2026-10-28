@@ -14,7 +14,9 @@ internal static partial class DevCommands
     // shown tooltips), hovered (the UI under the cursor) or an object's name or path end, e.g. Content or
     // ItemTooltip/Content, with #n for the nth match (from 1); quote it when it has spaces, and " (Clone)" may be left off. The crop is the union of the object's drawn graphics,
     // so empty layout space is left out and children that hang outside it are kept. Matte puts a black, then a white
-    // canvas just under the target's canvas, which leaves out the world and lower UI.
+    // canvas just under the target's canvas, which leaves out the world and lower UI. With matte, alone also hides every
+    // other image on the target's canvas (a panel's own backdrop) and hide:<a,b> the target's children whose names start
+    // so (e.g. hide:Background,Ornaments), only while the shot is taken.
 
     private const string TooltipCanvasName = "Tooltip", TooltipContentName = "Content", CloneSuffix = " (Clone)";
 
@@ -24,7 +26,11 @@ internal static partial class DevCommands
     {
         string[] args = QuotedArgs(call.Rest(2));
         string spec = args.Length > 0 ? args[0] : throw new ArgumentException("shot ui needs a target: tooltip, hovered or an object's name or path");
-        var options = ParseShotOptions(args.Skip(1).ToArray());
+        bool alone = args.Skip(1).Any(a => a.Equals("alone", StringComparison.OrdinalIgnoreCase));
+        string[] hide = args.Skip(1).Where(a => a.StartsWith("hide:", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(a => a[5..].Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray();
+        var options = ParseShotOptions(args.Skip(1).Where(a => !a.Equals("alone", StringComparison.OrdinalIgnoreCase) && !a.StartsWith("hide:", StringComparison.OrdinalIgnoreCase)).ToArray());
+        if ((alone || hide.Length > 0) && !options.Matte) throw new ArgumentException("alone and hide: go with matte");
         var roots = UiTargets(spec);
         if (roots.Count == 0) throw new InvalidOperationException($"no game UI on screen matches {spec}");
 
@@ -37,7 +43,57 @@ internal static partial class DevCommands
         string name = options.Name ?? (spec is "tooltip" or "hovered" ? spec : roots[0].name);
         var capture = new Capture { Name = SafeName(name), Crop = crop, Note = OverlapNote(crop) }.With(options);
         if (options.Matte) capture.Backdrop = UiBackdrop(roots);
+        if (alone || hide.Length > 0) capture.Backdrop = Hiding(capture.Backdrop, roots, alone, hide);
         return StartCapture(capture);
+    }
+
+    // Around a matte shot's backdrop: the images to leave out are switched off while a backdrop is up and switched back
+    // on when it goes, so the game's UI is as it was once the shot is taken.
+    private static Action<Color?> Hiding(Action<Color?> backdrop, List<RectTransform> roots, bool alone, string[] hide)
+    {
+        var hidden = new List<UnityEngine.UI.Graphic>();
+        bool Under(Transform t)
+        {
+            foreach (var root in roots)
+                for (var at = t; at != null; at = at.parent)
+                    if (at == root) return true;
+            return false;
+        }
+        bool Named(Transform t, Transform root)
+        {
+            for (var at = t; at != null && at != root; at = at.parent)
+                foreach (string name in hide)
+                    if (at.name.StartsWith(name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+        return color =>
+        {
+            if (color != null && hidden.Count == 0)
+            {
+                foreach (var root in roots)
+                {
+                    var canvas = root.GetComponentInParent<Canvas>()?.rootCanvas;
+                    if (!Game.Alive(canvas)) continue;
+                    foreach (var graphic in canvas!.GetComponentsInChildren<UnityEngine.UI.Graphic>(false))
+                    {
+                        if (!Game.Alive(graphic) || !graphic.enabled) continue;
+                        bool inside = Under(graphic.transform);
+                        if (alone && !inside || inside && hide.Length > 0 && Named(graphic.transform, root))
+                        {
+                            graphic.enabled = false;
+                            hidden.Add(graphic);
+                        }
+                    }
+                }
+            }
+            else if (color == null)
+            {
+                foreach (var graphic in hidden)
+                    if (Game.Alive(graphic)) graphic.enabled = true;
+                hidden.Clear();
+            }
+            backdrop(color);
+        };
     }
 
     private static List<RectTransform> UiTargets(string spec)
