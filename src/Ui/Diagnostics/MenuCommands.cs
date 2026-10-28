@@ -24,8 +24,10 @@ internal static class MenuCommands
             case "search":
                 Menu.SetSearch(call.Rest(2));
                 if (!Menu.Visible) Menu.Open(MenuRoutes.Page);
-                int count = call.Rest(2).Trim().Length == 0 ? 0 : MenuSearch.Query(call.Rest(2)).Count;
-                return CommandResult.Ok($"menu search: {count} results") with { Settle = SettleFrames };
+                bool any = call.Rest(2).Trim().Length > 0;
+                int count = any ? MenuSearch.Query(call.Rest(2)).Count : 0;
+                int entries = any ? MenuSearch.QuerySources(call.Rest(2)).Count : 0;
+                return CommandResult.Ok($"menu search: {count} results, {entries} from feature views") with { Settle = SettleFrames };
             case "tree":
                 return new CommandResult(Tree(call.Lower(2)));
             case "devpages" when call.Lower(2) is "on" or "off":

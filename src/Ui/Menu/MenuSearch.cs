@@ -64,6 +64,10 @@ internal static class MenuSearchText
 /// <summary>A search hit: a node, a page, or a row on a page.</summary>
 internal sealed record SearchHit(MenuNode Node, PageNode? Page, MenuRow? Row);
 
+/// <summary>Text a feature offers the search from a view of its own that isn't a menu page (the Planner's guide): its
+/// path line, the text, and what opening it does.</summary>
+internal sealed record SearchEntry(string Path, string Text, Action Open);
+
 /// <summary>
 /// Search over every node, page, heading and row in the menu, through the same texts each row's renderer draws. The index
 /// is rebuilt with the tree; a query runs only when its text changes. Results keep tree order.
@@ -124,6 +128,55 @@ internal static class MenuSearch
         s_indexed = -1;
         s_query = null;
         s_results = new List<SearchHit>();
+        s_sourceQuery = null;
+    }
+
+    // ---- Sources: text from feature views that aren't menu pages ----
+
+    private sealed class Source
+    {
+        public Func<int> Generation = null!;
+        public Func<IReadOnlyList<SearchEntry>> Entries = null!;
+        public int Read = int.MinValue;
+        public IReadOnlyList<SearchEntry> Cached = Array.Empty<SearchEntry>();
+    }
+
+    private static readonly Dictionary<string, Source> s_sources = new();
+    private static string? s_sourceQuery;
+    private static List<SearchEntry> s_sourceResults = new();
+
+    /// <summary>Adds a feature's search source (replacing one by the same id); its entries are read again whenever its
+    /// generation changes.</summary>
+    public static void AddSource(string id, Func<int> generation, Func<IReadOnlyList<SearchEntry>> entries)
+    {
+        s_sources[id] = new Source { Generation = generation, Entries = entries };
+        s_sourceQuery = null;
+    }
+
+    public static void RemoveSource(string id)
+    {
+        if (s_sources.Remove(id)) s_sourceQuery = null;
+    }
+
+    /// <summary>The sources' entries whose text matches every word of the query, after the tree's hits.</summary>
+    public static IReadOnlyList<SearchEntry> QuerySources(string query)
+    {
+        string q = query.Trim();
+        bool changed = false;
+        foreach (var (id, source) in s_sources)
+        {
+            int generation = Safe.Call(source.Generation, source.Read, "search.source." + id);
+            if (generation == source.Read) continue;
+            source.Read = generation;
+            source.Cached = Safe.Call(source.Entries, Array.Empty<SearchEntry>(), "search.source." + id);
+            changed = true;
+        }
+        if (!changed && q == s_sourceQuery) return s_sourceResults;
+        s_sourceQuery = q;
+        string[] words = MenuSearchText.Words(q);
+        s_sourceResults = words.Length == 0 ? new List<SearchEntry>()
+            : s_sources.Values.SelectMany(source => source.Cached).Where(e => MenuSearchText.Matches(e.Text, words)).ToList();
+        return s_sourceResults;
     }
 
     /// <summary>A hit's path line: tab › folder › node › page, with (off) or (unavailable) for features in those states.</summary>

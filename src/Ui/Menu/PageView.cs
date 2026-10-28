@@ -20,6 +20,24 @@ internal static class PageView
     private static float s_changedAt = float.MinValue;
     private static string? s_seenSearch;
 
+    // A row to bring to the top of the page on its next draw (a search hit inside a feature's own view), by key.
+    private static string? s_scrollToRow;
+    private static float s_scrollToUntil;
+
+    /// <summary>Scrolls the page shown to the row with this key on its next draw (asked again for a second while the
+    /// row isn't laid out yet).</summary>
+    public static void ScrollToRow(string key)
+    {
+        s_scrollToRow = key;
+        s_scrollToUntil = Time.unscaledTime + 1f;
+    }
+
+    private static readonly Rect NoView = new(float.MinValue / 4f, float.MinValue / 4f, float.MaxValue / 2f, float.MaxValue / 2f);
+
+    /// <summary>While the page's rows draw: the part of their scroll area in view, in the rows' coordinates, so a tall
+    /// block can leave out its lines out of sight. Everything otherwise.</summary>
+    public static Rect InView { get; private set; } = NoView;
+
     /// <summary>The width blocks get for their content (inside the page's padding and scroll bar).</summary>
     public static float BlockWidth { get; private set; } = 500f;
 
@@ -155,6 +173,7 @@ internal static class PageView
         Focus.InScroll = "page";
         Popups.PushOrigin(body.position - s_scroll);
         RowLayout.PageLabel = s_labelColumn;
+        InView = new Rect(0f, s_scroll.y, inner.width, body.height);
         try
         {
             foreach (var placed in s_layout)
@@ -183,8 +202,27 @@ internal static class PageView
             Popups.PopOrigin();
             Focus.InScroll = null;
             GUI.EndScrollView();
+            InView = NoView;
         }
         ScrollToFocus("page", body.height, content);
+        ScrollToRow(body.height, content);
+    }
+
+    private static void ScrollToRow(float height, float content)
+    {
+        if (s_scrollToRow == null || Event.current.type != EventType.Repaint) return;
+        if (Time.unscaledTime > s_scrollToUntil)
+        {
+            s_scrollToRow = null;
+            return;
+        }
+        foreach (var placed in s_layout)
+        {
+            if (placed.Row.Key != s_scrollToRow) continue;
+            s_scroll.y = Mathf.Clamp(placed.Y - 8f, 0f, Mathf.Max(0f, content - height));
+            s_scrollToRow = null;
+            return;
+        }
     }
 
     private static void ScrollToFocus(string view, float height, float content)
@@ -345,6 +383,15 @@ internal static class PageView
     {
         var first = Results(Menu.Search).FirstOrDefault();
         if (first != null) Choose(first.Node, first.Page, first.Rows.FirstOrDefault());
+        else if (MenuSearch.QuerySources(Menu.Search).FirstOrDefault() is { } entry) ChooseEntry(entry);
+    }
+
+    // A feature's own view: the search closes, then the entry opens it there.
+    private static void ChooseEntry(SearchEntry entry)
+    {
+        Menu.SetSearch(string.Empty);
+        GUIUtility.keyboardControl = 0;
+        Safe.Run(entry.Open, "search.entry");
     }
 
     private static void Choose(MenuNode node, PageNode? page, MenuRow? row)
@@ -360,13 +407,14 @@ internal static class PageView
     private static void SearchResults(Rect inner, string query)
     {
         var results = Results(query);
+        var entries = MenuSearch.QuerySources(query);
         string[] words = MenuSearchText.Words(query);
         float y = inner.y;
         if (Event.current.type == EventType.Repaint)
-            Widgets.Paint(new Rect(inner.x, y, inner.width, 14f), $"Search › {Math.Max(results.Count, s_results.Count(p => p.Row != null))} results", Widgets.Style(() => Theme.Crumb, GUI.skin.label));
+            Widgets.Paint(new Rect(inner.x, y, inner.width, 14f), $"Search › {Math.Max(results.Count, s_results.Count(p => p.Row != null)) + entries.Count} results", Widgets.Style(() => Theme.Crumb, GUI.skin.label));
         y += 22f;
         var body = new Rect(inner.x, y, inner.width, inner.yMax - y);
-        if (results.Count == 0)
+        if (results.Count == 0 && entries.Count == 0)
         {
             Widgets.Paint(new Rect(body.x, body.y, body.width, 40f), $"No settings match \"{query}\". Clear the search to see every page.", Widgets.Style(() => Theme.Hint, GUI.skin.label));
             return;
@@ -374,7 +422,7 @@ internal static class PageView
 
         float width = body.width - 12f;
         // Laid out in the layout pass: each result's path line, then its rows drawn live.
-        if (Event.current.type == EventType.Layout || s_results.Count == 0) LayResults(results, words, width);
+        if (Event.current.type == EventType.Layout || s_results.Count == 0) LayResults(results, entries, words, width);
         float content = s_results.Count > 0 ? s_results[^1].Y + s_results[^1].Height : 0f;
         var view = new Rect(0f, 0f, width, content);
         s_scroll = GUI.BeginScrollView(body, s_scroll, view, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
@@ -387,6 +435,11 @@ internal static class PageView
             {
                 if (placed.Y + placed.Height < s_scroll.y - 40f || placed.Y > s_scroll.y + body.height + 40f) continue;
                 var r = new Rect(0f, placed.Y, width, placed.Height);
+                if (placed.Entry != null)
+                {
+                    EntryLine(r, placed);
+                    continue;
+                }
                 if (placed.Row == null)
                 {
                     PathLine(r, placed);
@@ -422,11 +475,16 @@ internal static class PageView
         ScrollToFocus("page", body.height, content);
     }
 
-    private sealed record PlacedResult(Result Result, MenuRow? Row, RowRenderer? Renderer, RowContext? Ctx, float Y, float Height, string? Hidden);
+    private sealed record PlacedResult(Result? Result, MenuRow? Row, RowRenderer? Renderer, RowContext? Ctx, float Y, float Height, string? Hidden)
+    {
+        /// <summary>A source entry's line: its path (Text null) or its text with the words marked.</summary>
+        public SearchEntry? Entry { get; init; }
+        public string? Text { get; init; }
+    }
 
     private static readonly List<PlacedResult> s_results = new();
 
-    private static void LayResults(List<Result> results, string[] words, float width)
+    private static void LayResults(List<Result> results, IReadOnlyList<SearchEntry> entries, string[] words, float width)
     {
         s_results.Clear();
         s_resultsColumn = RowLayout.ColumnFor(results.SelectMany(r => r.Rows), width);
@@ -453,7 +511,42 @@ internal static class PageView
             }
             y += 6f;
         }
+        // The sources' hits: a path line when it changes, then each text, marked.
+        string? path = null;
+        var hint = Widgets.Style(() => Theme.Hint, GUI.skin.label);
+        foreach (var entry in entries)
+        {
+            if (entry.Path != path)
+            {
+                if (path != null) y += 6f;
+                path = entry.Path;
+                s_results.Add(new PlacedResult(null, null, null, null, y, 24f, null) { Entry = entry });
+                y += 26f;
+            }
+            string text = MenuSearchText.Mark(entry.Text, words);
+            float height = TextCache.Height(text, hint, width - 8f) + RowLayout.RowGap;
+            s_results.Add(new PlacedResult(null, null, null, null, y, height, null) { Entry = entry, Text = text });
+            y += height;
+        }
         RowLayout.PageLabel = 0f;
+    }
+
+    // A source entry's path line or text: clickable; opens the entry in its feature's view.
+    private static void EntryLine(Rect r, PlacedResult placed)
+    {
+        var entry = placed.Entry!;
+        bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
+        string key = "entry." + entry.Path + "." + placed.Y.ToString("0");
+        if (Focus.Item(key, r) || clicked)
+        {
+            ChooseEntry(entry);
+            return;
+        }
+        if (Event.current.type != EventType.Repaint) return;
+        bool hover = r.Contains(Event.current.mousePosition);
+        if (hover && Widgets.Themed) Theme.DrawSliced(r, Theme.HoverBg, Theme.CardRadius);
+        if (placed.Text == null) Widgets.Paint(new Rect(r.x + 4f, r.y, r.width - 8f, r.height), entry.Path.ToUpperInvariant(), Widgets.Style(() => Theme.Heading, GUI.skin.label));
+        else Widgets.Paint(new Rect(r.x + 4f, r.y, r.width - 8f, r.height - RowLayout.RowGap), placed.Text, Widgets.Style(() => Theme.Hint, GUI.skin.label));
     }
 
     /// <summary>Why a found setting isn't shown on its page, or null for rows that aren't settings.</summary>
@@ -472,7 +565,7 @@ internal static class PageView
     // A result's path line: clickable and focusable; it opens the page and focuses the row.
     private static void PathLine(Rect r, PlacedResult placed)
     {
-        var result = placed.Result;
+        var result = placed.Result!;
         bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
         string key = "result." + (result.Page?.Path ?? result.Node.Path);
         if (Focus.Item(key, r) || clicked) Choose(result.Node, result.Page, result.Rows.FirstOrDefault());
