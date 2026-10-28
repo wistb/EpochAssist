@@ -18,24 +18,38 @@ for visitors while the repository is public.
 
 Take them in a dev build, offline, in the default look (Carbonfox, every accent on Theme, Pretendard Regular), with no
 character or account name visible, at UI scale 2 (`set UiScale 2` first, `set UiScale 1.25` after, the default): the text is drawn at that size, so the images stay sharp when GitHub or Nexus scales them
-down, where a 1x capture blurs when scaled up. `matte` gives the menu or HUD a transparent background, trimmed to what
-is drawn (`tools/shot.sh …`; shots land in `UserData/EpochAssist/dev/shots/`):
+down, where a 1x capture blurs when scaled up. `matte` gives the menu, the HUD or game UI a transparent background,
+trimmed to what is drawn; `shot ui <name>` crops to one game window or tooltip, frame included (`tools/shot.sh …`;
+shots land in `UserData/EpochAssist/dev/shots/`).
 
-| Name | Shows | Take it with |
-|---|---|---|
-| `logo` | The nebula wordmark, the page's title (not a screenshot) | a copy of `src/Ui/Theme/Assets/logo-wordmark@4x.png` |
-| `macros` | Macros › Library with Slots, Potions and a filled-out example set (made for the shot, removed after; slots 1 and 5 ticked) | `menu open macros/library/library`, `wait 90`, `shot menu macros matte` |
-| `macro-editor` | One macro's editor with an all-of tree, a nested any-of group and live values, and its cast step open on its Target rows with a live pick (near a pack; scrolled to the bottom, then one notch up) | `macro edit <set>/<macro>`, `wait 90`, `shot menu macro-editor matte` |
-| `shared-target` | Macros › Library › Slots › Shared Conditions: the enemy gate and the Shared target, set for the shot to the rarest enemy within 15 m (near a pack so its live pick shows; put back after) | `set SlotTargets {"v":1,"shared":{"pick":"rarest","range":15,"else":"cursor"}}`, `macro edit slots/every`, `wait 40`, `shot menu shared-target matte`, `set SlotTargets {"v":1}` |
-| `hud` | The mini HUD with its quick toggles open (slots 1 and 3 ticked for the shot) | `run macros.slot.1`, `run macros.slot.3`, `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close`, the two slots off again |
-| `profiles` | Config › General › Profiles | `menu open combat/general/profiles`, `wait 90`, `shot menu profiles matte` |
-| `appearance` | Config › General › Interface › Appearance | `menu open combat/general/interface/appearance`, `wait 90`, `shot menu appearance matte` |
-| `diagnostics` | Config › General › Diagnostics › Overview, offline (the summary names the mode; a dev build's says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time; an unfocused game runs few frames a second, so the wait takes longer) | `menu open combat/general/diagnostics/overview`, `wait 900`, `shot menu diagnostics matte` |
-| `settings-hud` | Config › General › Interface › Mini HUD, second image under Mini HUD (the HUD preview pokes 4 px past the menu's left and top edges; trim the image to the menu's 1600 × 1360) | `menu open combat/general/interface/mini-hud`, `wait 90`, `shot menu settings-hud matte` |
-| `interact` | Config › Interact › Proximity Interact, every kind on | `menu open combat/interact/proximity-interact`, `wait 90`, `shot menu interact matte` |
-| `map-overlay` | The overlay map in an echo with Map Reveal on (Slate look, thick outline, icons shown), menu closed, cropped to the map with a margin of the world and none of the game's UI | a screenshot with Tab open in an echo, cropped to the map |
-| `map-look` | Config › Map › Look, the Slate style | `menu open combat/map/look`, `wait 90`, `shot menu map-look matte` |
-| `map-icons` | Config › Map › Icons, a player icon picked | `menu open combat/map/icons`, `wait 90`, `shot menu map-icons matte` |
+Every feature's images stay in its spoiler; only the lead image shows in place. At most three images per feature, best
+first: the feature at work in the game before its settings pages. Status: **new** not taken yet, **retake** taken
+before the menu's 2026-10-27 changes (nested Config tree, tree and fold buttons, footer switches, "status: off" tags),
+**later** waits for unfinished work, **current** up to date. Menu routes match by prefix; `menu open` says when one
+doesn't. The mini HUD stays up with the menu open and overlaps its top-left corner: `set HudEnabled false` for menu shots
+(`true` after). For a Config page, fold the tree with the button beside search and open only the page's own section, so
+the page shows highlighted.
 
-A dev build lists a Dev section in the Config tree; players don't have it: `menu devpages off` hides it for the shots (`menu devpages on` after). Not shipped in the zip. The Nexus gallery images and the page header and banner (`../banner-1300x372.png`,
+| Name | Status | Shows | Take it with |
+|---|---|---|---|
+| `logo` | current | The nebula wordmark, the page's title (not a screenshot) | a copy of `src/Ui/Theme/Assets/logo-wordmark@4x.png` |
+| `macros` | retake | Macros › Library with Slots, Potions and a filled-out example set (made for the shot, removed after; slots 1 and 5 ticked) | `menu open macros/library`, `wait 90`, `shot menu macros matte` |
+| `macro-editor` | retake | One macro's editor with an all-of tree, a nested any-of group and live values, and its cast step open on its Target rows with a live pick (near a pack; scrolled to the bottom, then one notch up) | `macro edit <set>/<macro>`, `wait 90`, `shot menu macro-editor matte` |
+| `enemy-gate` | new | Config › Macros › Enemies: gate on, range and weight sliders, the Now readout and enemy weights (near a pack so Now counts); replaces `shared-target`, whose page no longer sets the gate | `menu open combat/macros/enemies`, `wait 90`, `shot menu enemy-gate matte` |
+| `hud` | current | The mini HUD with its quick toggles open (slots 1 and 3 ticked for the shot) | `run macros.slot.1`, `run macros.slot.3`, `hud panel open`, `wait 30`, `shot hud hud matte`, `hud panel close`, the two slots off again |
+| `planner-passives` | current | The passive tree on a mastery tab where the build shows every mark state: matches, partial with the next point labelled, to place, not in build (Marksman tab of the Shadow Cascade Rogue, stage 1) | `planner open passive`, `wait 60`, `planner tab <n>`, `wait 40`, `shot ui PassiveTree2021 planner-passives matte`, `planner open close` |
+| `planner-skills` | current | One skill's tree with the build's marks, a skill the stage has part-spent (Shift) | `planner open tree <slot>`, `wait 60`, `shot ui "Skills Panel" planner-skills matte`, `planner open close` |
+| `planner-tab` | current | Planner › Library with the build in use opened: stage ◀ ▶, skill bar, checklist with done out of planned and next steps (select the build, then Open) | `menu open planner/library`, `wait 90`, the build's row, Open, `shot menu planner-tab matte` |
+| `planner-gear` | later | The inventory with planned item icons and one planned item's game tooltip, once planner gear lands | `shot ui tooltip planner-gear matte` with the icon hovered, or the inventory window for the icons |
+| `profiles` | current | Config › General › Profiles | `menu open combat/general/profiles`, `wait 90`, `shot menu profiles matte` |
+| `appearance` | current | Config › General › Appearance | `menu open combat/general/appearance`, `wait 90`, `shot menu appearance matte` |
+| `diagnostics` | current | Config › Diagnostics › Overview, offline (the summary names the mode; a dev build's says "dev build"; take it a while after a reload, whose hitch shows as the worst frame time; an unfocused game runs few frames a second, so the wait takes longer) | `menu open combat/diagnostics/overview`, `wait 900`, `shot menu diagnostics matte` |
+| `settings-hud` | current | Config › General › Mini HUD, second image under Mini HUD (the mini HUD shows the switch on: drag the menu clear of the HUD instead of hiding it) | `menu open combat/general/mini-hud`, `wait 90`, `shot menu settings-hud matte` |
+| `interact` | current | Config › Interact › Proximity Interact, every kind on | `menu open combat/interact/proximity-interact`, `wait 90`, `shot menu interact matte` |
+| `interact-world` | new | In an echo: reach rings around a shrine and loot, the mini HUD's in-reach count; first image under Proximity Interact | `shot full interact-world`, cropped to the rings and the HUD |
+| `map-overlay` | current | The overlay map in an echo with Map Reveal on (Slate look, thick outline, icons shown), menu closed, cropped to the map with a margin of the world and none of the game's UI | a screenshot with Tab open in an echo, cropped to the map |
+| `map-look` | current | Config › Map › Look, the Slate style | `menu open combat/map/look`, `wait 90`, `shot menu map-look matte` |
+| `map-icons` | current | Config › Map › Icons, a player icon picked | `menu open combat/map/icons`, `wait 90`, `shot menu map-icons matte` |
+
+`shared-target.png` goes when `enemy-gate` replaces it. A dev build lists a Dev section in the Config tree; players don't have it: `menu devpages off` hides it for the shots (`menu devpages on` after). Not shipped in the zip. The Nexus gallery images and the page header and banner (`../banner-1300x372.png`,
 `../header-1920x1080.png`) are uploaded by hand.
