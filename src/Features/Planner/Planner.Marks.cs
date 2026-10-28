@@ -1636,6 +1636,7 @@ internal static partial class Planner
     private static string WeaverNodeName(Core.Feature feature, byte node)
     {
         if (s_weaverNames.TryGetValue(node, out var name)) return name;
+        if (PlayerName(WeaverTreeId, node) is { } shown) return s_weaverNames[node] = shown;
         string id = NodeName(feature, WeaverTreeId, node);
         if (id.StartsWith("Node_", StringComparison.Ordinal)) id = id[5..];
         return System.Text.RegularExpressions.Regex.Replace(id, "(?<=[a-z])(?=[A-Z])", " ");

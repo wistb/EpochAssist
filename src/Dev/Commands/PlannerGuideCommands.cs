@@ -11,7 +11,7 @@ namespace EpochAssist.Dev;
 // game objects behind an embed for the icon and tooltip facts. Read only.
 internal static class PlannerGuideCommands
 {
-    public const string Usage = "planner guide [build] | planner guide cost [frames] [closed|still] | planner guide scroll <section> [block]|row:<row key> | planner guide hover <embed key>|close | planner guide view checklist|guide [build] | planner guide fold <section|fold title> open|closed | planner guide icons [build|all] | planner guide coverage [build|all] | planner guide probe skill|node|item <id> | planner guide probe abilities <text> | planner guide probe tip <skill name> [x y w h]|close";
+    public const string Usage = "planner guide [build] | planner guide cost [frames] [closed|still] | planner guide scroll <section> [block]|row:<row key> | planner guide hover <embed key>|close | planner guide view checklist|guide [build] | planner guide fold <section|fold title> open|closed | planner guide icons [build|all] | planner guide coverage [build|all] | planner guide probe skill|node|item <id> | planner guide probe abilities <text> | planner guide probe tip <skill name> [x y w h]|close | planner guide probe text <localization key>";
 
     public static CommandResult Run(CommandCall call) => call.Lower(2) switch
     {
@@ -228,6 +228,17 @@ internal static class PlannerGuideCommands
         {
             case "tip":
                 return Tip(call);
+            case "text":
+            {
+                var texts = new List<string> { $"ok planner guide probe text {id}" };
+                foreach (string key in new[] { id, "Skills/" + id, "Skills." + id })
+                {
+                    bool got = Il2Cpp.Localization.TryGetText(key, out string? text);
+                    texts.Add($"  TryGetText(\"{key}\"): {got} \"{text}\"");
+                }
+                texts.Add($"  GetText(\"{id}\", \"Skills\"): \"{Il2Cpp.Localization.GetText(id, "Skills")}\"");
+                return new CommandResult(DevOutput.Reply("planner-guide-probe", texts));
+            }
             case "abilities":
             {
                 var all = AbilityManager.instance?.playerAbilities;

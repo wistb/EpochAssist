@@ -87,6 +87,7 @@ internal sealed class PlannerFeature : Feature
         Need<LocalTreeData.SkillTreeData>(nameof(LocalTreeData.SkillTreeData.ability), Planner.OpenUiGroup),
         Need(typeof(CharacterClassList), nameof(CharacterClassList.getClass), Planner.GameDataGroup),
         Need(typeof(CharacterClassList), nameof(CharacterClassList.getClassName), Planner.GameDataGroup),
+        Need(typeof(Localization), nameof(Localization.TryGetText), Planner.GameDataGroup),
 
         // Planned items made in memory from the game's own data.
         Need<ItemData>(nameof(ItemData.RefreshIDAndValues), Planner.ItemDataGroup),

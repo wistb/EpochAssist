@@ -395,44 +395,26 @@ internal static partial class Planner
         if (run.Gear is { } gear) AddGear(rows, run, gear);
 
         rows.Add(new HeadingRow("Next steps"));
+        var steps = new List<StepsSection>();
         string site = run.Build.Source == LetFormat.Source ? "Last Epoch Tools" : "Maxroll";
-        AddSteps(rows, "passive", "Passive tree", guidance.Passive, site, Nodes(guidance.Passive.TreeId));
+        AddSteps(steps, "passive", "Passive tree", guidance.Passive, site, Nodes(guidance.Passive.TreeId));
         foreach (var skill in planned)
         {
             string name = SkillName(feature, skill);
-            AddSteps(rows, "skill." + skill.AbilityId, name, skill.Tree, site, Nodes(skill.Tree.TreeId, name));
+            AddSteps(steps, "skill." + skill.AbilityId, name, skill.Tree, site, Nodes(skill.Tree.TreeId, name));
         }
+        AddStepsRow(rows, "next", steps);
     }
 
-    // Done out of total in its state's colour, then the open items by name under it.
-    private static void AddSection(List<MenuRow> rows, string key, string label, ChecklistSection list, Func<int, string> name)
-    {
-        string count = $"{list.Done} / {list.Total}";
-        var state = list.Done == list.Total && list.OffPlan.Count == 0 ? StatusState.Active : StatusState.Waiting;
-        rows.Add(new LiveText(label, () => (count, state)) { Key = "check." + key });
-        var parts = new List<string>();
-        Items(parts, S.ToPlaceColour.Label, list.Missing, name);
-        Items(parts, S.PartialColour.Label, list.Partial, name);
-        Items(parts, S.OffPlanColour.Label, list.OffPlan, name);
-        if (list.Unknown > 0) parts.Add($"Not in this game version: {list.Unknown}.");
-        if (parts.Count == 0) return;
-        string text = string.Join(" ", parts);
-        rows.Add(new HintRow(() => text) { Key = "check." + key + ".items" });
-    }
-
-    private static void Items(List<string> parts, string lead, List<int> ids, Func<int, string> name)
-    {
-        if (ids.Count > 0) parts.Add($"{lead}: {string.Join(", ", ids.Select(name))}.");
-    }
+    // Done out of total in its state's colour, folded; open, the open items by name under their state.
+    private static void AddSection(List<MenuRow> rows, string key, string label, ChecklistSection list, Func<int, string> name) =>
+        AddCheckSection(rows, key, label, list, name);
 
     // The tree's next steps, numbered; the planner's own words when it gives no order.
-    private static void AddSteps(List<MenuRow> rows, string key, string label, TreeGuide tree, string site, Func<int, string> name)
+    private static void AddSteps(List<StepsSection> steps, string key, string label, TreeGuide tree, string site, Func<int, string> name)
     {
-        string text;
-        if ((tree.Flags & TreeFlags.NoOrder) != 0) text = $"{label}: {Words.NoOrder(site)}";
-        else if (tree.Next.Count > 0) text = $"{label}: " + string.Join(", ", tree.Next.Select(step => $"{step.Number}. {name(step.Node)} +{step.Add}")) + ".";
-        else return;
-        rows.Add(new HintRow(() => text) { Key = "steps." + key });
+        if ((tree.Flags & TreeFlags.NoOrder) != 0) steps.Add(new StepsSection(label, null, Words.NoOrder(site)));
+        else if (tree.Next.Count > 0) steps.Add(new StepsSection(label, tree.Next.Select(step => (step.Number, name(step.Node), (int)step.Add)).ToList(), null));
     }
 
     // Node names only change with a game update.
@@ -446,6 +428,13 @@ internal static partial class Planner
         string name = fallback;
         try
         {
+            // The name the tree shows, in the game's language; the tree data's own name is an internal one ("Lich Ward
+            // Retention And Mana" for "Ward Retention").
+            if (PlayerName(treeId, node) is { } shown)
+            {
+                s_nodeNames[(treeId, node)] = shown;
+                return shown;
+            }
             var trees = GlobalTreeData.get();
             var data = Game.Alive(trees) ? trees!.getTreeData(treeId)?.getNode(node) : null;
             if (data == null) return fallback;
@@ -458,6 +447,20 @@ internal static partial class Planner
         }
         s_nodeNames[(treeId, node)] = name;
         return name;
+    }
+
+    /// <summary>A node's name as the game shows it (any tree: a class's passives, a skill's, the weaver tree), or null.</summary>
+    internal static string? PlayerName(string treeId, byte node)
+    {
+        try
+        {
+            return Localization.TryGetText($"Skill_{treeId}_{node}_Name", out string? text) && !string.IsNullOrWhiteSpace(text) ? text : null;
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("planner:node text", $"Planner: the node's shown name couldn't be read: {e.Message}", 30);
+            return null;
+        }
     }
 
     // The ids this game version lacks, for the build shown. The check needs the game's data, so until it can be read
@@ -523,7 +526,7 @@ internal static partial class Planner
             string planned = stage.Bar[i] is { } p ? AbilityName(run.Feature, p, p) : "nothing planned";
             string now = have[i] is { } h ? AbilityName(run.Feature, h, h) : "empty";
             string text = $"{planned} · now {now}";
-            s_barText[i] = guidance.Bar[i] is { } state ? $"<color=#{ColorUtility.ToHtmlStringRGB(StateColour(state))}>{text}</color>" : text;
+            s_barText[i] = guidance.Bar[i] is { } state ? MenuColoured(StateColour(state), text) : text;
         }
         return true;
     }

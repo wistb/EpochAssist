@@ -13,6 +13,7 @@ internal static partial class Planner
 
     private const string GearBlock = "planner.gear";
     private const float GearLineHeight = 24f;
+    private const float GearLabelGap = 12f;
 
     // The row the pointer rests on in the build view and when the menu last drew it so; the tooltip beside the menu
     // follows it.
@@ -44,7 +45,9 @@ internal static partial class Planner
             Func<int, string> name = node => WeaverNodeName(run.Feature, (byte)node);
             AddSection(rows, "weaver", "Weaver tree", weaver.Checklist, name);
             string site = run.Build!.Source == PlannerFormats.LetFormat.Source ? "Last Epoch Tools" : "Maxroll";
-            AddSteps(rows, "weaver", "Weaver tree", weaver, site, name);
+            var steps = new List<StepsSection>();
+            AddSteps(steps, "weaver", "Weaver tree", weaver, site, name);
+            AddStepsRow(rows, "weaver", steps);
         }
 
         var sockets = gear.WeaverItems.Select(p => new GearLine(SocketName(run.Feature, p.Key), LineWords(p.Value), p.Value.Unknown ? null : p.Value.Planned)).ToList();
@@ -59,38 +62,50 @@ internal static partial class Planner
     private static void AddGearSection(List<MenuRow> rows, string key, string label, ChecklistSection list, List<GearLine> lines)
     {
         if (lines.Count == 0) return;
-        string count = $"{list.Done} / {list.Total}";
-        var state = list.Done == list.Total && list.OffPlan.Count == 0 ? StatusState.Active : StatusState.Waiting;
-        rows.Add(new LiveText(label, () => (count, state)) { Key = "check." + key });
+        // The same header as the trees' sections, with no fold: the lines show under it.
+        AddCheckSection(rows, key, label, new ChecklistSection { Done = list.Done, Total = list.Total }, _ => string.Empty, offPlan: list.OffPlan.Count);
         rows.Add(new BlockRow(GearBlock, lines) { Key = "check." + key + ".items" });
     }
 
     // A line's words: the state's name in its colour, the planned item, and what's off.
     private static string LineWords(ItemGuide guide)
     {
-        if (guide.Unknown) return $"<color=#{ColorUtility.ToHtmlStringRGB(UnknownColour)}>{UnknownWords(guide)}</color>";
+        if (guide.Unknown) return MenuColoured(UnknownColour, UnknownWords(guide));
         string name = PlannedName(guide.Planned);
         string extra = guide.State == GuidanceState.Partial && guide.Missing.Count > 0
             ? $" (missing {string.Join(", ", guide.Missing.Select(m => $"{AffixName(m.Id)} T{m.Tier + 1}"))})"
             : guide.State == GuidanceState.Partial && guide.Planned.Place == PlannedPlace.Blessing ? " (normal one equipped)"
             : string.Empty;
-        return $"{Coloured(guide.State, StateName(guide.State))}  {name}{extra}";
+        return $"{MenuColoured(StateColour(guide.State), StateName(guide.State))}  {name}{extra}";
     }
 
     private static string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", string.Empty);
 
-    private static float GearHeight(object? data, float width) => data is List<GearLine> lines ? lines.Count * GearLineHeight : 0f;
+    private static float GearHeight(object? data, float width) =>
+        data is List<GearLine> lines ? Mathf.Ceil(lines.Count / (float)GearColumns(width)) * GearLineHeight : 0f;
+
+    // Two columns side by side on a page wide enough for both.
+    private static int GearColumns(float width) => width >= 640f ? 2 : 1;
 
     // The lines, label then words; the one under the pointer is remembered for the tooltip beside the menu.
     private static void DrawGear(Rect rect, object? data)
     {
         if (data is not List<GearLine> lines) return;
         s_gearLabel ??= new GUIStyle(Theme.Label) { richText = true, wordWrap = false, clipping = TextClipping.Clip };
-        float labelWidth = Mathf.Min(140f, rect.width * 0.3f);
+        // The label column fits the section's longest label (weaver sockets have long names), up to 45% of the width;
+        // a label still longer ends in "…", with a gap before the words.
+        int columns = GearColumns(rect.width);
+        int perColumn = Mathf.CeilToInt(lines.Count / (float)columns);
+        float columnWidth = rect.width / columns;
+        float widest = 0f;
+        foreach (var line in lines) widest = Mathf.Max(widest, TextCache.Width(line.Label, s_gearLabel));
+        float labelWidth = Mathf.Min(widest + GearLabelGap, columnWidth * 0.45f);
         var mouse = Event.current.mousePosition;
         for (int i = 0; i < lines.Count; i++)
         {
-            var row = new Rect(rect.x, rect.y + i * GearLineHeight, rect.width, GearLineHeight);
+            // Down the first column, then the second.
+            int column = i / Math.Max(1, perColumn);
+            var row = new Rect(rect.x + column * columnWidth, rect.y + i % Math.Max(1, perColumn) * GearLineHeight, columnWidth - (column + 1 < columns ? 12f : 0f), GearLineHeight);
             var line = lines[i];
             if (row.Contains(mouse))
             {
@@ -103,7 +118,7 @@ internal static partial class Planner
                     s_menuHoverSeen = Clock.Now;
                 }
             }
-            GUI.Label(new Rect(row.x, row.y, labelWidth, row.height), line.Label, s_gearLabel);
+            GUI.Label(new Rect(row.x, row.y, labelWidth - GearLabelGap, row.height), TextCache.Fit(line.Label, s_gearLabel, labelWidth - GearLabelGap), s_gearLabel);
             GUI.Label(new Rect(row.x + labelWidth, row.y, row.width - labelWidth, row.height), line.Text, s_gearLabel);
         }
     }
