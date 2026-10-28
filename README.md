@@ -34,14 +34,21 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![Shared Conditions with the shared target](nexus/media/shared-target.png)
 
   </details>
-- **Proximity Interact**: uses nearby objects and loot, without moving.
-  - **Use**: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
-  - **Pick up**: keys, crafting materials, loot filter picks.
-  - **In reach**: never moves the character or reaches past game range. Every kind starts off.
-  - **Options**: hold key, mini HUD count, per-use notice, reach rings.
-  <details><summary>Screenshot</summary>
+- **Planner**: imported build marked on passive tree, skill trees, skill screens, inventory, blessings and weaver tree.
+  - **Import**: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
+  - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
+  - **Gear**: badge on each planned equipment slot and idol, coloured ring on idol altar and blessing slots; hover shows planned item as game's own tooltip beside equipped one, with a card listing planned affixes and tiers.
+  - **Compare with build**: optional hotkey shows planned item for hovered item's slot.
+  - **Stages**: one build and stage per character, changed only with ◀ and ▶.
+  - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings and weaver tree, with next steps per tree; hover a gear row for planned item.
+  - **Drawing only**: nothing spent, chosen, equipped, moved or saved; off until switched on.
+  <details><summary>Screenshots</summary>
 
-  ![Config: Proximity Interact](nexus/media/interact.png)
+  ![Passive tree with Planner marks](nexus/media/planner-passives.png)
+
+  ![Skill tree with Planner marks](nexus/media/planner-skills.png)
+
+  ![Planner tab: stage, skill bar and checklist](nexus/media/planner-tab.png)
 
   </details>
 - **Map Reveal**: whole zone on overlay and corner minimap.
@@ -59,21 +66,14 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![Config: Map › Icons](nexus/media/map-icons.png)
 
   </details>
-- **Planner**: imported build marked on passive tree, skill trees, skill screens, inventory, blessings and weaver tree.
-  - **Import**: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
-  - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
-  - **Gear**: badge on each planned equipment slot and idol, coloured ring on idol altar and blessing slots; hover shows planned item as game's own tooltip beside equipped one, with a card listing planned affixes and tiers.
-  - **Compare with build**: optional hotkey shows planned item for hovered item's slot.
-  - **Stages**: one build and stage per character, changed only with ◀ and ▶.
-  - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings and weaver tree, with next steps per tree; hover a gear row for planned item.
-  - **Drawing only**: nothing spent, chosen, equipped, moved or saved; off until switched on.
-  <details><summary>Screenshots</summary>
+- **Proximity Interact**: uses nearby objects and loot, without moving.
+  - **Use**: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
+  - **Pick up**: keys, crafting materials, loot filter picks.
+  - **In reach**: never moves the character or reaches past game range. Every kind starts off.
+  - **Options**: hold key, mini HUD count, per-use notice, reach rings.
+  <details><summary>Screenshot</summary>
 
-  ![Passive tree with Planner marks](nexus/media/planner-passives.png)
-
-  ![Skill tree with Planner marks](nexus/media/planner-skills.png)
-
-  ![Planner tab: stage, skill bar and checklist](nexus/media/planner-tab.png)
+  ![Config: Proximity Interact](nexus/media/interact.png)
 
   </details>
 - **Session**: per-session stats on Session tab.
