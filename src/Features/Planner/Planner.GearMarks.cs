@@ -681,10 +681,11 @@ internal static partial class Planner
         {
             var size = opener != null ? opener.GetComponent<RectTransform>()?.rect.size ?? Vector2.zero : Vector2.zero;
             var position = at ?? (opener != null ? opener.transform.position : new Vector3(Screen.width / 2f, Screen.height / 2f, 0f));
-            // Alone (beside the menu, with no game element behind it) it's shown as equipped: the game hides an inventory
-            // tooltip that has no element, and there's nothing to compare it with there.
-            var type = planned.Place == PlannedPlace.Blessing ? TooltipItemManager.SlotType.BLESSING
-                : alone ? TooltipItemManager.SlotType.EQUIPPED
+            // Alone (beside the menu, with no game element behind it) it's shown as equipped, blessings too: the game hides an
+            // inventory tooltip that has no element, and there's nothing to compare it with there (a blessing's own type
+            // puts the equipped one beside it).
+            var type = alone ? TooltipItemManager.SlotType.EQUIPPED
+                : planned.Place == PlannedPlace.Blessing ? TooltipItemManager.SlotType.BLESSING
                 : planned.Place == PlannedPlace.WeaverNode ? TooltipItemManager.SlotType.WEAVER_TREE_NODE
                 : TooltipItemManager.SlotType.INVENTORY;
             tooltips.OpenItemTooltip(item, type, Vector2.zero, position, opener, size);
