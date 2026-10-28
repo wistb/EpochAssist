@@ -3,10 +3,17 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// The 34 px bar across the bottom: the mini HUD's quick toggles, in the same order, then the close hint.
+// The 34 px bar across the bottom: a fixed set of quick toggles (the HUD panel's are the player's choice), then the close
+// hint.
 internal static class Footer
 {
     public const float Height = 34f;
+
+    // By action id, in order; one that isn't loaded is left out.
+    private static readonly string[] s_switches =
+    {
+        "setting.toggle.macros.enabled", "setting.toggle.planner.enabled", "setting.toggle.interact.enabled", "setting.toggle.mapreveal.enabled",
+    };
 
     public static void Draw(Rect bar)
     {
@@ -17,8 +24,10 @@ internal static class Footer
         string hint = $"{KeySettings.MenuKey.Display} or Esc closes";
         float hintWidth = TextCache.Width(hint, hintStyle);
         float x = bar.x + 12f, limit = bar.xMax - hintWidth - 24f;
-        foreach (var toggle in SettingsRegistry.QuickToggles)
+        var quick = SettingsRegistry.QuickToggles.ToList();
+        foreach (string id in s_switches)
         {
+            if (quick.Find(q => q.ActionId == id) is not { } toggle) continue;
             string text = toggle.Label;
             float w = Controls.SwitchWidth + 6f + TextCache.Width(text, label);
             if (x + w > limit) break;

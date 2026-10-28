@@ -97,7 +97,7 @@ internal static class Hud
 
         var reasons = sections.Where(x => !x.Running).Select(x => new GUIContent(Menu.Reason(x.Feature))).ToList();
         float reasonsHeight = reasons.Sum(r => Theme.Hint.CalcHeight(r, PanelWidth - 24f) + 6f);
-        float panelHeight = PanelChrome + reasonsHeight + SettingsRegistry.QuickToggles.Count() * RowHeight;
+        float panelHeight = PanelChrome + reasonsHeight + HudSettings.PanelToggles.Count() * RowHeight;
         // The panel lines up with the pill's side (or centre) and opens away from the screen edge: up from the bottom.
         float panelX = spot.Horizontal < 0 ? pill.x : spot.Horizontal > 0 ? pill.xMax - PanelWidth : pill.center.x - PanelWidth / 2f;
         var panel = new Rect(panelX, spot.Vertical > 0 ? pill.y - 8f - panelHeight : pill.yMax + 8f, PanelWidth, panelHeight);
@@ -196,7 +196,7 @@ internal static class Hud
         // Why a greyed section isn't running, before the toggles.
         foreach (var reason in reasons) GUILayout.Label(reason, Theme.Hint);
         GUILayout.Label("QUICK TOGGLES", Theme.CardTitle);
-        foreach (var toggle in SettingsRegistry.QuickToggles)
+        foreach (var toggle in HudSettings.PanelToggles)
         {
             if (Switch(toggle.Label, toggle.Value) != toggle.Value) Actions.Run(toggle.ActionId, "HUD quick toggle");
         }

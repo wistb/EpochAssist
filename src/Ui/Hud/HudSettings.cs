@@ -18,6 +18,7 @@ internal static class HudSettings
 {
     private const string Notifications = "Notifications";
     private const string Sections = "Visible sections";
+    private const string QuickToggles = "Quick toggles";
 
     public static readonly Section Hud = Config.Group.Section("hud", "Mini HUD");
     public static readonly Toggle HudEnabled = new(Hud, "HudEnabled", "Show the mini HUD", true)
@@ -54,6 +55,24 @@ internal static class HudSettings
 
     /// <summary>Whether the feature's section is on the pill; features without a switch always are.</summary>
     public static bool ShowsSection(string featureId) => !s_sections.TryGetValue(featureId, out var toggle) || toggle.Value;
+
+    // One switch per quick toggle on the HUD panel, keyed by its action; a quick toggle that isn't loaded hides its row.
+    private static Toggle Quick(string id, string actionId, string label) => new(Hud, "HudQuick" + id, label, true)
+    {
+        Fold = QuickToggles, VisibleWhen = () => SettingsRegistry.QuickToggles.Any(q => q.ActionId == actionId),
+    };
+    private static readonly Dictionary<string, Toggle> s_quick = new[]
+    {
+        ("Macros", "setting.toggle.macros.enabled", "Macros"),
+        ("EnemyGate", "setting.toggle.macros.enemygate", "Enemy gate"),
+        ("Interact", "setting.toggle.interact.enabled", "Interact"),
+        ("Map", "setting.toggle.mapreveal.enabled", "Map"),
+        ("Overlay", "setting.toggle.planner.enabled", "Planner overlay"),
+    }.ToDictionary(q => q.Item2, q => Quick(q.Item1, q.Item2, q.Item3));
+
+    /// <summary>The quick toggles on the HUD panel, in declaration order; one without a switch here always shows.</summary>
+    public static IEnumerable<IQuickSwitch> PanelToggles =>
+        SettingsRegistry.QuickToggles.Where(q => !s_quick.TryGetValue(q.ActionId, out var toggle) || toggle.Value);
 
     // 8 keeps notifications next to the mini HUD; 0-7 are the same places as the HUD's.
     public static readonly Choice<int> ToastPlacement = new(Hud, "ToastPosition", "Position", 8,

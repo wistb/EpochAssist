@@ -16,10 +16,10 @@ internal static class PlannerSettings
     public static readonly SettingsGroup Group = new("EpochAssist_Planner", "Planner", version: 1) { ActionKey = "planner" };
 
     public static readonly Section Main = Group.Section("main", "Overlay");
-    // Off until the player turns it on. No quick label: the planner has no HUD switch.
+    // Off until the player turns it on. The quick label offers it on the HUD panel and the menu's footer.
     public static readonly Toggle Enabled = new(Main, "Enabled", "Planner overlay", false)
     {
-        Help = "Marks the active build on the passive tree, skill trees and skill screens.",
+        QuickLabel = "Overlay", Help = "Marks the active build on the passive tree, skill trees and skill screens.",
     };
 
     public static readonly Section Colours = Group.Section("colours", "Colours");
