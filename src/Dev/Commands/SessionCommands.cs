@@ -20,6 +20,19 @@ internal static class SessionCommands
         Commands.AddDevVerb("sessions", "keep", owner, KeepRecord);
         Commands.AddDevVerb("sessions", "cost", owner, Cost);
         Commands.AddDevVerb("sessions", "trends", owner, Trends);
+        Commands.AddDevVerb("sessions", "sample", owner, call =>
+        {
+            // on | off | quiet: the Sample data switch from the bridge; quiet hides the switch and banner (page images).
+            switch (call.Lower(2))
+            {
+                case "on": Ui.SessionsPage.ShowSample = true; Ui.SessionsPage.SampleQuiet = false; break;
+                case "quiet": Ui.SessionsPage.ShowSample = true; Ui.SessionsPage.SampleQuiet = true; break;
+                case "off": Ui.SessionsPage.ShowSample = false; Ui.SessionsPage.SampleQuiet = false; break;
+                default: return CommandResult.Error("usage: sessions sample on|off|quiet");
+            }
+            Ui.SessionsPage.Current.Reset();
+            return CommandResult.Ok($"sessions sample: {call.Lower(2)}");
+        });
         Commands.AddDevVerb("sessions", "names", owner, _ =>
         {
             // Each zone scene of the current session with the game's display name and echo name.

@@ -235,6 +235,7 @@ internal sealed class DevBridgeFeature : Feature
         Ui.SettingsContent.DevSwitches = null;
         Ui.SessionsPage.SampleStats = null;
         Ui.SessionsPage.ShowSample = false;
+        Ui.SessionsPage.SampleQuiet = false;
         SessionSamples.Reset();
         Ui.Focus.Seen = null;
         DevBridge.Reset();

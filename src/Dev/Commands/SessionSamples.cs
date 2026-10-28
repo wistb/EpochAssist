@@ -9,8 +9,15 @@ namespace EpochAssist.Dev;
 internal static class SessionSamples
 {
     private static readonly string[] s_rarities = { "Normal", "Normal", "Normal", "Magic", "Magic", "Rare", "Exalted", "Unique", "Set", "Legendary" };
-    private static readonly string?[] s_modifiers = { "Haste", "Armoured", "Volatile", "Frenzied", null };
-    private static readonly string[] s_rewards = { "Unique belt", "Exalted helmet", "Gold", "Glyphs", "Runes", "Idols" };
+    // As the game names them, from play: monolith modifiers, echo rewards and echo zones (scene, name).
+    private static readonly string?[] s_modifiers =
+        { "enrages at half health", "Damage And Crit Monolith", "All Resistances Monolith", "Inc Damage And Health Monolith", "Rare Cooldown Monolith", null };
+    private static readonly string[] s_rewards = { "Piles of Gold", "Runes", "Glyphs", "Exalted Relics", "Idols", "Rare Rings", "Unique Belts", "Set Item" };
+    private static readonly (string Scene, string Name)[] s_echoes =
+    {
+        ("M_E20", "Waste Pools"), ("M_C20", "Jagged Outskirts"), ("M_M100", "Twisted Mire"), ("M_M200", "Sinking City"), ("M_M460", "Serpent Valley"),
+        ("M_M220", "Imperial Plaza"),
+    };
     private static readonly (string Killer, string[] Types)[] s_killers = { ("Void Horror", new[] { "void" }), ("Lagon's Tentacle", new[] { "cold", "physical" }), ("Ash Wraith", new[] { "fire" }) };
 
     /// <summary>One session's records (oldest first) and totals, until more says to stop (given the time and the records
@@ -31,7 +38,7 @@ internal static class SessionSamples
             totals.Add(record);
             records.Add(record);
         }
-        Add("zone", ("scene", "EoT"), ("kind", "town"), ("monolith", false));
+        Add("zone", ("scene", "EoT"), ("kind", "town"), ("monolith", false), ("name", "The End of Time"));
         double rate = 0.6 + random.NextDouble();
         bool gapped = false;
         while (more(t, records))
@@ -40,7 +47,8 @@ internal static class SessionSamples
             corruption += random.Next(0, 3) == 0 ? 10 : 0;
             Add("pick", ("modifier", s_modifiers[random.Next(s_modifiers.Length)]), ("stability", (long)random.Next(10, 60)), ("hex", (long)random.Next(0, 40)),
                 ("reward", s_rewards[random.Next(s_rewards.Length)]), ("corruption", (long)corruption));
-            Add("zone", ("scene", $"M_{random.Next(10, 99)}"), ("kind", "echo"), ("monolith", true));
+            var (scene, name) = s_echoes[random.Next(s_echoes.Length)];
+            Add("zone", ("scene", scene), ("kind", "echo"), ("monolith", true), ("name", name));
             double end = t + 120d + random.Next(0, 240);
             bool complete = random.Next(0, 6) > 0;
             while (t < end)
@@ -84,9 +92,9 @@ internal static class SessionSamples
                 }
                 if (random.Next(0, 250) == 0) Add("level", ("level", (long)++level));
             }
-            if (complete) Add("echo", ("scene", "M_test"));
+            if (complete) Add("echo", ("scene", scene));
             t += 10d + random.Next(0, 20);
-            Add("zone", ("scene", "M_Rest"), ("kind", "town"), ("monolith", false));
+            Add("zone", ("scene", "M_Rest"), ("kind", "town"), ("monolith", false), ("name", "Traveler's Rest"));
             if (random.Next(0, 5) == 0)
             {
                 gold -= 500;

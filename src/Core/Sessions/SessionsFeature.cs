@@ -23,7 +23,7 @@ internal sealed class SessionsFeature : Feature
         Sessions.Start(this);
         Commands.Register(new Command("sessions", Usage, "Shows session history, lists past sessions, exports them as CSV, or starts a new session.", CommandMark.Release, Id, Run)
         {
-            DevVerbs = new[] { "show", "fill", "flood", "rotate", "crash", "writer", "stats", "keep", "cost", "trends", "delete", "names" },
+            DevVerbs = new[] { "show", "fill", "flood", "rotate", "crash", "writer", "stats", "keep", "cost", "trends", "delete", "names", "sample" },
         });
         Actions.Register(Id, "sessions.export", "Export session history", () => SessionExport.Start(SessionExport.RangeOf(SessionExport.PageRange)));
         Actions.Register(Id, "sessions.split", "New session", () =>
