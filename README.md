@@ -59,6 +59,12 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![Config: Map › Icons](nexus/media/map-icons.png)
 
   </details>
+- **Planner**: imported build marked on passive tree, skill trees and skill screens.
+  - **Import**: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
+  - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
+  - **Stages**: one build and stage per character, changed only with ◀ and ▶.
+  - **Checklist**: done out of planned per tree and skill bar, with next steps per tree.
+  - **Drawing only**: nothing spent, chosen or saved; off until switched on.
 - **Session**: per-session stats on Session tab.
   - **Tracks**: XP and gold per hour, drops by rarity, loot filter drops, deaths, echoes.
   - **History**: past sessions in `UserData/EpochAssist/sessions/`, within set limits; off under History.
