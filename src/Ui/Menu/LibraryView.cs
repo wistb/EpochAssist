@@ -245,8 +245,9 @@ internal static class LibraryLayout
         // macro line (Shared Conditions) in the tick box column of its siblings.
         float restX = line.Ticked == null ? (line.Parent ? chevron.xMax + 2f : box.x - 4f) : box.xMax + 4f;
         var rest = new Rect(restX, r.y, r.xMax - restX, r.height);
-        bool lineClicked = GUI.Button(rest, GUIContent.none, GUIStyle.none);
         bool renaming = view.Renaming == line.Key;
+        // While renaming, the field takes the line's clicks (to place the cursor or select), not the line.
+        bool lineClicked = !renaming && GUI.Button(rest, GUIContent.none, GUIStyle.none);
         // The line being renamed holds the focus, so the Enter that keeps the name presses nothing else.
         if (renaming && Event.current.type == EventType.Layout) Focus.Take("line." + line.Key);
         bool activated = Focus.Item("line." + line.Key, r, out int adjust);
@@ -276,11 +277,9 @@ internal static class LibraryLayout
             }
             view.Selected = line.Key;
         }
-        if (view.Renaming == line.Key) RenameField(view, line, new Rect(rest.x + 2f, r.y + 1f, rest.width - 4f, r.height - 2f));
-        if (Event.current.type != EventType.Repaint) return;
-
         bool hover = r.Contains(Event.current.mousePosition);
-        if (Widgets.Themed)
+        // The line's background goes first, so the rename field sits on it rather than under the selection.
+        if (Event.current.type == EventType.Repaint && Widgets.Themed)
         {
             if (selected) Theme.DrawSliced(r, Theme.SelectionBg, Theme.CardRadius);
             else if (hover) Theme.DrawSliced(r, Theme.HoverBg, Theme.CardRadius);
@@ -295,6 +294,8 @@ internal static class LibraryLayout
             }
             if (line.Parent) Theme.Tinted(new Rect(chevron.x + 1f, Mathf.Round(r.center.y - 6f), 12f, 12f), open ? Theme.Chevron : Theme.ChevronRight, Theme.Dim);
         }
+        if (view.Renaming == line.Key) RenameField(view, line, new Rect(rest.x + 2f, r.y + 1f, rest.width - 4f, r.height - 2f));
+        if (Event.current.type != EventType.Repaint) return;
         if (line.Ticked is bool ticked) Controls.Check(box, ticked ? 1 : 0, GUI.enabled && hover);
         float stateWidth = Mathf.Min(Controls.StatePillWidth(line.State), rest.width * 0.45f);
         if (view.Renaming == line.Key) return;
@@ -302,11 +303,17 @@ internal static class LibraryLayout
         Controls.StatePill(new Rect(rest.xMax - stateWidth - 4f, r.y, stateWidth, r.height), line.State, line.Shape);
     }
 
-    // The rename field in place of the label: Enter (the menu's activation of this line) keeps the name, Esc (the
-    // menu's Back) drops it.
+    // The rename field in place of the label: Enter (the menu's activation of this line) or a click anywhere else keeps
+    // the name, Esc (the menu's Back) drops it.
     private static void RenameField(LibraryView view, LibraryLine line, Rect r)
     {
         const string control = "library.rename";
+        // The raw type: a button the click landed on has already used the event.
+        if (Event.current.rawType == EventType.MouseDown && !r.Contains(Event.current.mousePosition))
+        {
+            CommitRename(view, line);
+            return;
+        }
         GUI.SetNextControlName(control);
         view.RenameText = GUI.TextField(r, view.RenameText, Macro.MaxName, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
         if (Event.current.type == EventType.Repaint && GUI.GetNameOfFocusedControl() != control) GUI.FocusControl(control);
