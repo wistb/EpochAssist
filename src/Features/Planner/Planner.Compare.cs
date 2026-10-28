@@ -9,7 +9,7 @@ internal enum GuidanceState { Matches, Partial, ToPlace, NotInBuild }
 internal enum TreeFlags
 {
     None = 0,
-    /// <summary>The character has another mastery: the mastery tree gets no marks.</summary>
+    /// <summary>The character has another mastery: the build's mastery nodes are left out, and the character's mastery points are not in the build.</summary>
     DifferentMastery = 1,
     /// <summary>A specialised skill the stage doesn't plan.</summary>
     SkillNotInBuild = 2,
@@ -107,7 +107,7 @@ internal static partial class Planner
     /// <summary>
     /// Compares a stage with the character. Per node: allocated equal to planned matches; fewer or more is partial
     ///; none of a planned node is to place; points in a node the stage doesn't use are not in the build.
-    /// Ids this game version lacks are skipped. With another mastery chosen, mastery-tree nodes get no state.
+    /// Ids this game version lacks are skipped. With another mastery chosen, the planned mastery nodes are left out and the points in the character's mastery are not in the build.
     /// <paramref name="requiredMastery"/> is each passive node's mastery (0 for the base class), or null when the game
     /// data couldn't be read.
     /// </summary>
@@ -186,7 +186,8 @@ internal static partial class Planner
         }
         foreach (var (node, a) in allocated)
         {
-            if (a == 0 || guide.Nodes.ContainsKey(node) || (plan != null && plan.Points.ContainsKey(node)) || excluded?.Invoke(node) == true) continue;
+            // Points in a left-out node are not in the build, planned there or not: another mastery's points show as such.
+            if (a == 0 || guide.Nodes.ContainsKey(node) || (plan != null && plan.Points.ContainsKey(node) && excluded?.Invoke(node) != true)) continue;
             guide.Nodes[node] = new NodeGuide(GuidanceState.NotInBuild, 0, a, 0, 0);
             list.OffPlan.Add(node);
         }

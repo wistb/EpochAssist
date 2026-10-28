@@ -914,25 +914,16 @@ internal static partial class Planner
             Marks.FrameMissing = false;
             s_kept.Clear();
             var guides = guidance.Passive.Nodes;
-            bool otherMastery = guidance.DifferentMastery;
             PlannerMark? next = null;
             for (int i = 0; i < count; i++)
             {
                 var node = nodes![i];
                 if (!Game.Alive(node) || !node!.gameObject.activeInHierarchy) continue;
-                // The character's mastery isn't the build's: none of its tree is marked, off-plan points included.
-                if (otherMastery && node.mastery != 0) continue;
                 if (!guides.TryGetValue(node.id, out var guide)) continue;
                 var mark = MarkNode(node.transform, guide, look, pass);
                 if (look.Next && guide.NextStep == 1 && mark != null) next = mark;
             }
             Marks.PulseOn(next);
-            if (otherMastery)
-            {
-                // Under the mastery banner, over the tree; the panel itself when the banner is gone.
-                var banner = manager.openedBanner;
-                Keep(Marks.Note(Game.Alive(banner) ? banner!.transform : manager.transform, look.Partial, MasteryWords(run)), pass);
-            }
             foreach (var mark in run.PassiveMarks)
                 if (mark.Pass != pass) Drop(run, mark, run.PassiveMarks);
             run.PassiveMarks.Clear();

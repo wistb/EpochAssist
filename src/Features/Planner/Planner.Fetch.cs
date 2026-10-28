@@ -78,7 +78,7 @@ internal static partial class Planner
         public const string NoCharacter = "Load a character to pick its build.";
         public const string InferredSlots = "Specialisation slots inferred from the export.";
 
-        public static string DifferentMastery(string mastery) => $"This build uses {mastery}; the mastery tree isn't marked.";
+        public static string DifferentMastery(string mastery) => $"This build uses {mastery}; this character's mastery points show as not in build.";
 
         public static string SkillNotInBuild(string skill) => $"{skill} isn't in this build.";
 
