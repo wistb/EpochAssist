@@ -1,20 +1,13 @@
 # Epoch Assist
 
-A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoch.
+Macro suite, build planner overlay, map reveal, session tracking, and much more. A
+[MelonLoader](https://github.com/LavaGang/MelonLoader) mod for Last Epoch.
 
 > Using mods online is against Last Epoch's terms of service.
 
-## Install
-
-1. Install [latest MelonLoader](https://github.com/LavaGang/MelonLoader/releases/latest) into game folder; start game
-   once.
-2. Extract [release](https://github.com/wistb/EpochAssist/releases) zip into Last Epoch folder (next to
-   `Last Epoch.exe`).
-3. In game, **F2** opens menu.
-
 ## Features
 
-- **Macros**: all automation on Macros tab.
+- **Macros**: highly configurable macro editor with various condition rules.
   - **Skill Slots**: **Left Ctrl** + skill key toggles a slot. Per-slot conditions, plus **Shared Conditions** (e.g.
     enemy gate) for all.
   - **Macros**: sets per class or all classes. Start alone, on key press, while held or on toggle; steps cast, drink,
@@ -27,14 +20,12 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   - **Debugging**: footer switches show macro state, enemy ranges and targets, plus a notice per trigger.
   <details><summary>Screenshots</summary>
 
-  ![The Macros tab](nexus/media/macros.png)
-
   ![A macro's editor](nexus/media/macro-editor.png)
 
   ![Shared Conditions with the shared target](nexus/media/shared-target.png)
 
   </details>
-- **Planner**: imported build marked on passive tree, skill trees, skill screens, inventory, blessings and weaver tree.
+- **Planner**: imported build marked across interfaces, with built-in guide viewing.
   - **Import**: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
   - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
   - **Gear**: badge on each planned equipment slot and idol, coloured ring on idol altar and blessing slots, outline on weaver tree item sockets; hover shows planned item as game's own tooltip beside equipped one, with a card listing planned affixes and tiers.
@@ -56,7 +47,7 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![Planner tab: stage, skill bar and checklist](nexus/media/planner-tab.png)
 
   </details>
-- **Map Reveal**: whole zone on overlay and corner minimap.
+- **Map Reveal**: reveal entire map on overlay and minimap. Customize map appearance.
   - **Icons**: shrines, rune prisons, caches, tomb chests, omen windows and more, shown on zone entry.
   - **Zoom**: overlay zooms past game's widest; separate corner minimap zoom.
   - **Look**: Slate, Clear or game style, thicker outline.
@@ -71,7 +62,7 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![Config: Map › Icons](nexus/media/map-icons.png)
 
   </details>
-- **Proximity Interact**: uses nearby objects and loot, without moving.
+- **Proximity Interact**: automatically interact with objects as they come into range.
   - **Use**: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
   - **Pick up**: keys, crafting materials, loot filter picks.
   - **In reach**: never moves the character or reaches past game range. Every kind starts off.
@@ -81,21 +72,28 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   ![Config: Proximity Interact](nexus/media/interact.png)
 
   </details>
-- **Session**: per-session stats on Session tab.
-  - **Tracks**: XP and gold per hour, drops by rarity, loot filter drops, deaths, echoes.
-  - **History**: past sessions in `UserData/EpochAssist/sessions/`, within set limits; off under History.
-  - **Export CSV**: two spreadsheet files.
+- **Session**: dashboard of each play session and every past one on Session tab, in game colours.
+  - **Focus**: chosen figures as tiles and charts: favour, reputation, memory amber, echoes, level, drops, XP, gold, deaths.
+  - **Live**: per-hour and last 10 minutes rates, time in and out of town, level progress, time to next level and faction rank.
+  - **Charts**: figure over session, timeline of zones, rare drops and deaths, drops by rarity, time by zone.
+  - **Tables**: factions with rank progress; echoes with clear time, gains, modifier, reward, corruption; deaths, monolith picks, loot filter drops.
+  - **Past sessions**: filter by character and range, per-hour trend, best marks, same dashboard per session; leave out of trends or delete.
+  - **New session**: ends session and starts next in place, for timed runs.
+  - **History**: kept in `UserData/EpochAssist/sessions/` within set limits, off under History; Export CSV writes two spreadsheet files. Nothing sent anywhere.
+  <details><summary>Screenshots</summary>
 
-## Settings
+  ![Session: Current session with focus tiles and chart](nexus/media/session-dashboard.png)
 
-Config tab at top of menu; search box above tree finds any setting.
+  ![Session: factions and echoes tables](nexus/media/session-tables.png)
 
-- **Profiles**: one setup per character; export and import to share.
-  <details><summary>Screenshot</summary>
-
-  ![Config: Profiles](nexus/media/profiles.png)
+  ![Session: Past sessions with trend](nexus/media/session-past.png)
 
   </details>
+
+## Config
+
+Highly configurable settings available via the Config tab. General options:
+
 - **Mini HUD**: macro state and slots while menu is closed; click for quick toggles. Notifications: own position,
   duration, count, kinds and order.
   <details><summary>Screenshots</summary>
@@ -119,8 +117,27 @@ Config tab at top of menu; search box above tree finds any setting.
   ![Config: Diagnostics](nexus/media/diagnostics.png)
 
   </details>
+- **Profiles**: one setup per character; export and import to share.
+  <details><summary>Screenshot</summary>
+
+  ![Config: Profiles](nexus/media/profiles.png)
+
+  </details>
+
+## Install
+
+1. Install [latest MelonLoader](https://github.com/LavaGang/MelonLoader/releases/latest) into game folder; start game
+   once.
+2. Extract [release](https://github.com/wistb/EpochAssist/releases) zip into Last Epoch folder (next to
+   `Last Epoch.exe`).
+3. In game, **F2** opens menu.
 
 All data saved in `UserData/EpochAssist/` in game folder.
+
+## Bug reports
+
+**Config › General › Diagnostics › Copy diagnostics**, then paste into an [issue](https://github.com/wistb/EpochAssist/issues).
+Crash reports: `UserData/EpochAssist/reports/`.
 
 ## Menu controls
 
@@ -131,11 +148,6 @@ All data saved in `UserData/EpochAssist/` in game folder.
 | Left / Right | adjust a slider or option |
 | PageUp / PageDown | switch page |
 | Esc | close the menu |
-
-## Bug reports
-
-Config → General → Diagnostics → **Copy diagnostics**, then paste into an [issue](https://github.com/wistb/EpochAssist/issues).
-Crash reports: `UserData/EpochAssist/reports/`.
 
 ## Building from source
 

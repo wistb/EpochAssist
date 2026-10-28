@@ -1,12 +1,12 @@
 [center]{{image:logo}}
-[size=3]Macros, autocast, proximity interact, map reveal and session tracking for Last Epoch, in one in-game menu.[/size]
-[size=2][color=#8e96a4]Version {{version}} · tested with Last Epoch {{game_version}} · a [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod · open source[/color][/size]
+[size=3]Macro suite, build planner overlay, map reveal, session tracking, and much more.[/size]
+[size=2][color=#8e96a4]Version {{version}} · a [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod[/color] · tested with Last Epoch {{game_version}}[/size]
 
 [b][color=#ee5396]Using mods online is against Last Epoch's terms of service.[/color][/b]
 [/center]
 [line]
 [size=5][b][color=#5ba8a4]Macros[/color][/b][/size]
-All customizations on Macros tab.
+Highly configurable macro editor with various condition rules.
 [list]
 [*][b][color=#25be6a]Skill Slots[/color][/b]: [font=Courier New]Left Ctrl[/font] + skill key toggles a slot. Per-slot conditions, plus [b]Shared Conditions[/b] (e.g. enemy gate) for all.
 [*][b][color=#25be6a]Macros[/color][/b]: sets per class or all classes. Start alone, on key press, while held or on toggle; steps cast, drink, town portal, wait, wait until, message.
@@ -20,7 +20,7 @@ All customizations on Macros tab.
 {{media:shared-target}}
 [line]
 [size=5][b][color=#5ba8a4]Planner[/color][/b][/size]
-Imported build marked on passive tree, skill trees, skill screens, inventory, blessings and weaver tree.
+Imported build marked across interfaces, with built-in guide viewing.
 [list]
 [*][b][color=#25be6a]Import[/color][/b]: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
 [*][b][color=#25be6a]Marks[/color][/b]: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
@@ -38,7 +38,7 @@ Imported build marked on passive tree, skill trees, skill screens, inventory, bl
 {{media:planner-tab}}
 [line]
 [size=5][b][color=#5ba8a4]Map Reveal[/color][/b][/size]
-Whole zone on overlay and corner minimap.
+Reveal entire map on overlay and minimap. Customize map appearance.
 [list]
 [*][b][color=#25be6a]Icons[/color][/b]: shrines, rune prisons, caches, tomb chests, omen windows and more, shown on zone entry.
 [*][b][color=#25be6a]Zoom[/color][/b]: overlay zooms past game's widest; separate corner minimap zoom.
@@ -51,7 +51,7 @@ Whole zone on overlay and corner minimap.
 {{media:map-icons}}
 [line]
 [size=5][b][color=#5ba8a4]Proximity Interact[/color][/b][/size]
-Uses nearby objects and loot, without moving.
+Automatically interact with objects as they come into range.
 [list]
 [*][b][color=#25be6a]Use[/color][/b]: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
 [*][b][color=#25be6a]Pick up[/color][/b]: keys, crafting materials, loot filter picks.
@@ -61,15 +61,22 @@ Uses nearby objects and loot, without moving.
 {{media:interact}}
 [line]
 [size=5][b][color=#5ba8a4]Session[/color][/b][/size]
-Per-session stats on Session tab.
+Dashboard of each play session and every past one on Session tab, in game colours.
 [list]
-[*][b][color=#25be6a]Tracks[/color][/b]: XP and gold per hour, drops by rarity, loot filter drops, deaths, echoes.
-[*][b][color=#25be6a]History[/color][/b]: past sessions in [font=Courier New]UserData/EpochAssist/sessions/[/font], within set limits; off under History.
-[*][b][color=#25be6a]Export CSV[/color][/b]: two spreadsheet files.
+[*][b][color=#25be6a]Focus[/color][/b]: chosen figures as tiles and charts: favour, reputation, memory amber, echoes, level, drops, XP, gold, deaths.
+[*][b][color=#25be6a]Live[/color][/b]: per-hour and last 10 minutes rates, time in and out of town, level progress, time to next level and faction rank.
+[*][b][color=#25be6a]Charts[/color][/b]: figure over session, timeline of zones, rare drops and deaths, drops by rarity, time by zone.
+[*][b][color=#25be6a]Tables[/color][/b]: factions with rank progress; echoes with clear time, gains, modifier, reward, corruption; deaths, monolith picks, loot filter drops.
+[*][b][color=#25be6a]Past sessions[/color][/b]: filter by character and range, per-hour trend, best marks, same dashboard per session; leave out of trends or delete.
+[*][b][color=#25be6a]New session[/color][/b]: ends session and starts next in place, for timed runs.
+[*][b][color=#25be6a]History[/color][/b]: kept in [font=Courier New]UserData/EpochAssist/sessions/[/font] within set limits, off under History; Export CSV writes two spreadsheet files. Nothing sent anywhere.
 [/list]
+{{media:session-dashboard}}
+{{media:session-tables}}
+{{media:session-past}}
 [line]
 [size=5][b][color=#5ba8a4]Config[/color][/b][/size]
-Config tab at top of menu; its search finds any setting.
+Highly configurable settings available via the Config tab. General options:
 [list]
 [*][b][color=#25be6a]Mini HUD[/color][/b]: macro state and slots while menu is closed; click for quick toggles. Notifications: own position, duration, count, kinds and order.
 {{media:hud}}
@@ -90,6 +97,6 @@ Config tab at top of menu; its search finds any setting.
 [/list]
 All data saved in [font=Courier New]UserData/EpochAssist/[/font] in game folder.
 [line]
-[size=5][b][color=#5ba8a4]Bug reports and source[/color][/b][/size]
+[size=5][b][color=#5ba8a4]Bug reports[/color][/b][/size]
 [b]Config › General › Diagnostics › Copy diagnostics[/b], then paste into an [url=https://github.com/wistb/EpochAssist/issues]issue on GitHub[/url]. Crash reports: [font=Courier New]UserData/EpochAssist/reports/[/font].
-Source and builds [url=https://github.com/wistb/EpochAssist]on GitHub[/url] (GPL-3.0).
+Source and build [url=https://github.com/wistb/EpochAssist]on GitHub[/url] (GPL-3.0).
