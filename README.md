@@ -15,8 +15,8 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   - **Targets**: cursor, nearest, rarest, weakest or pack centre, limited by range, rarity, mod, ailment.
   - **Conditions**: health, mana, ward, buffs, skills, potions, enemies (health, rarity, mods, ailments), zone and
     more; all of, any of, none of, optional hold time.
-  - **Sharing**: **Copy share code** and **Import set** (imports start off).
-  - **Potions**: ready-made Auto potion for low health or a full potion's missing heal. Starts off.
+  - **Sharing**: **Copy share code** and **Import set**.
+  - **Potions**: ready-made Auto potion for low health or a full potion's missing heal.
   - **Debugging**: footer switches show macro state, enemy ranges and targets, plus a notice per trigger.
   <details><summary>Screenshots</summary>
 
@@ -25,7 +25,7 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   ![Shared Conditions with the shared target](nexus/media/shared-target.png)
 
   </details>
-- **Planner**: imported build marked across interfaces, with built-in guide viewing.
+- **Planner**: imported build marked across interfaces, with a built-in guide viewer.
   - **Import**: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
   - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
   - **Gear**: badge on each planned equipment slot and idol, coloured ring on idol altar and blessing slots, outline on weaver tree item sockets; hover shows planned item as game's own tooltip beside equipped one, with a card listing planned affixes and tiers.
@@ -46,6 +46,12 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 
   ![Planner tab: stage, skill bar and checklist](nexus/media/planner-tab.png)
 
+  ![Planner checklist: next steps and gear in columns](nexus/media/planner-checklist.png)
+
+  ![Planner guide: Maxroll build guide in game](nexus/media/planner-guide.png)
+
+  ![Planner guide: skill tips with game icons](nexus/media/planner-guide-tips.png)
+
   </details>
 - **Map Reveal**: reveal entire map on overlay and minimap. Customize map appearance.
   - **Icons**: shrines, rune prisons, caches, tomb chests, omen windows and more, shown on zone entry.
@@ -65,7 +71,7 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 - **Proximity Interact**: automatically interact with objects as they come into range.
   - **Use**: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
   - **Pick up**: keys, crafting materials, loot filter picks.
-  - **In reach**: never moves the character or reaches past game range. Every kind starts off.
+  - **In reach**: never moves the character or reaches past game range.
   - **Options**: hold key, mini HUD count, per-use notice, reach rings.
   <details><summary>Screenshot</summary>
 
