@@ -41,7 +41,8 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
   - **Compare with build**: optional hotkey shows planned item for hovered item's slot.
   - **Stages**: one build and stage per character, each with its planned level; changed only with ◀ and ▶, hint once next stage's level is reached.
   - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings, weaver tree and weaver items, with next steps per tree; hover a gear row for planned item.
-  - **Drawing only**: nothing spent, chosen, equipped, moved or saved; off until switched on.
+  - **Guide**: Maxroll build's own guide in game, per stage, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text.
+  - **Drawing only**: nothing spent, chosen, equipped, moved or saved; on by default.
   <details><summary>Screenshots</summary>
 
   ![Passive tree with Planner marks](nexus/media/planner-passives.png)
