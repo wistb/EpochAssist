@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner tooltip <slot> [compare] [rarity <n>] [as <slot type>]|close | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -57,6 +57,7 @@ internal static class PlannerCommands
         "idols" => Idols(),
         "blessings" => Blessings(),
         "weaver" => Weaver(),
+        "tooltip" => Tooltip(call),
         "watch" => WatchSwitch(call),
         "import" => Import(call),
         "check" => Check(),
@@ -539,6 +540,187 @@ internal static class PlannerCommands
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
+    // planner tooltip <slot> [compare] [rarity <n>] [as <slot type>] | close: the active stage's planned item for an equipment slot,
+    // made as a new item in memory (never placed in a container, saved or sent) and shown with the game's own item
+    // tooltip, at the equipped item when the inventory shows it.
+    private static CommandResult Tooltip(CommandCall call)
+    {
+        var tooltips = Panel<TooltipItemManager>();
+        if (!Game.Alive(tooltips)) return CommandResult.Ok("planner tooltip: no tooltip manager");
+        string slot = call.Lower(2);
+        if (slot == "close")
+        {
+            tooltips!.CloseTooltip();
+            return CommandResult.Ok("planner tooltip close: closed");
+        }
+        var types = Enum.GetNames(typeof(TooltipItemManager.SlotType));
+        if (Planner.ActiveBuild is not { } build) return CommandResult.Ok("planner tooltip: no active build");
+        var raw = JsonNode.Parse(build.Raw) as JsonObject;
+        var (planned, slots) = PlannedItem(build, raw, Planner.ActiveStage, slot);
+        if (planned == null) return CommandResult.Ok($"planner tooltip {slot}: nothing planned; planner slots {slots}; slot types {string.Join(" ", types)}");
+
+        byte? rarity = null;
+        string typeName = types.FirstOrDefault(t => t.Contains("Equip", StringComparison.OrdinalIgnoreCase)) ?? types[0];
+        bool compare = false;
+        for (int i = 3; i <= call.Args.Length; i++)
+        {
+            if (call.Lower(i) == "compare") compare = true;
+            else if (call.Lower(i) == "rarity" && byte.TryParse(call.Lower(++i), out byte r)) rarity = r;
+            else if (call.Lower(i) == "as") typeName = types.FirstOrDefault(t => t.Equals(call.Lower(++i), StringComparison.OrdinalIgnoreCase)) ?? typeName;
+        }
+
+        var item = new ItemDataUnpacked
+        {
+            itemType = planned.Type,
+            subType = planned.Sub,
+            uniqueID = planned.Unique,
+            rarity = rarity ?? planned.Rarity,
+            corrupted = planned.Corrupted,
+            affixes = new Il2CppSystem.Collections.Generic.List<ItemAffix>(),
+            // The game keeps a fixed number of each; a planner lists only those the base or unique has.
+            implicitRolls = new Il2CppStructArray<byte>(Padded(planned.Implicits, ItemData.numberOfImplicitRolls)),
+            uniqueRolls = new Il2CppStructArray<byte>(Padded(planned.UniqueRolls, UniqueRollCount)),
+        };
+        foreach (var (id, tier, roll) in planned.Affixes) item.affixes.Add(new ItemAffix { affixId = id, affixTier = tier, affixRoll = roll });
+        // The game's own step after an item's fields change: its id bytes and the values its tooltip reads.
+        string refresh;
+        try
+        {
+            item.RefreshIDAndValues();
+            refresh = "refreshed";
+        }
+        catch (Exception e)
+        {
+            refresh = $"refresh failed ({e.GetType().Name}: {e.Message}); id {item.id?.Length.ToString(s_inv) ?? "null"}, implicits {item.implicitRolls?.Length.ToString(s_inv) ?? "null"} of {ItemData.numberOfImplicitRolls}";
+        }
+
+        var opener = EquippedOpener(slot);
+        var size = opener != null ? opener.GetComponent<RectTransform>()?.rect.size ?? Vector2.zero : Vector2.zero;
+        var position = opener != null ? opener.transform.position : new Vector3(Screen.width / 2f, Screen.height / 2f, 0f);
+        var type = Enum.Parse<TooltipItemManager.SlotType>(typeName);
+        tooltips!.OpenItemTooltip(item, type, Vector2.zero, position, opener, size);
+        if (compare && tooltips.activeParameters is { } shown) tooltips.ShowComparison(shown);
+        string affixes = string.Join(" ", planned.Affixes.Select(a => $"{a.Id}/t{a.Tier}/r{a.Roll}"));
+        return CommandResult.Ok($"planner tooltip {slot}: {item.FullName} (type {item.itemType} sub {item.subType} unique {item.uniqueID} rarity {item.rarity}) affixes [{affixes}] "
+            + $"{refresh}, as {typeName}, at {(opener != null ? "the equipped item" : "screen centre")}, ready {tooltips.IsTooltipReady}, active item {(tooltips.ActiveItem?.Pointer == item.Pointer ? "ours" : "other")}");
+    }
+
+    private const int UniqueRollCount = 8;
+
+    private static byte[] Padded(byte[] rolls, int count)
+    {
+        var all = new byte[Math.Max(count, rolls.Length)];
+        Array.Fill(all, (byte)255);
+        rolls.CopyTo(all, 0);
+        return all;
+    }
+
+    private sealed record PlanItem(byte Type, ushort Sub, ushort Unique, byte Rarity, bool Corrupted, List<(ushort Id, byte Tier, byte Roll)> Affixes, byte[] Implicits, byte[] UniqueRolls);
+
+    // Each site's slot names for the game's paper doll slots.
+    private static readonly Dictionary<string, (string Maxroll, string Let)> s_slots = new()
+    {
+        ["helmet"] = ("head", "head"), ["armor"] = ("body", "chest"), ["weapon"] = ("weapon", "weapon1"), ["offhand"] = ("offhand", "weapon2"),
+        ["amulet"] = ("neck", "amulet"), ["leftring"] = ("finger1", "ring1"), ["rightring"] = ("finger2", "ring2"), ["belt"] = ("waist", "waist"),
+        ["gloves"] = ("hands", "hands"), ["boots"] = ("feet", "feet"), ["relic"] = ("relic", "relic"),
+    };
+
+    // The stage's planned item for a paper doll slot, and the planner's slot names for the reply.
+    private static (PlanItem? Item, string Slots) PlannedItem(Build build, JsonObject? raw, int stage, string slot)
+    {
+        if (raw == null || !s_slots.TryGetValue(slot, out var names)) return (null, "none");
+        if (build.Source == LetFormat.Source)
+        {
+            var equipment = raw["data"]?["equipment"] as JsonObject;
+            return (equipment?[names.Let] is JsonObject let ? LetItem(let) : null, equipment != null ? string.Join(" ", equipment.Select(p => p.Key)) : "none");
+        }
+        // A Maxroll link holds profiles with item indexes into its items; an export is one profile with items inline.
+        JsonObject? profile = raw, items = null;
+        if (Build.Str(raw["data"]) is string dataText && JsonNode.Parse(dataText) is JsonObject data)
+        {
+            profile = (data["profiles"] as JsonArray)?[Math.Clamp(stage, 0, Math.Max(0, ((data["profiles"] as JsonArray)?.Count ?? 1) - 1))] as JsonObject;
+            items = data["items"] as JsonObject;
+        }
+        var slotted = profile?["items"] as JsonObject;
+        var node = slotted?[names.Maxroll];
+        var item = node is JsonObject inline ? inline : items != null && Build.Int(node) is int index ? items[index.ToString(s_inv)] as JsonObject : null;
+        return (item != null ? MaxrollItem(item) : null, slotted != null ? string.Join(" ", slotted.Select(p => p.Key)) : "none");
+    }
+
+    // Maxroll tiers count from 1 and its rolls run 0 to 1; the game's tiers count from 0 and its rolls are bytes. It
+    // states no rarity: a unique with affixes is legendary, else by affix count, exalted from tier 6.
+    private static PlanItem MaxrollItem(JsonObject o)
+    {
+        var affixes = new List<(ushort, byte, byte)>();
+        foreach (var key in new[] { "affixes", "corruptedAffixes" })
+            foreach (var a in o[key] as JsonArray ?? new JsonArray())
+                if (a is JsonObject affix && Build.Int(affix["id"]) is int id)
+                    affixes.Add(((ushort)id, (byte)Math.Max(0, (Build.Int(affix["tier"]) ?? 1) - 1), Roll(affix["roll"])));
+        foreach (var key in new[] { "sealedAffix", "primordialAffix" })
+            if (o[key] is JsonObject affix && Build.Int(affix["id"]) is int id)
+                affixes.Add(((ushort)id, (byte)Math.Max(0, (Build.Int(affix["tier"]) ?? 1) - 1), Roll(affix["roll"])));
+        ushort unique = (ushort)(Build.Int(o["uniqueID"]) ?? 0);
+        int regular = (o["affixes"] as JsonArray)?.Count ?? 0;
+        return new PlanItem((byte)(Build.Int(o["itemType"]) ?? 0), (ushort)(Build.Int(o["subType"]) ?? 0), unique, Rarity(unique, regular), o["corrupted"]?.GetValue<bool>() == true,
+            affixes, Rolls(o["implicits"]), Rolls(o["uniqueRolls"]));
+    }
+
+    // As the game stores it: the regular affix count up to 4; a unique 7, a set item 8, a unique with affixes 9.
+    private static byte Rarity(ushort unique, int regular)
+    {
+        if (unique == 0) return (byte)Math.Min(regular, 4);
+        if (UniqueList.getUnique(unique) is { isSetItem: true }) return 8;
+        return regular > 0 ? (byte)9 : (byte)7;
+    }
+
+    private static byte Roll(JsonNode? n) => n is JsonValue v && v.TryGetValue(out double d) ? (byte)Math.Clamp(Math.Round(d * 255d), 0, 255) : (byte)255;
+
+    private static byte[] Rolls(JsonNode? n) => (n as JsonArray)?.Select(Roll).ToArray() ?? Array.Empty<byte>();
+
+    // Last Epoch Tools: "I" ids hold 1 + base 3 + subtype 3 + rarity 1 + unique, "U" ids subtype 3 + unique 3 with the
+    // base from the game's unique list, affix ids "A" + 3 digits; tiers count from 1, rolls are bytes already.
+    private static PlanItem? LetItem(JsonObject o)
+    {
+        var (tag, digits) = LzString.DecodeLetId(Build.Str(o["id"]) ?? string.Empty);
+        if (tag == 'U' && digits is { Length: 6 })
+        {
+            ushort uniqueId = ushort.Parse(digits.Substring(3), s_inv);
+            int regular = (o["affixes"] as JsonArray)?.Count ?? 0;
+            digits = "1" + UniqueList.getUniqueItemType(uniqueId).ToString("000", s_inv) + digits.Substring(0, 3) + Rarity(uniqueId, regular) + digits.Substring(3);
+        }
+        else if (tag != 'I') return null;
+        if (digits == null || digits.Length < 8) return null;
+        var affixes = new List<(ushort, byte, byte)>();
+        var list = (o["affixes"] as JsonArray ?? new JsonArray()).ToList();
+        if (o["corruptedAffix"] is JsonObject corrupted) list.Add(corrupted);
+        foreach (var a in list)
+            if (a is JsonObject affix && LzString.DecodeLetId(Build.Str(affix["id"]) ?? string.Empty) is ('A', { } id))
+                affixes.Add((ushort.Parse(id, s_inv), (byte)Math.Max(0, (Build.Int(affix["tier"]) ?? 1) - 1), (byte)Math.Clamp(Build.Int(affix["r"]) ?? 255, 0, 255)));
+        byte[] Bytes(JsonNode? n) => (n as JsonArray)?.Select(x => (byte)Math.Clamp(Build.Int(x) ?? 0, 0, 255)).ToArray() ?? Array.Empty<byte>();
+        return new PlanItem(byte.Parse(digits.Substring(1, 3), s_inv), ushort.Parse(digits.Substring(4, 3), s_inv), digits.Length > 8 ? ushort.Parse(digits.Substring(8), s_inv) : (ushort)0,
+            byte.Parse(digits.Substring(7, 1), s_inv), o.ContainsKey("corruptedAffix"), affixes, Bytes(o["ir"]), Bytes(o["ur"]));
+    }
+
+    // The equipped item's inventory icon for a paper doll slot, while the inventory shows it.
+    private static GameObject? EquippedOpener(string slot)
+    {
+        var e = ItemContainersManager.Instance?.equipment;
+        if (e == null) return null;
+        Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? box = slot switch
+        {
+            "helmet" => e.helmet, "armor" => e.armor, "weapon" => e.weapon, "offhand" => e.offhand, "amulet" => e.amulet, "leftring" => e.leftRing,
+            "rightring" => e.rightRing, "belt" => e.belt, "gloves" => e.gloves, "boots" => e.boots, "relic" => e.relic, _ => null,
+        };
+        var content = box?.TryCast<IItemContainer>()?.GetContent();
+        if (content == null || content.Count == 0 || content[0] is not { } entry) return null;
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<InventoryItemUI>(), false))
+        {
+            var ui = obj.TryCast<InventoryItemUI>();
+            if (Game.Alive(ui) && ui!.gameObject.activeInHierarchy && ui.EntryRef != null && ui.EntryRef.Pointer == entry.Pointer) return ui.gameObject;
+        }
+        return null;
+    }
+
     // One line per item in a container: position, size, name, base, unique, rarity and affixes; with the item's
     // inventory icon on screen, its rect.
     private static void AddEntries(List<string> lines, string label, IItemContainer? box)
@@ -558,7 +740,7 @@ internal static class PlannerCommands
                 var affix = data.affixes[a];
                 affixes.Add($"{affix.affixId}/t{affix.affixTier}/r{affix.affixRoll}");
             }
-            lines.Add($"  {label} at {entry!.Position.x},{entry.Position.y} size {entry.size.x}x{entry.size.y}: {item?.FullName ?? "?"} (type {data.itemType} sub {data.subType} unique {data.uniqueID} rarity {data.rarity}) affixes [{string.Join(" ", affixes)}]{ItemRect(entry)}");
+            lines.Add($"  {label} at {entry!.Position.x},{entry.Position.y} size {entry.size.x}x{entry.size.y}: {item?.FullName ?? "?"} (type {data.itemType} sub {data.subType} unique {data.uniqueID} rarity {data.rarity}) affixes [{string.Join(" ", affixes)}] id {data.id?.Length ?? 0} implicits {data.implicitRolls?.Length ?? 0}{ItemRect(entry)}");
         }
     }
 
