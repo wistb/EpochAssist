@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner tooltip <slot> [compare] [rarity <n>] [as <slot type>]|close | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -58,6 +58,17 @@ internal static class PlannerCommands
         "blessings" => Blessings(),
         "weaver" => Weaver(),
         "tooltip" => Tooltip(call),
+        "carried" => Carried(),
+        "slots" => Slots(),
+        "cost" => Cost(),
+        "itemcheck" => ItemCheck(call),
+        "hintspot" => HintSpot(),
+        "slotart" => SlotArt(call),
+        "uitree" => UiTree(call),
+        "nodeart" => NodeArt(call),
+        "sprite" => SpriteSave(call),
+        "sprites" => SpriteList(call),
+        "tooltipcheck" => TooltipCheck(call),
         "watch" => WatchSwitch(call),
         "import" => Import(call),
         "check" => Check(),
@@ -427,8 +438,14 @@ internal static class PlannerCommands
                 page!.SelectSkillToSpec(pick);
                 return CommandResult.Ok($"planner open picker {pick}: SkillsPanelManager.SelectSkillToSpec");
             case "inventory":
-                ui!.openInventory(false, false, false, 0, false);
-                return CommandResult.Ok($"planner open inventory: UIBase.openInventory; open {ui.IsInventoryOpen()}");
+                // The fourth argument picks the tab; "inventory <n>" tries another.
+                int tab = int.TryParse(call.Lower(3), out int t) ? t : 0;
+                ui!.openInventory(false, false, false, tab, false);
+                return CommandResult.Ok($"planner open inventory: UIBase.openInventory tab {tab}; open {ui.IsInventoryOpen()}");
+            case "weaver":
+                ui!.OpenWeaverRankPanel(false, false);
+                var weaver = Panel<Il2CppLE.Factions.FactionRankUIWeaver>();
+                return CommandResult.Ok($"planner open weaver: UIBase.OpenWeaverRankPanel; panel {(Open(weaver) ? $"open, tree {(weaver!.IsWeaverTreeOpened ? "shown" : "hidden")}" : "closed")}");
             // The mastery choice the game offers after its story quest; opening it here skips that quest.
             case "mastery":
                 ui!.openMasteryPanel(false, false);
@@ -440,7 +457,7 @@ internal static class PlannerCommands
                 if (Game.Alive(AbilityBarSelectorManager.instance) && AbilityBarSelectorManager.instance!.IsMenuOpened) AbilityBarSelectorManager.instance.CloseMenu(false);
                 return CommandResult.Ok($"planner open close: open {OpenPanels()}");
             default:
-                return CommandResult.Error("planner open: usage planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close");
+                return CommandResult.Error("planner open: usage planner open passive|skills|tree <slot>|picker <slot>|inventory [tab]|weaver|mastery|close");
         }
     }
 
@@ -492,14 +509,15 @@ internal static class PlannerCommands
     {
         var manager = ItemContainersManager.Instance;
         if (!Game.Alive(manager) || manager!.equipment == null) return CommandResult.Ok("planner gear: no item containers");
-        var e = manager.equipment;
         var lines = new List<string> { $"ok planner gear: inventory {(UIBase.instance?.IsInventoryOpen() == true ? "open" : "closed")}" };
-        var slots = new (string Name, Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? Box)[]
+        var gear = PlannedGear();
+        foreach (var (slot, _, _) in Planner.GearSlots)
         {
-            ("helmet", e.helmet), ("armor", e.armor), ("weapon", e.weapon), ("offhand", e.offhand), ("amulet", e.amulet),
-            ("leftRing", e.leftRing), ("rightRing", e.rightRing), ("belt", e.belt), ("gloves", e.gloves), ("boots", e.boots), ("relic", e.relic),
-        };
-        foreach (var (name, box) in slots) AddEntries(lines, name, box?.TryCast<IItemContainer>());
+            AddEntries(lines, slot, Planner.SlotContainer(slot));
+            if (gear?.Slots.TryGetValue(slot, out var planned) == true) lines.Add($"    planned {PlannedText(planned!)}");
+            if (Planner.SlotGuide(Planner.CurrentGear, slot) is { } guide)
+                lines.Add($"    state {(guide.Unknown ? "unknown" : guide.State.ToString())}: {guide.Planned.Name} (planned for {guide.Planned.Slot}){(guide.Missing.Count > 0 ? $" missing [{string.Join(" ", guide.Missing.Select(m => $"{m.Id}/t{m.Tier}"))}]" : string.Empty)}");
+        }
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
@@ -510,6 +528,13 @@ internal static class PlannerCommands
         var idols = manager.idols;
         var lines = new List<string> { $"ok planner idols: grid {idols.size.x}x{idols.size.y}, unlock {idols.unlockIdx}, inventory {(UIBase.instance?.IsInventoryOpen() == true ? "open" : "closed")}" };
         AddEntries(lines, "idol", idols.TryCast<IItemContainer>());
+        foreach (var planned in PlannedGear()?.Idols ?? new List<PlannedItem>())
+        {
+            string state = Planner.CurrentGear?.Idols.TryGetValue((planned.X, planned.Y), out var guide) == true ? (guide!.Unknown ? "unknown" : guide.State.ToString()) : "none";
+            lines.Add($"  planned at {planned.X},{planned.Y} size {planned.Width}x{planned.Height} {state}: {PlannedText(planned)}");
+        }
+        if (Planner.CurrentGear is { } guidance)
+            lines.Add($"  checklist gear {guidance.Gear.Done}/{guidance.Gear.Total} idols {guidance.IdolList.Done}/{guidance.IdolList.Total} (unknown {guidance.IdolList.Unknown}) blessings {guidance.BlessingList.Done}/{guidance.BlessingList.Total}");
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
@@ -521,13 +546,25 @@ internal static class PlannerCommands
         var lines = new List<string> { $"ok planner blessings: {boxes?.Count ?? 0} slots" };
         for (int i = 0; boxes != null && i < boxes.Count; i++)
             AddEntries(lines, $"slot {i}", boxes[i]?.TryCast<IItemContainer>());
+        var map = ItemContainersManager.BlessingItemContainer.TimelineToBlessingContainer;
+        if (map != null)
+        {
+            var pairs = new List<string>();
+            foreach (var pair in map) pairs.Add($"{pair.Key}={pair.Value}");
+            lines.Add($"  timelines {string.Join(" ", pairs)}");
+        }
         foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<InventoryBlessingSlotUI>(), false))
         {
             var ui = obj.TryCast<InventoryBlessingSlotUI>();
             if (!Game.Alive(ui) || !ui!.gameObject.activeInHierarchy) continue;
             var item = ui.itemData;
-            lines.Add($"  shown {(item != null ? item.FullName : "empty")} grand {ui.isGrand} roll {ui.powerRoll.ToString("0.##", s_inv)} rect {Rect(ui.transform)}");
+            if (SlotTimeline(ui) == 3 && ui.transform.parent is { } around)
+                foreach (var image in around.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                    lines.Add($"    slot image {ui.name}<{around.name}: {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} sprite {(Game.Alive(image.sprite) ? $"{image.sprite!.name} {image.sprite.rect.width}x{image.sprite.rect.height}" : "none")} type {image.type} preserve {image.preserveAspect} rect {Rect(image.transform)}");
+            lines.Add($"  shown timeline {SlotTimeline(ui)} {(item != null ? item.FullName : "empty")} grand {ui.isGrand} roll {ui.powerRoll.ToString("0.##", s_inv)} rect {Rect(ui.transform)}");
         }
+        foreach (var (timeline, planned) in PlannedGear()?.Blessings ?? new SortedDictionary<int, PlannedItem>())
+            lines.Add($"  planned timeline {timeline}: {PlannedText(planned)}");
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
@@ -537,12 +574,33 @@ internal static class PlannerCommands
         var lines = new List<string> { $"ok planner weaver: tree {tree?.treeID ?? "none"}: {Nodes(tree?.nodes)}" };
         var panel = Panel<Il2CppLE.Factions.FactionRankUIWeaver>();
         lines.Add($"weaver panel: {(Open(panel) ? $"open, tree {(panel!.IsWeaverTreeOpened ? "shown" : "hidden")}" : "closed")}");
+        if (PlannedGear()?.Weaver is { } planned)
+        {
+            lines.Add($"planned: {planned.Total} points: {string.Join(" ", planned.Points.Select(p => $"{p.Key}:{p.Value}"))}");
+            lines.Add($"planned order: {(planned.Order is { } order ? string.Join(" ", order.Select(s => $"{s.Node}+{s.Add}")) : "none")}");
+        }
+        else
+        {
+            lines.Add("planned: none");
+        }
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
-    // planner tooltip <slot> [compare] [rarity <n>] [as <slot type>] | close: the active stage's planned item for an equipment slot,
-    // made as a new item in memory (never placed in a container, saved or sent) and shown with the game's own item
-    // tooltip, at the equipped item when the inventory shows it.
+    // The active stage's planned gear, or null with no build in use.
+    private static PlannedGear? PlannedGear() => Planner.ActiveBuild is { } build ? Planner.GearOf(build, Planner.ActiveStage) : null;
+
+    private static string PlannedText(PlannedItem p)
+    {
+        string affixes = string.Join(" ", p.Affixes.Select(a => $"{a.Id}/t{a.Tier}/r{a.Roll}{(a.Sealed != SealedAffixType.None ? "/" + a.Sealed : string.Empty)}"));
+        string unknown = p.Unknown.Count > 0 ? $" unknown [{string.Join(", ", p.Unknown)}]" : string.Empty;
+        return $"{(p.Name.Length > 0 ? p.Name : "?")} (type {p.ItemType} sub {p.SubType} unique {p.Unique} rarity {p.Rarity}{(p.Corrupted ? " corrupted" : string.Empty)}) "
+            + $"affixes [{affixes}] implicits [{string.Join(",", p.Implicits)}] unique rolls [{string.Join(",", p.UniqueRolls)}]{(p.RollsFilled ? " rolls filled" : string.Empty)}{unknown}";
+    }
+
+    // planner tooltip <slot>|idol <x> <y>|blessing <n> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] | close:
+    // the active stage's planned item, made as a new item in memory (never placed in a container, saved or sent) and shown
+    // with the game's own item tooltip, at the equipped item when the inventory shows it. "against hovered" compares it
+    // with the item behind the game's open tooltip; "reverse" shows that item with the planned one as the comparison.
     private static CommandResult Tooltip(CommandCall call)
     {
         var tooltips = Panel<TooltipItemManager>();
@@ -551,168 +609,442 @@ internal static class PlannerCommands
         if (slot == "close")
         {
             tooltips!.CloseTooltip();
+            TooltipItemManager.ForceClose();
             return CommandResult.Ok("planner tooltip close: closed");
         }
         var types = Enum.GetNames(typeof(TooltipItemManager.SlotType));
-        if (Planner.ActiveBuild is not { } build) return CommandResult.Ok("planner tooltip: no active build");
-        var raw = JsonNode.Parse(build.Raw) as JsonObject;
-        var (planned, slots) = PlannedItem(build, raw, Planner.ActiveStage, slot);
-        if (planned == null) return CommandResult.Ok($"planner tooltip {slot}: nothing planned; planner slots {slots}; slot types {string.Join(" ", types)}");
+        if (PlannedGear() is not { } gear) return CommandResult.Ok("planner tooltip: no active build");
+        int next = 3;
+        PlannedItem? planned;
+        string what = slot;
+        if (slot == "idol" && int.TryParse(call.Lower(3), out int x) && int.TryParse(call.Lower(4), out int y))
+        {
+            planned = gear.Idols.Find(i => i.X == x && i.Y == y);
+            what = $"idol {x} {y}";
+            next = 5;
+        }
+        else if (slot == "blessing" && int.TryParse(call.Lower(3), out int timeline))
+        {
+            planned = gear.Blessings.TryGetValue(timeline, out var b) ? b : null;
+            what = $"blessing {timeline}";
+            next = 4;
+        }
+        else
+        {
+            planned = gear.Slots.FirstOrDefault(p => p.Key.Equals(slot, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+        if (planned == null)
+            return CommandResult.Ok($"planner tooltip {what}: nothing planned; slots {string.Join(" ", gear.Slots.Keys)}; idols {string.Join(" ", gear.Idols.Select(i => $"{i.X},{i.Y}"))}; "
+                + $"blessings {string.Join(" ", gear.Blessings.Keys)}; slot types {string.Join(" ", types)}");
 
         byte? rarity = null;
-        string typeName = types.FirstOrDefault(t => t.Contains("Equip", StringComparison.OrdinalIgnoreCase)) ?? types[0];
-        bool compare = false;
-        for (int i = 3; i <= call.Args.Length; i++)
+        string typeName = planned.Place == PlannedPlace.Blessing ? "BLESSING" : types.FirstOrDefault(t => t.Contains("Equip", StringComparison.OrdinalIgnoreCase)) ?? types[0];
+        bool compare = false, against = false, reverse = false, carried = false, noShow = false;
+        Vector3? at = null;
+        for (int i = next; i <= call.Args.Length; i++)
         {
-            if (call.Lower(i) == "compare") compare = true;
-            else if (call.Lower(i) == "rarity" && byte.TryParse(call.Lower(++i), out byte r)) rarity = r;
-            else if (call.Lower(i) == "as") typeName = types.FirstOrDefault(t => t.Equals(call.Lower(++i), StringComparison.OrdinalIgnoreCase)) ?? typeName;
+            string word = call.Lower(i);
+            if (word == "compare") compare = true;
+            else if (word == "rarity" && byte.TryParse(call.Lower(++i), out byte r)) rarity = r;
+            else if (word == "as") typeName = types.FirstOrDefault(t => t.Equals(call.Lower(++i), StringComparison.OrdinalIgnoreCase)) ?? typeName;
+            else if (word == "against" && call.Lower(i + 1) == "hovered") { against = true; i++; }
+            else if (word == "against" && call.Lower(i + 1) == "carried") { against = carried = true; i++; }
+            else if (word == "reverse") reverse = true;
+            else if (word == "noshow") noShow = true;
+            else if (word == "at" && float.TryParse(call.Lower(i + 1), NumberStyles.Float, s_inv, out float ax) && float.TryParse(call.Lower(i + 2), NumberStyles.Float, s_inv, out float ay))
+            {
+                // Game-window pixels from the top left, as the input steps take them.
+                at = new Vector3(ax, Screen.height - ay, 0f);
+                i += 2;
+            }
         }
 
-        var item = new ItemDataUnpacked
+        // The hovered item, read before our tooltip replaces the game's.
+        var tip = UITooltipItem.instance;
+        // The item behind the game's open tooltip is its manager's active item; UITooltipItem.cachedItem is the equipped side.
+        ItemDataUnpacked? hovered = against && !carried && Panel<TooltipItemManager>() is { } open && Game.Alive(open) ? open.ActiveItem : null;
+        if (carried)
         {
-            itemType = planned.Type,
-            subType = planned.Sub,
-            uniqueID = planned.Unique,
-            rarity = rarity ?? planned.Rarity,
-            corrupted = planned.Corrupted,
-            affixes = new Il2CppSystem.Collections.Generic.List<ItemAffix>(),
-            // The game keeps a fixed number of each; a planner lists only those the base or unique has.
-            implicitRolls = new Il2CppStructArray<byte>(Padded(planned.Implicits, ItemData.numberOfImplicitRolls)),
-            uniqueRolls = new Il2CppStructArray<byte>(Padded(planned.UniqueRolls, UniqueRollCount)),
+            var cursor = ItemContainersManager.Instance?.cursor?.TryCast<IItemContainer>()?.GetContent();
+            hovered = cursor != null && cursor.Count > 0 ? cursor[0]?.data?.getAsUnpacked() : null;
+        }
+        if (against && hovered == null) return CommandResult.Ok($"planner tooltip {what}: no {(carried ? "carried item" : "item tooltip open")} to compare against");
+
+        var item = Planner.Make(planned, out string? refused, rarity);
+        string refresh = refused == null ? "refreshed" : $"refresh failed ({refused})";
+        var opener = at != null ? null : planned.Place switch
+        {
+            PlannedPlace.Slot => EquippedOpener(planned.Slot),
+            PlannedPlace.Idol => IdolOpener(planned.X, planned.Y),
+            _ => BlessingOpener(planned.Timeline),
         };
-        foreach (var (id, tier, roll) in planned.Affixes) item.affixes.Add(new ItemAffix { affixId = id, affixTier = tier, affixRoll = roll });
-        // The game's own step after an item's fields change: its id bytes and the values its tooltip reads.
-        string refresh;
-        try
-        {
-            item.RefreshIDAndValues();
-            refresh = "refreshed";
-        }
-        catch (Exception e)
-        {
-            refresh = $"refresh failed ({e.GetType().Name}: {e.Message}); id {item.id?.Length.ToString(s_inv) ?? "null"}, implicits {item.implicitRolls?.Length.ToString(s_inv) ?? "null"} of {ItemData.numberOfImplicitRolls}";
-        }
-
-        var opener = EquippedOpener(slot);
         var size = opener != null ? opener.GetComponent<RectTransform>()?.rect.size ?? Vector2.zero : Vector2.zero;
-        var position = opener != null ? opener.transform.position : new Vector3(Screen.width / 2f, Screen.height / 2f, 0f);
+        var position = at ?? (opener != null ? opener.transform.position : new Vector3(Screen.width / 2f, Screen.height / 2f, 0f));
         var type = Enum.Parse<TooltipItemManager.SlotType>(typeName);
-        tooltips!.OpenItemTooltip(item, type, Vector2.zero, position, opener, size);
-        if (compare && tooltips.activeParameters is { } shown) tooltips.ShowComparison(shown);
-        string affixes = string.Join(" ", planned.Affixes.Select(a => $"{a.Id}/t{a.Tier}/r{a.Roll}"));
-        return CommandResult.Ok($"planner tooltip {slot}: {item.FullName} (type {item.itemType} sub {item.subType} unique {item.uniqueID} rarity {item.rarity}) affixes [{affixes}] "
-            + $"{refresh}, as {typeName}, at {(opener != null ? "the equipped item" : "screen centre")}, ready {tooltips.IsTooltipReady}, active item {(tooltips.ActiveItem?.Pointer == item.Pointer ? "ours" : "other")}");
-    }
-
-    private const int UniqueRollCount = 8;
-
-    private static byte[] Padded(byte[] rolls, int count)
-    {
-        var all = new byte[Math.Max(count, rolls.Length)];
-        Array.Fill(all, (byte)255);
-        rolls.CopyTo(all, 0);
-        return all;
-    }
-
-    private sealed record PlanItem(byte Type, ushort Sub, ushort Unique, byte Rarity, bool Corrupted, List<(ushort Id, byte Tier, byte Roll)> Affixes, byte[] Implicits, byte[] UniqueRolls);
-
-    // Each site's slot names for the game's paper doll slots.
-    private static readonly Dictionary<string, (string Maxroll, string Let)> s_slots = new()
-    {
-        ["helmet"] = ("head", "head"), ["armor"] = ("body", "chest"), ["weapon"] = ("weapon", "weapon1"), ["offhand"] = ("offhand", "weapon2"),
-        ["amulet"] = ("neck", "amulet"), ["leftring"] = ("finger1", "ring1"), ["rightring"] = ("finger2", "ring2"), ["belt"] = ("waist", "waist"),
-        ["gloves"] = ("hands", "hands"), ["boots"] = ("feet", "feet"), ["relic"] = ("relic", "relic"),
-    };
-
-    // The stage's planned item for a paper doll slot, and the planner's slot names for the reply.
-    private static (PlanItem? Item, string Slots) PlannedItem(Build build, JsonObject? raw, int stage, string slot)
-    {
-        if (raw == null || !s_slots.TryGetValue(slot, out var names)) return (null, "none");
-        if (build.Source == LetFormat.Source)
+        string comparison = string.Empty;
+        if (against)
         {
-            var equipment = raw["data"]?["equipment"] as JsonObject;
-            return (equipment?[names.Let] is JsonObject let ? LetItem(let) : null, equipment != null ? string.Join(" ", equipment.Select(p => p.Key)) : "none");
+            var (main, other) = reverse ? (hovered!, item) : (item, hovered!);
+            tooltips!.OpenItemTooltip(main, TooltipItemManager.SlotType.INVENTORY, Vector2.zero, position, opener, size);
+            var parameters = tooltips.activeParameters;
+            bool set = parameters != null && tooltips.SetEquippedItemTextForComparison(other, parameters);
+            if (!noShow && tooltips.activeParameters is { } again) tooltips.ShowComparison(again);
+            comparison = $", against hovered {hovered!.FullName}{(reverse ? " (reversed)" : string.Empty)}: comparison set {set}, parameters {(parameters != null ? "yes" : "none")}, comparison enabled {tooltips.IsComparisonEnabled}";
         }
-        // A Maxroll link holds profiles with item indexes into its items; an export is one profile with items inline.
-        JsonObject? profile = raw, items = null;
-        if (Build.Str(raw["data"]) is string dataText && JsonNode.Parse(dataText) is JsonObject data)
+        else
         {
-            profile = (data["profiles"] as JsonArray)?[Math.Clamp(stage, 0, Math.Max(0, ((data["profiles"] as JsonArray)?.Count ?? 1) - 1))] as JsonObject;
-            items = data["items"] as JsonObject;
+            tooltips!.OpenItemTooltip(item, type, Vector2.zero, position, opener, size);
+            if (compare && tooltips.activeParameters is { } shown) tooltips.ShowComparison(shown);
         }
-        var slotted = profile?["items"] as JsonObject;
-        var node = slotted?[names.Maxroll];
-        var item = node is JsonObject inline ? inline : items != null && Build.Int(node) is int index ? items[index.ToString(s_inv)] as JsonObject : null;
-        return (item != null ? MaxrollItem(item) : null, slotted != null ? string.Join(" ", slotted.Select(p => p.Key)) : "none");
+        return CommandResult.Ok($"planner tooltip {what}: {item.FullName} {PlannedText(planned)} id {item.id?.Length ?? 0} implicits {item.implicitRolls?.Length ?? 0} of {ItemData.numberOfImplicitRolls} "
+            + $"two-handed {ItemData.IsTwoHanded(item)}, {refresh}, as {(against ? "INVENTORY" : typeName)}, at {(opener != null ? opener.name : "screen centre")}, ready {tooltips.IsTooltipReady}, "
+            + $"active item {(tooltips.ActiveItem?.Pointer == item.Pointer ? "ours" : "other")}, rect {(Game.Alive(tooltips.ActiveTooltipRect) ? Rect(tooltips.ActiveTooltipRect.transform) : "none")}{comparison}");
     }
 
-    // Maxroll tiers count from 1 and its rolls run 0 to 1; the game's tiers count from 0 and its rolls are bytes. It
-    // states no rarity: a unique with affixes is legendary, else by affix count, exalted from tier 6.
-    private static PlanItem MaxrollItem(JsonObject o)
+    // planner cost: the planner's own frame time (its per-frame update, where the inventory icons, hover and gear read run).
+    private static CommandResult Cost()
     {
-        var affixes = new List<(ushort, byte, byte)>();
-        foreach (var key in new[] { "affixes", "corruptedAffixes" })
-            foreach (var a in o[key] as JsonArray ?? new JsonArray())
-                if (a is JsonObject affix && Build.Int(affix["id"]) is int id)
-                    affixes.Add(((ushort)id, (byte)Math.Max(0, (Build.Int(affix["tier"]) ?? 1) - 1), Roll(affix["roll"])));
-        foreach (var key in new[] { "sealedAffix", "primordialAffix" })
-            if (o[key] is JsonObject affix && Build.Int(affix["id"]) is int id)
-                affixes.Add(((ushort)id, (byte)Math.Max(0, (Build.Int(affix["tier"]) ?? 1) - 1), Roll(affix["roll"])));
-        ushort unique = (ushort)(Build.Int(o["uniqueID"]) ?? 0);
-        int regular = (o["affixes"] as JsonArray)?.Count ?? 0;
-        return new PlanItem((byte)(Build.Int(o["itemType"]) ?? 0), (ushort)(Build.Int(o["subType"]) ?? 0), unique, Rarity(unique, regular), o["corrupted"]?.GetValue<bool>() == true,
-            affixes, Rolls(o["implicits"]), Rolls(o["uniqueRolls"]));
+        if (FeatureHost.Find("planner") is not { } f) return CommandResult.Ok("planner cost: no planner feature");
+        var frames = f.Record.Frames;
+        return CommandResult.Ok($"planner cost: avg {frames.AverageMs:F3} ms, worst {frames.WorstMs:F3} ms, last second {frames.LastSecondMs:F3} ms, budget {f.BudgetMs:F2} ms; "
+            + $"inventory {(UIBase.instance?.IsInventoryOpen() == true ? "open" : "closed")}, marks {Planner.Marks.Count}");
     }
 
-    // As the game stores it: the regular affix count up to 4; a unique 7, a set item 8, a unique with affixes 9.
-    private static byte Rarity(ushort unique, int regular)
+    // planner itemcheck <build id>: every planned item of every stage made as a game item: its name, and any the game
+    // refuses or this version lacks (base, unique, affix). Reading only; nothing is shown or placed.
+    private static CommandResult ItemCheck(CommandCall call)
     {
-        if (unique == 0) return (byte)Math.Min(regular, 4);
-        if (UniqueList.getUnique(unique) is { isSetItem: true }) return 8;
-        return regular > 0 ? (byte)9 : (byte)7;
-    }
-
-    private static byte Roll(JsonNode? n) => n is JsonValue v && v.TryGetValue(out double d) ? (byte)Math.Clamp(Math.Round(d * 255d), 0, 255) : (byte)255;
-
-    private static byte[] Rolls(JsonNode? n) => (n as JsonArray)?.Select(Roll).ToArray() ?? Array.Empty<byte>();
-
-    // Last Epoch Tools: "I" ids hold 1 + base 3 + subtype 3 + rarity 1 + unique, "U" ids subtype 3 + unique 3 with the
-    // base from the game's unique list, affix ids "A" + 3 digits; tiers count from 1, rolls are bytes already.
-    private static PlanItem? LetItem(JsonObject o)
-    {
-        var (tag, digits) = LzString.DecodeLetId(Build.Str(o["id"]) ?? string.Empty);
-        if (tag == 'U' && digits is { Length: 6 })
+        string id = call.Args.Length >= 2 ? call.Args[1] : string.Empty;
+        var build = Planner.Library.Find(id);
+        if (build == null) return CommandResult.Ok($"planner itemcheck: no build {id}");
+        var lines = new List<string>();
+        int made = 0, refused = 0, unknown = 0;
+        for (int stage = 0; stage < build.Stages.Count; stage++)
         {
-            ushort uniqueId = ushort.Parse(digits.Substring(3), s_inv);
-            int regular = (o["affixes"] as JsonArray)?.Count ?? 0;
-            digits = "1" + UniqueList.getUniqueItemType(uniqueId).ToString("000", s_inv) + digits.Substring(0, 3) + Rarity(uniqueId, regular) + digits.Substring(3);
+            var gear = Planner.GearOf(build, stage);
+            var all = gear.Slots.Values.Concat(gear.Idols).Concat(gear.Blessings.Values);
+            foreach (var p in all)
+            {
+                string where = p.Place switch { PlannedPlace.Slot => p.Slot, PlannedPlace.Idol => $"idol {p.X},{p.Y}", _ => $"blessing {p.Timeline}" };
+                string missing = p.Unknown.Count > 0 ? $" UNKNOWN [{string.Join(", ", p.Unknown)}]" : string.Empty;
+                if (p.Unknown.Count > 0) unknown++;
+                if (p.Unmakeable && p.Unknown.Contains("base") || p.Unknown.Contains("unique"))
+                {
+                    lines.Add($"  stage {stage + 1} {where}: not made{missing}");
+                    continue;
+                }
+                var item = Planner.Make(p, out string? refusal);
+                if (refusal != null) { refused++; lines.Add($"  stage {stage + 1} {where}: REFUSED {refusal}{missing}"); continue; }
+                made++;
+                string affixes = string.Join(", ", p.Affixes.Select(a => $"{a.Id} T{a.Tier + 1}"));
+                lines.Add($"  stage {stage + 1} {where}: {item.FullName} (type {p.ItemType} sub {p.SubType} unique {p.Unique} rarity {p.Rarity}) [{affixes}]{missing}");
+            }
         }
-        else if (tag != 'I') return null;
-        if (digits == null || digits.Length < 8) return null;
-        var affixes = new List<(ushort, byte, byte)>();
-        var list = (o["affixes"] as JsonArray ?? new JsonArray()).ToList();
-        if (o["corruptedAffix"] is JsonObject corrupted) list.Add(corrupted);
-        foreach (var a in list)
-            if (a is JsonObject affix && LzString.DecodeLetId(Build.Str(affix["id"]) ?? string.Empty) is ('A', { } id))
-                affixes.Add((ushort.Parse(id, s_inv), (byte)Math.Max(0, (Build.Int(affix["tier"]) ?? 1) - 1), (byte)Math.Clamp(Build.Int(affix["r"]) ?? 255, 0, 255)));
-        byte[] Bytes(JsonNode? n) => (n as JsonArray)?.Select(x => (byte)Math.Clamp(Build.Int(x) ?? 0, 0, 255)).ToArray() ?? Array.Empty<byte>();
-        return new PlanItem(byte.Parse(digits.Substring(1, 3), s_inv), ushort.Parse(digits.Substring(4, 3), s_inv), digits.Length > 8 ? ushort.Parse(digits.Substring(8), s_inv) : (ushort)0,
-            byte.Parse(digits.Substring(7, 1), s_inv), o.ContainsKey("corruptedAffix"), affixes, Bytes(o["ir"]), Bytes(o["ur"]));
+        lines.Insert(0, $"ok planner itemcheck {build.Id} \"{build.Name}\": {build.Stages.Count} stages, {made} made, {refused} refused, {unknown} with unknown ids");
+        return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
-    // The equipped item's inventory icon for a paper doll slot, while the inventory shows it.
+    // planner slots: each paper doll slot's own element (shown even when empty) and the idol grid's, with their screen
+    // rects and children, and the idol grid's cell size and first cells' screen points.
+    private static CommandResult Slots()
+    {
+        var manager = ItemContainersManager.Instance;
+        if (!Game.Alive(manager)) return CommandResult.Ok("planner slots: no item containers");
+        var lines = new List<string> { $"ok planner slots: inventory {(UIBase.instance?.IsInventoryOpen() == true ? "open" : "closed")}" };
+        foreach (var (slot, _, _) in Planner.GearSlots)
+        {
+            var box = Planner.SlotContainer(slot);
+            var ui = box != null ? ContainerUi(box) : null;
+            lines.Add($"  {slot}: {(ui != null ? $"{ui.name} parent {ui.transform.parent?.name} rect {Rect(ui.transform)} children {Children(ui.transform)}" : "no element")}");
+        }
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<ItemContainerUI>(), false))
+        {
+            var ui = obj.TryCast<ItemContainerUI>();
+            if (!Game.Alive(ui) || !ui!.gameObject.activeInHierarchy) continue;
+            var box = ui.Container;
+            lines.Add($"  ui {ui.name} < {ui.transform.parent?.name}: {(box != null ? box.TryCast<Il2CppSystem.Object>()?.GetIl2CppType().Name : "no container")} rect {Rect(ui.transform)}");
+        }
+        var idols = manager!.idols?.TryCast<IItemContainer>();
+        var grid = idols != null ? ContainerUi(idols) : null;
+        string CanvasText(Transform? t)
+        {
+            var c = t != null ? t.GetComponentInParent<Canvas>() : null;
+            return Game.Alive(c) ? $"{c!.name} order {c.sortingOrder} layer {c.sortingLayerName} override {c.overrideSorting}, root {c.rootCanvas.name} order {c.rootCanvas.sortingOrder} mode {c.rootCanvas.renderMode}" : "none";
+        }
+        lines.Add($"  canvas: idols {CanvasText(grid?.transform)}; helmet {CanvasText(ContainerUi(Planner.SlotContainer("helmet")!)?.transform)}; tooltip {CanvasText(Panel<TooltipItemManager>()?.itemTooltip?.transform)}");
+        if (grid != null && grid.GetComponent<ItemContainerUI>() is { } gridUi)
+        {
+            lines.Add($"  idols: {grid.name} parent {grid.transform.parent?.name} rect {Rect(grid.transform)} slot size {gridUi.GetSlotSize().x.ToString("0.#", s_inv)}x{gridUi.GetSlotSize().y.ToString("0.#", s_inv)}");
+            for (int y = 0; y < 5; y++)
+            {
+                var cells = new List<string>();
+                for (int x = 0; x < 5; x++)
+                {
+                    var p = gridUi.GetSlotPositionInScreenSpace(new Vector2Int(x, y));
+                    cells.Add($"{x},{y}@{p.x.ToString("0", s_inv)},{p.y.ToString("0", s_inv)}");
+                }
+                lines.Add($"    {string.Join(" ", cells)}");
+            }
+        }
+        else
+        {
+            lines.Add("  idols: no element");
+        }
+        return new CommandResult(DevOutput.Reply("planner", lines));
+    }
+
+    // planner slotart <slot>: every image under a paper doll slot's element (and its parent's), with its sprite, type,
+    // 9-slice border, colour and rect, to choose a native frame for the icons.
+    private static CommandResult SlotArt(CommandCall call)
+    {
+        var box = Planner.SlotContainer(call.Lower(2));
+        var element = box != null ? ContainerUi(box) : null;
+        if (element == null) return CommandResult.Ok("planner slotart: no element (inventory closed or no such slot)");
+        var lines = new List<string> { $"ok planner slotart {call.Lower(2)}: {element.name} parent {element.transform.parent?.name}" };
+        var root = element.transform.parent ?? element.transform;
+        foreach (var obj in root.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+        {
+            if (!Game.Alive(obj)) continue;
+            var sprite = obj.sprite;
+            string path = obj.transform == root ? obj.name : $"{obj.transform.parent?.name}/{obj.name}";
+            lines.Add($"  {path} active {obj.gameObject.activeInHierarchy} sprite {(Game.Alive(sprite) ? $"{sprite!.name} {sprite.rect.width}x{sprite.rect.height} border {sprite.border.x},{sprite.border.y},{sprite.border.z},{sprite.border.w}" : "none")} type {obj.type} colour #{ColorUtility.ToHtmlStringRGBA(obj.color)} rect {Rect(obj.transform)}");
+        }
+        return new CommandResult(DevOutput.Reply("planner", lines));
+    }
+
+    // planner sprites <regex> [max px]: loaded sprites whose name matches, no bigger than max px a side (default 128),
+    // with their size; full list in the reply file.
+    private static CommandResult SpriteList(CommandCall call)
+    {
+        var pattern = new System.Text.RegularExpressions.Regex(call.Lower(2), System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        int max = int.TryParse(call.Lower(3), out int m) ? m : 128;
+        var names = new SortedSet<string>();
+        foreach (var obj in Resources.FindObjectsOfTypeAll(Il2CppType.Of<Sprite>()))
+        {
+            var sprite = obj.TryCast<Sprite>();
+            if (!Game.Alive(sprite) || !pattern.IsMatch(sprite!.name)) continue;
+            var r = sprite.rect;
+            if (r.width > max || r.height > max) continue;
+            names.Add($"{sprite.name} {r.width}x{r.height}");
+        }
+        var lines = new List<string> { $"ok planner sprites {call.Lower(2)}: {names.Count}" };
+        lines.AddRange(names.Select(n => "  " + n));
+        return new CommandResult(DevOutput.Reply("planner", lines));
+    }
+
+    // planner sprite <name>: saves a loaded sprite's own pixels as dev/shots/sprite-<name>.png, to look at game art.
+    private static CommandResult SpriteSave(CommandCall call)
+    {
+        // Arguments start after "planner sprite".
+        string name = string.Join(" ", call.Args.Skip(1));
+        foreach (var obj in Resources.FindObjectsOfTypeAll(Il2CppType.Of<Sprite>()))
+        {
+            var sprite = obj.TryCast<Sprite>();
+            if (!Game.Alive(sprite) || sprite!.name != name) continue;
+            var area = sprite.textureRect;
+            int w = Mathf.Max(1, Mathf.RoundToInt(area.width)), h = Mathf.Max(1, Mathf.RoundToInt(area.height));
+            var before = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            try
+            {
+                var source = sprite.texture;
+                Graphics.Blit(source, rt, new Vector2(area.width / source.width, area.height / source.height), new Vector2(area.x / source.width, area.y / source.height));
+                RenderTexture.active = rt;
+                var texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+                texture.ReadPixels(new Rect(0f, 0f, w, h), 0, 0, false);
+                texture.Apply();
+                string path = Path.Combine(DevBridge.Dir, "shots", $"sprite-{name}.png");
+                File.WriteAllBytes(path, ImageConversion.EncodeToPNG(texture).ToArray());
+                UnityEngine.Object.Destroy(texture);
+                return CommandResult.Ok($"planner sprite {name}: {w}x{h} border {sprite.border} saved {path}");
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+        return CommandResult.Ok($"planner sprite {name}: not loaded");
+    }
+
+    // planner uitree <name>: the first active object with that name, its parents, and every image under it (sprite, size,
+    // rect), to find game UI pieces.
+    private static CommandResult UiTree(CommandCall call)
+    {
+        string name = string.Join(" ", call.Args.Skip(1));
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<RectTransform>(), false))
+        {
+            var t = obj.TryCast<RectTransform>();
+            if (!Game.Alive(t) || t!.name != name) continue;
+            var path = new List<string>();
+            for (var up = t.parent; up != null && path.Count < 5; up = up.parent) path.Add(up.name);
+            var lines = new List<string> { $"ok planner uitree {name}: in {string.Join(" < ", path)} rect {Rect(t)} components {string.Join(",", t.GetComponents<Component>().Select(c => c.GetIl2CppType().Name))}" };
+            for (int i = 0; i < t.childCount; i++)
+            {
+                var child = t.GetChild(i);
+                lines.Add($"  child {child.name} active {child.gameObject.activeInHierarchy} rect {Rect(child)}");
+            }
+            foreach (var image in t.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                lines.Add($"  {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} sprite {(Game.Alive(image.sprite) ? $"{image.sprite!.name} {image.sprite.rect.width}x{image.sprite.rect.height}" : "none")} type {image.type} rect {Rect(image.transform)}");
+            return new CommandResult(DevOutput.Reply("planner", lines));
+        }
+        return CommandResult.Ok($"planner uitree {name}: none active");
+    }
+
+    // planner hintspot: what the hint card's placement sees of the game's tooltip, and every tooltip panel on screen.
+    private static CommandResult HintSpot() =>
+        CommandResult.Ok($"planner hintspot: shown {EpochAssist.Ui.GameTooltips.Shown()?.ToString() ?? "none"} panels {EpochAssist.Ui.GameTooltips.Panels?.ToString() ?? "none"} "
+            + $"top {EpochAssist.Ui.GameTooltips.Top?.ToString() ?? "none"}; menu hover: {Planner.MenuHoverText}; {TooltipCanvases()}");
+
+    // Every active tooltip canvas and its Content panels with their rects.
+    private static string TooltipCanvases()
+    {
+        var parts = new List<string>();
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<Canvas>(), false))
+        {
+            var canvas = obj.TryCast<Canvas>();
+            if (!Game.Alive(canvas) || !canvas!.name.Contains("Tooltip", StringComparison.Ordinal)) continue;
+            for (int i = 0; i < canvas.transform.childCount; i++)
+            {
+                var child = canvas.transform.GetChild(i);
+                if (child.name.EndsWith("Content", StringComparison.Ordinal) && child.gameObject.activeInHierarchy)
+                    parts.Add($"{canvas.name}/{child.name} {Rect(child)}");
+            }
+        }
+        return string.Join("; ", parts);
+    }
+
+    // planner nodeart <id>: every image under the open tree's node with that id (sprite, size, active, rect).
+    private static CommandResult NodeArt(CommandCall call)
+    {
+        var (tree, source) = OpenTree();
+        if (tree == null || !byte.TryParse(call.Lower(2), out byte id)) return CommandResult.Ok("planner nodeart: no open tree or no id");
+        var nodes = tree.nodeList;
+        for (int i = 0; nodes != null && i < nodes.Count; i++)
+        {
+            var node = nodes[i];
+            if (!Game.Alive(node) || node!.id != id) continue;
+            var lines = new List<string> { $"ok planner nodeart {id} in {source}: {node.name} rect {Rect(node.transform)}" };
+            foreach (var image in node.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                lines.Add($"  {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} enabled {image.enabled} sprite {(Game.Alive(image.sprite) ? $"{image.sprite!.name} {image.sprite.rect.width}x{image.sprite.rect.height}" : "none")} type {image.type} colour #{ColorUtility.ToHtmlStringRGBA(image.color)} rect {Rect(image.transform)}");
+            return new CommandResult(DevOutput.Reply("planner", lines));
+        }
+        return CommandResult.Ok($"planner nodeart {id}: not in {source}");
+    }
+
+    private static string Children(Transform t)
+    {
+        var names = new List<string>();
+        for (int i = 0; i < t.childCount && i < 8; i++) names.Add(t.GetChild(i).name);
+        return string.Join(",", names);
+    }
+
+    // planner carried: the item the game holds on the cursor, and where it was picked up from.
+    private static CommandResult Carried()
+    {
+        var manager = ItemContainersManager.Instance;
+        if (!Game.Alive(manager) || manager!.cursor == null) return CommandResult.Ok("planner carried: no item containers");
+        var lines = new List<string> { $"ok planner carried: from {manager.CursorPickedFromContainer} at {manager.CursorPickedFromPos.x},{manager.CursorPickedFromPos.y}, locked {manager.CursorLocked}" };
+        AddEntries(lines, "cursor", manager.cursor.TryCast<IItemContainer>());
+        var tip = UITooltipItem.instance;
+        lines.Add($"  item tooltip: {(Game.Alive(tip) && tip!.tooltipActive ? tip.cachedItem?.getAsUnpacked()?.FullName ?? "open, no item" : "closed")}");
+        return new CommandResult(DevOutput.Reply("planner", lines));
+    }
+
+    // planner tooltipcheck <n>: opens and closes the stage's planned items n times in all, and compares the character's
+    // items, health and the game's tooltip state before and after. Reading only.
+    private static CommandResult TooltipCheck(CommandCall call)
+    {
+        var tooltips = Panel<TooltipItemManager>();
+        if (!Game.Alive(tooltips)) return CommandResult.Ok("planner tooltipcheck: no tooltip manager");
+        if (PlannedGear() is not { } gear) return CommandResult.Ok("planner tooltipcheck: no active build");
+        int count = int.TryParse(call.Lower(2), out int n) ? Math.Clamp(n, 1, 1000) : 100;
+        var planned = gear.Slots.Values.Concat(gear.Idols).Concat(gear.Blessings.Values).Where(p => !p.Unmakeable).ToList();
+        if (planned.Count == 0) return CommandResult.Ok("planner tooltipcheck: nothing planned to show");
+        string before = CharacterState(), tipBefore = TooltipState(tooltips!);
+        int opened = 0;
+        for (int i = 0; i < count; i++)
+        {
+            var p = planned[i % planned.Count];
+            if (Planner.Made(p) is not { } item) continue;
+            tooltips!.OpenItemTooltip(item, p.Place == PlannedPlace.Blessing ? TooltipItemManager.SlotType.BLESSING : TooltipItemManager.SlotType.INVENTORY,
+                Vector2.zero, new Vector3(Screen.width / 2f, Screen.height / 2f, 0f), null, Vector2.zero);
+            tooltips.CloseTooltip();
+            opened++;
+        }
+        string after = CharacterState(), tipAfter = TooltipState(tooltips!);
+        bool same = before == after;
+        return CommandResult.Ok($"planner tooltipcheck: opened and closed {opened} of {count} ({planned.Count} items); character {(same ? "unchanged" : "CHANGED")} "
+            + $"({before.Length} chars, hash {before.GetHashCode():X8} → {after.GetHashCode():X8}); tooltip {tipBefore} → {tipAfter}");
+    }
+
+    // Every item the character holds, as id bytes by container and place, and its health.
+    private static string CharacterState()
+    {
+        var manager = ItemContainersManager.Instance;
+        var sb = new System.Text.StringBuilder();
+        void Box(string label, IItemContainer? box)
+        {
+            var content = box?.GetContent();
+            sb.Append(label).Append(':');
+            for (int i = 0; content != null && i < content.Count; i++)
+            {
+                var entry = content[i];
+                if (entry?.data?.id is not { } id) continue;
+                sb.Append(entry.Position.x).Append(',').Append(entry.Position.y).Append('=').Append(Convert.ToHexString(id.ToArray())).Append(';');
+            }
+            sb.Append('|');
+        }
+        if (Game.Alive(manager))
+        {
+            foreach (var (slot, _, _) in Planner.GearSlots) Box(slot, Planner.SlotContainer(slot));
+            Box("idols", manager!.idols?.TryCast<IItemContainer>());
+            Box("inventory", manager.inventory?.TryCast<IItemContainer>());
+            Box("cursor", manager.cursor?.TryCast<IItemContainer>());
+            var boxes = manager.blessings?.Containers;
+            for (int i = 0; boxes != null && i < boxes.Count; i++) Box($"blessing {i}", boxes[i]?.TryCast<IItemContainer>());
+        }
+        var health = Player.Health;
+        sb.Append("health ").Append(Game.Alive(health) ? health!.maxHealth : -1);
+        return sb.ToString();
+    }
+
+    private static string TooltipState(TooltipItemManager tooltips) =>
+        $"active {tooltips.active} item {(tooltips.ActiveItem != null ? "set" : "none")} game tooltip {(UITooltipItem.instance?.tooltipActive == true ? "open" : "closed")}";
+
+    // The equipped item's inventory icon for a paper doll slot while the inventory shows it, else the slot's own element.
     private static GameObject? EquippedOpener(string slot)
     {
-        var e = ItemContainersManager.Instance?.equipment;
-        if (e == null) return null;
-        Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? box = slot switch
+        var box = Planner.SlotContainer(slot);
+        var content = box?.GetContent();
+        if (content != null && content.Count > 0 && content[0] is { } entry && EntryUi(entry) is { } ui) return ui;
+        return box != null ? ContainerUi(box) : null;
+    }
+
+    private static GameObject? IdolOpener(int x, int y)
+    {
+        var content = ItemContainersManager.Instance?.idols?.TryCast<IItemContainer>()?.GetContent();
+        for (int i = 0; content != null && i < content.Count; i++)
+            if (content[i] is { } entry && entry.Position.x == x && entry.Position.y == y) return EntryUi(entry);
+        return null;
+    }
+
+    private static GameObject? BlessingOpener(int timeline)
+    {
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<InventoryBlessingSlotUI>(), false))
         {
-            "helmet" => e.helmet, "armor" => e.armor, "weapon" => e.weapon, "offhand" => e.offhand, "amulet" => e.amulet, "leftring" => e.leftRing,
-            "rightring" => e.rightRing, "belt" => e.belt, "gloves" => e.gloves, "boots" => e.boots, "relic" => e.relic, _ => null,
-        };
-        var content = box?.TryCast<IItemContainer>()?.GetContent();
-        if (content == null || content.Count == 0 || content[0] is not { } entry) return null;
+            var ui = obj.TryCast<InventoryBlessingSlotUI>();
+            if (Game.Alive(ui) && ui!.gameObject.activeInHierarchy && SlotTimeline(ui) == timeline + 1) return ui.gameObject;
+        }
+        return null;
+    }
+
+    // The game's timeline number of a blessing slot (from 1), or -1.
+    private static int SlotTimeline(InventoryBlessingSlotUI ui) =>
+        ui.blessingUIContainer?.Container?.TryCast<BlessingContainer>() is { } box ? (int)box.TimelineID : -1;
+
+    private static GameObject? EntryUi(ItemContainerEntry entry)
+    {
         foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<InventoryItemUI>(), false))
         {
             var ui = obj.TryCast<InventoryItemUI>();
@@ -721,6 +1053,16 @@ internal static class PlannerCommands
         return null;
     }
 
+    // The container's own element (shown even when empty).
+    private static GameObject? ContainerUi(IItemContainer box)
+    {
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<ItemContainerUI>(), false))
+        {
+            var ui = obj.TryCast<ItemContainerUI>();
+            if (Game.Alive(ui) && ui!.gameObject.activeInHierarchy && ui.Container != null && ui.Container.Pointer == box.Pointer) return ui.gameObject;
+        }
+        return null;
+    }
     // One line per item in a container: position, size, name, base, unique, rarity and affixes; with the item's
     // inventory icon on screen, its rect.
     private static void AddEntries(List<string> lines, string label, IItemContainer? box)
