@@ -18,6 +18,14 @@ internal static class Slider
 
     public static void Reset() => s_dragging = null;
 
+    /// <summary>Where a Number setting's value text ends in a slider drawn in r, so a mark can sit just after it.</summary>
+    public static float ValueEnd(Rect r, Number number)
+    {
+        GUIStyle style = Widgets.Style(() => Theme.FieldText, GUI.skin.label);
+        // The measured width includes the style's padding; the text ends before the right padding.
+        return r.xMax - ValueWidth + TextCache.Width(NumberSpec.Of(number).Format(number.Value), style) - style.padding.right;
+    }
+
     /// <summary>A Number setting's slider.</summary>
     public static void Draw(Rect r, string key, Number number, string? tip = null) =>
         Draw(r, key, number.Value, NumberSpec.Of(number), value => number.Value = value, tip);

@@ -231,9 +231,14 @@ internal static class SettingRows
             var parts = RowLayout.Lay(rect, ControlWidth(setting), hint);
             // The label of a switch flips it too, as the whole row did.
             if (setting is Toggle toggle && GUI.Button(parts.Label, GUIContent.none, GUIStyle.none)) Flip(toggle, "menu");
-            RowLayout.Label(parts.Label, setting.Label, ctx, row.Hint);
-            Control(setting, parts.Control, key, row.Hint);
-            if (!setting.IsDefault && setting is not (Key or Hotkey) && Controls.ResetMark(parts.Reset, key + ".reset")) setting.Reset();
+            // The hint shows on the row, so neither the label nor the control repeats it as a tooltip.
+            RowLayout.Label(parts.Label, setting.Label, ctx, null);
+            Control(setting, parts.Control, key, null);
+            // A slider's value is short and left in its column, so its reset sits just after the value, not past the column.
+            var reset = setting is Number { Slider: true } slid
+                ? new Rect(Mathf.Min(parts.Reset.x, Slider.ValueEnd(parts.Control, slid) + 4f), parts.Reset.y, parts.Reset.width, parts.Reset.height)
+                : parts.Reset;
+            if (!setting.IsDefault && setting is not (Key or Hotkey) && Controls.ResetMark(reset, key + ".reset")) setting.Reset();
             RowLayout.Hint(parts.Hint, hint);
         }
 
