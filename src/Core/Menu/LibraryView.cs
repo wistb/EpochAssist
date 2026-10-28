@@ -1,7 +1,8 @@
 namespace EpochAssist.Core;
 
-/// <summary>How an entry's page area is laid out: the usual pages, or the macro library's own layout.</summary>
-internal enum MenuLayout { Pages, Library }
+/// <summary>How an entry's page area is laid out: the usual pages, the macro library's own layout, or wide pages: no
+/// tree, the tab's entries as a switch in the title row, for a tab with few pages (the Session tab).</summary>
+internal enum MenuLayout { Pages, Library, Wide }
 
 /// <summary>
 /// A line of the library tree: a set (depth 0) or a macro under it (depth 1), with its tick box (null for none), its

@@ -237,11 +237,15 @@ internal static class PageView
     {
         GUIStyle title = Widgets.Style(() => Theme.PageTitle, GUI.skin.label);
         float x = r.x;
-        float tw = TextCache.Width(page.Page.Title, title);
         // Centred on the row, like the tags and buttons beside it (the style draws from the top).
         float th = title.lineHeight + title.padding.vertical;
-        if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, Mathf.Round(r.center.y - th / 2f), tw, th), page.Page.Title, title);
-        x += tw + 10f;
+        if (page.Node.Entry.Layout == MenuLayout.Wide) x = WideSwitch(page, r, title, th);
+        else
+        {
+            float tw = TextCache.Width(page.Page.Title, title);
+            if (Event.current.type == EventType.Repaint) Widgets.Paint(new Rect(x, Mathf.Round(r.center.y - th / 2f), tw, th), page.Page.Title, title);
+            x += tw + 10f;
+        }
         bool pill = page.Page.ConflictPill ?? ReferenceEquals(page.Node.Entry.Pages.FirstOrDefault(), page.Page);
         float conflict = pill ? ConflictTag.Draw(page.Node.Feature, x, r.center.y, "conflict.page") : 0f;
         if (conflict > 0f) x += conflict + 10f;
@@ -260,6 +264,7 @@ internal static class PageView
         for (int i = page.Page.Actions.Count - 1; i >= 0; i--)
         {
             var button = page.Page.Actions[i];
+            if (!Safe.Visible(button)) continue;
             float w = Controls.ButtonWidth(button.Label);
             right -= w;
             if (Controls.Button(new Rect(right, r.center.y - 12f, w, 24f), button.Label, button.Key, button.Primary, TextRows.Tip(button))) ActionsFor(button);
@@ -274,6 +279,39 @@ internal static class PageView
         }
         // The tag goes in what's left: whole, else the state alone ("waiting"), else not at all, never under a button.
         if (StatusOf(page) is { } status && FittedTag(status, right - x) is { } fitted) Tag(new Rect(x, r.center.y - Theme.TagHeight / 2f, 0f, Theme.TagHeight), fitted);
+    }
+
+    private static GUIStyle? s_dimTitle;
+    private static GUIStyle? s_dimTitleOf;
+
+    // A wide page's title: every Wide entry of its tab by title, the shown one in the title colour over an accent line,
+    // the others dimmed; a click or Enter shows that entry's first page. Returns where the row goes on.
+    private static float WideSwitch(PageNode page, Rect r, GUIStyle title, float th)
+    {
+        if (!ReferenceEquals(s_dimTitleOf, title))
+        {
+            s_dimTitleOf = title;
+            s_dimTitle = new GUIStyle(title);
+            s_dimTitle.normal.textColor = Widgets.Themed ? Theme.Values.Dim : Color.gray;
+        }
+        float x = r.x;
+        foreach (var node in page.Node.Tab.Nodes)
+        {
+            if (node.Entry.Layout != MenuLayout.Wide || node.Pages.Count == 0) continue;
+            bool shown = ReferenceEquals(node, page.Node);
+            float w = TextCache.Width(node.Title, title);
+            var hit = new Rect(x - 4f, r.y, w + 8f, r.height);
+            bool clicked = GUI.Button(hit, GUIContent.none, GUIStyle.none);
+            if (Event.current.type == EventType.Repaint)
+            {
+                bool hover = hit.Contains(Event.current.mousePosition);
+                Widgets.Paint(new Rect(x, Mathf.Round(r.center.y - th / 2f), w, th), node.Title, shown || hover ? title : s_dimTitle!);
+                if (shown && Widgets.Themed) Theme.Fill(new Rect(x, r.yMax + 1f, w, 2f), Theme.Accent);
+            }
+            if ((Focus.Item("wide." + MenuEntry.Slug(node.Title), hit) || clicked) && !shown) MenuRoutes.Show(node.Pages[0]);
+            x += w + 22f;
+        }
+        return x;
     }
 
     private static PageStatus? FittedTag(PageStatus status, float room)

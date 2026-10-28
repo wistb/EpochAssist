@@ -47,7 +47,7 @@ internal sealed class MenuEntry
     /// <summary>Rows above every page of this entry.</summary>
     public List<MenuRow> Top { get; } = new();
     /// <summary>How the page area is laid out; Library draws Library instead of the pages' rows (and hides the menu's
-    /// tree while one of its pages shows).</summary>
+    /// tree while one of its pages shows); Wide hides the tree and puts the tab's Wide entries in the title row.</summary>
     public MenuLayout Layout { get; init; } = MenuLayout.Pages;
     /// <summary>The library layout's data, for Layout Library.</summary>
     public LibraryView? Library { get; init; }
@@ -98,6 +98,9 @@ internal sealed class MenuPage
     public bool? ConflictPill { get; init; }
     /// <summary>Buttons in the title row, before Reset.</summary>
     public List<ActionButton> Actions { get; } = new();
+    /// <summary>Esc on this page, before the menu's own handling (an opened item going back to its list); true when
+    /// handled.</summary>
+    public Func<bool>? Back { get; init; }
     /// <summary>Whether the title row offers Reset; null for "when the page has settings".</summary>
     public bool? Resettable { get; init; }
     /// <summary>False: not listed under its node in the tree; reached from a tree item that opens it (a slot macro's

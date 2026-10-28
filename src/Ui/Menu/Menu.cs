@@ -132,12 +132,14 @@ internal static class Menu
         GateInput();
     }
 
-    /// <summary>Esc: closes the open popup, else cancels key capture, else clears a focused search, else closes the menu.</summary>
+    /// <summary>Esc: closes the open popup, else cancels key capture, else the page's Back, else clears a focused search,
+    /// else closes the menu.</summary>
     public static void Escape()
     {
         if (Popups.IsOpen) Popups.Close(commit: false);
         else if (Hotkeys.CaptureActive) Hotkeys.CancelCapture();
         else if (s_search.Length == 0 && MenuRoutes.Page?.Node.Entry.Library is { } library && LibraryBack(library)) { }
+        else if (s_search.Length == 0 && MenuRoutes.Page?.Page.Back is { } back && Safe.Call(back, false, MenuRoutes.Path + ".back")) { }
         else if (s_search.Length > 0 && Focus.Current == "search")
         {
             s_search = string.Empty;
@@ -298,8 +300,9 @@ internal static class Menu
                 GUI.color = new Color(color.r, color.g, color.b, color.a * (1f - fold));
             }
             float y = folding ? 0f : top.yMax;
-            // The library layout has its own tree, so the menu's gives it the room (search results keep the usual layout).
-            bool library = s_search.Trim().Length == 0 && MenuRoutes.Page?.Node.Entry.Layout == MenuLayout.Library;
+            // The library layout has its own tree and wide pages switch in their title row, so the menu's tree gives them
+            // the room (search results keep the usual layout).
+            bool library = s_search.Trim().Length == 0 && MenuRoutes.Page?.Node.Entry.Layout is MenuLayout.Library or MenuLayout.Wide;
             var tree = new Rect(0f, y, library ? 0f : TreeView.Width, s_bodyHeight);
             var page = new Rect(tree.xMax, y, w - tree.xMax - 1f, s_bodyHeight);
             if (Widgets.Themed && !library) Theme.Fill(new Rect(tree.xMax - 1f, tree.y, 1f, tree.height), Theme.DividerColor);
