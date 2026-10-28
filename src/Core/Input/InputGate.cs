@@ -10,6 +10,8 @@ namespace EpochAssist.Core;
 internal static class InputGate
 {
     public static bool Menu;
+    /// <summary>The menu is open but folded to its bars: like the HUD, only a press on them is kept from the game.</summary>
+    public static bool MenuFolded;
     public static bool Hud;
 
     private static bool s_blocking;
@@ -80,7 +82,9 @@ internal static class InputGate
     private static void BeforeGameInput()
     {
         var mouse = InputState.Pointer;
-        bool over = HudHitTest != null && HudHitTest(new UnityEngine.Vector2(mouse.x, UnityEngine.Screen.height - mouse.y));
+        var point = new UnityEngine.Vector2(mouse.x, UnityEngine.Screen.height - mouse.y);
+        // The folded menu's bars count as the HUD does.
+        bool over = HudHitTest != null && HudHitTest(point) || MenuFolded && MenuHitTest != null && MenuHitTest(point);
         bool down = InputState.ButtonDown(0) || InputState.ButtonDown(1) || InputState.ButtonDown(2);
         bool held = InputState.Button(0) || InputState.Button(1) || InputState.Button(2);
 
@@ -102,7 +106,6 @@ internal static class InputGate
         // The game's own UI (the world map, its buttons and panels) takes clicks through Unity's event system, which
         // the lock above doesn't reach: while the cursor is over the menu window or the HUD, that system is held off,
         // so a click there lands only on ours.
-        var point = new UnityEngine.Vector2(mouse.x, UnityEngine.Screen.height - mouse.y);
         HoldUiEvents(over || (Menu && MenuHitTest != null && MenuHitTest(point)));
         Apply();
     }
@@ -170,6 +173,7 @@ internal static class InputGate
     public static void Release()
     {
         Menu = false;
+        MenuFolded = false;
         Hud = false;
         s_hudPress = false;
         s_hudTailFrames = 0;

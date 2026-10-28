@@ -26,6 +26,23 @@ internal static class Menu
         s_foldFrom = Fold;
         s_foldSince = Time.unscaledTime;
         Collapsed = !Collapsed;
+        if (Collapsed)
+        {
+            // Folded, nothing of the menu's keeps the keyboard: a key capture or a focused field lets go.
+            Hotkeys.CancelCapture();
+            GUIUtility.keyboardControl = 0;
+        }
+        GateInput();
+    }
+
+    // Open and unfolded, the menu holds the game's input and keeps keys in its fields; folded, it lets the game have
+    // everything but clicks on its bars.
+    private static void GateInput()
+    {
+        bool holds = Visible && !Collapsed;
+        InputGate.Menu = holds;
+        InputGate.MenuFolded = Visible && Collapsed;
+        KeepKeysInField(holds);
     }
 
     private const float FoldSeconds = 0.2f;
@@ -112,7 +129,7 @@ internal static class Menu
         {
             SetVisible(!Visible);
         }
-        InputGate.Menu = Visible;
+        GateInput();
     }
 
     /// <summary>Esc: closes the open popup, else cancels key capture, else clears a focused search, else closes the menu.</summary>
@@ -192,8 +209,7 @@ internal static class Menu
             TreeView.Reveal(MenuRoutes.Page);
         }
         Visible = visible;
-        InputGate.Menu = visible;
-        KeepKeysInField(visible);
+        GateInput();
         if (!visible)
         {
             Hotkeys.CancelCapture();

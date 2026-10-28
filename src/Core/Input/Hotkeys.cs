@@ -208,7 +208,8 @@ internal static class Hotkeys
         return new MenuNav(move, activate, adjust, page, search, tab);
     }
 
-    private static bool MenuOpen => Actions.Get("menu.toggle") is { } toggle && Actions.StateOf(toggle) == true;
+    // Open and unfolded: a folded menu leaves Esc and the arrow keys to the game.
+    private static bool MenuOpen => InputGate.Menu;
 
     // A press fires on its main key's down with exactly its modifiers held (left and right apart).
     private static bool Pressed(Chord chord)
