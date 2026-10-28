@@ -103,6 +103,9 @@ internal sealed class MenuPage
     /// <summary>False: not listed under its node in the tree; reached from a tree item that opens it (a slot macro's
     /// pages), search, the bridge and page keys.</summary>
     public bool InTree { get; init; } = true;
+    /// <summary>Pages listed under this one in the tree, which then expands like a node and still opens itself. Each is
+    /// also one of the entry's pages, with InTree false.</summary>
+    public List<MenuPage> Children { get; } = new();
 }
 
 /// <summary>A tree row that expands to items and opens no page of its own (the library's "Slots").</summary>

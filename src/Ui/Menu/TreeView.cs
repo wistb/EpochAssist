@@ -74,7 +74,8 @@ internal static class TreeView
             // A folder's name matching shows all its nodes.
             bool nodeMatch = MenuSearchText.Matches(node.Title, words) || (node.Folder != null && MenuSearchText.Matches(node.Folder, words));
             var items = node.Entry.Groups.Select(g => (Group: g, Items: Safe.Call(g.Items, Array.Empty<TreeItem>(), node.Path + "." + g.Title))).ToList();
-            var pages = node.Leaf ? new List<PageNode>() : node.Pages.Where(p => p.Page.InTree && (nodeMatch || MenuSearchText.Matches(p.Page.Title, words))).ToList();
+            var pages = node.Leaf ? new List<PageNode>() : node.Pages.Where(p => p.Page.InTree && (nodeMatch || MenuSearchText.Matches(p.Page.Title, words)
+                || p.Page.Children.Exists(c => MenuSearchText.Matches(c.Title, words)))).ToList();
             var groups = items.Select(g => (g.Group, Items: g.Items.Where(i => nodeMatch || MenuSearchText.Matches(g.Group.Title, words)
                 || MenuSearchText.Matches(i.Label, words)).ToList())).Where(g => g.Items.Count > 0 || nodeMatch).ToList();
             if (!nodeMatch && pages.Count == 0 && groups.All(g => g.Items.Count == 0)) continue;
@@ -108,7 +109,16 @@ internal static class TreeView
                 for (int i = 0; i < groupItems.Count; i++)
                     rows.Add(new Row(Kind.Item, depth + 2, $"{groupKey}/{i + 1}", groupItems[i].Label, node, null, groupItems[i], groupKey, groupOpen));
             }
-            foreach (var page in pages) rows.Add(new Row(Kind.Page, depth + 1, page.Path, page.Page.Title, node, page, null, nodeKey, open));
+            foreach (var page in pages)
+            {
+                rows.Add(new Row(Kind.Page, depth + 1, page.Path, page.Page.Title, node, page, null, nodeKey, open));
+                if (page.Page.Children.Count == 0) continue;
+                float pageOpen = open * Openness(page.Path);
+                if (pageOpen <= 0.01f) continue;
+                foreach (var child in node.Pages)
+                    if (page.Page.Children.Contains(child.Page))
+                        rows.Add(new Row(Kind.Page, depth + 2, child.Path, child.Page.Title, node, child, null, page.Path, pageOpen));
+            }
         }
         return rows;
     }
@@ -231,7 +241,8 @@ internal static class TreeView
         MenuNode node = row.Node;
         bool selected = row.Page != null && row.Page.Path == current;
         float x = r.x + 2f + row.Depth * Indent;
-        bool expandable = row.Kind is Kind.Folder or Kind.Group || (row.Kind == Kind.Node && !node.Leaf);
+        bool expandable = row.Kind is Kind.Folder or Kind.Group || (row.Kind == Kind.Node && !node.Leaf)
+            || (row.Kind == Kind.Page && row.Page!.Page.Children.Count > 0);
         var chevron = new Rect(x, r.y, 12f, r.height);
         bool chevronClicked = expandable && GUI.Button(chevron, GUIContent.none, GUIStyle.none);
         bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
