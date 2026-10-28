@@ -40,7 +40,7 @@ internal static partial class Planner
         {
             PollFetch();
             SyncToolbar();
-            return s_outcome;
+            return s_outcome ?? (Profiles.Key == null ? Words.NoCharacter : null);
         },
         Toolbar = { s_pasteButton },
         Field = new ToolbarField("planner.link", () => s_link ?? string.Empty, text => s_link = text, "Planner link or export", LinkMaxLength)
@@ -213,8 +213,15 @@ internal static partial class Planner
         string id = build.Id, credit = Credit(build);
         var rows = new List<MenuRow>
         {
-            new HintRow(() => Words.NoCharacter) { Key = "nocharacter", VisibleWhen = () => Profiles.Key == null },
+            // The banner says it too, unless an import outcome holds it.
+            new HintRow(() => Words.NoCharacter) { Key = "nocharacter", VisibleWhen = () => Profiles.Key == null && s_outcome != null },
             new HintRow(() => "This character uses this build.") { Key = "inuse", VisibleWhen = () => Library.Binding(Profiles.Key)?.Build == id },
+            new TextButtonRow("Stage", () => StageText(build), TabButton("▶", "stage.next", () => StepStage(id, 1), () => CanStep(build, 1), "Next stage"))
+            {
+                Key = "stage",
+                Before = TabButton("◀", "stage.previous", () => StepStage(id, -1), () => CanStep(build, -1), "Previous stage"),
+                VisibleWhen = () => Library.Binding(Profiles.Key)?.Build == id,
+            },
         };
         rows.Add(new HintRow(() => s_run?.MasteryWords ?? string.Empty)
         {
@@ -235,7 +242,7 @@ internal static partial class Planner
             rows.Add(new LiveText($"Slot {slot + 1}", () => (BarText(slot), null)) { Key = $"bar.{slot}", VisibleWhen = () => BarShown(id) });
         }
 
-        var editor = new LibraryEditor(id, () => build.Name, () => rows) { Note = () => credit };
+        var editor = new LibraryEditor(id, () => build.Name, () => GuideRows(id, rows)) { Note = () => credit };
         if (build.Url is { } url)
             editor.Buttons.Add(TabButton("Open planner page", "page", () => UnityEngine.Application.OpenURL(url), tip: "Opens the build's page in the browser"));
         editor.Buttons.Add(TabButton("Use for this character", "use", () =>
@@ -244,6 +251,138 @@ internal static partial class Planner
         }, () => Profiles.Key is { } character && Library.Binding(character)?.Build != id, "Guides the character in play with this build, from its first stage"));
         editor.Buttons.Add(TabButton("Close", "close", () => s_viewing = null));
         return editor;
+    }
+
+    // ---- Stage ----
+
+    // The stage changes only by these buttons, never by level.
+    private static (Build? Build, int Stage, int Generation) s_stageFor = (null, -1, -1);
+    private static string s_stageText = string.Empty;
+
+    private static string StageText(Build build)
+    {
+        int stage = Library.Binding(Profiles.Key)?.Stage ?? 0;
+        if (s_stageFor == (build, stage, Library.Generation)) return s_stageText;
+        s_stageFor = (build, stage, Library.Generation);
+        string name = build.Stages[Math.Clamp(stage, 0, build.Stages.Count - 1)].Name.Trim();
+        s_stageText = $"{stage + 1} of {build.Stages.Count}" + (name.Length > 0 ? $" · {name}" : string.Empty);
+        return s_stageText;
+    }
+
+    private static bool CanStep(Build build, int by) =>
+        Library.Binding(Profiles.Key) is { } binding && binding.Build == build.Id && binding.Stage + by >= 0 && binding.Stage + by < build.Stages.Count;
+
+    private static void StepStage(string id, int by)
+    {
+        if (Profiles.Key is { } character && Library.Binding(character) is { } binding && binding.Build == id) Library.SetStage(character, binding.Stage + by);
+    }
+
+    // ---- Checklist and next steps ----
+
+    // The build view's rows with the checklist and next steps after them, for the character's build; made again only
+    // when the guidance changes, with every text made then.
+    private static (List<MenuRow>? Rows, Guidance? Guidance) s_guideFor;
+    private static List<MenuRow> s_guideRows = new();
+
+    private static IReadOnlyList<MenuRow> GuideRows(string id, List<MenuRow> rows)
+    {
+        var run = s_run;
+        var guidance = run is { Guidance: { } g, Build: { } b } && b.Id == id ? g : null;
+        if (s_guideFor.Rows == rows && s_guideFor.Guidance == guidance) return s_guideRows;
+        s_guideFor = (rows, guidance);
+        s_guideRows = new List<MenuRow>(rows);
+        if (guidance != null) AddGuide(s_guideRows, run!, guidance);
+        return s_guideRows;
+    }
+
+    private static void AddGuide(List<MenuRow> rows, Run run, Guidance guidance)
+    {
+        var feature = run.Feature;
+        var stage = run.Build!.Stages[run.Stage];
+        var have = run.Allocation.Bar;
+        var planned = guidance.Skills.Where(skill => skill.State != GuidanceState.NotInBuild).ToList();
+        // The game data names a skill's nodes after the skill ("Flay Chill Chance"); under the skill's own heading the
+        // skill's name is left off.
+        Func<int, string> Nodes(string treeId, string skill = "") => node =>
+        {
+            string name = NodeName(feature, treeId, (byte)node);
+            return skill.Length > 0 && name.Length > skill.Length + 1 && name.StartsWith(skill + " ", StringComparison.OrdinalIgnoreCase) ? name[(skill.Length + 1)..] : name;
+        };
+
+        rows.Add(new HeadingRow("Checklist"));
+        AddSection(rows, "passive", "Passive tree", guidance.Passive.Checklist, Nodes(guidance.Passive.TreeId));
+        foreach (var skill in planned)
+        {
+            string name = SkillName(feature, skill);
+            AddSection(rows, "skill." + skill.AbilityId, name, skill.Tree.Checklist, Nodes(skill.Tree.TreeId, name));
+        }
+        AddSection(rows, "bar", "Skill bar", guidance.BarChecklist, slot =>
+            (stage.Bar[slot] ?? have[slot]) is { } skill ? $"{AbilityName(feature, skill, skill)} (slot {slot + 1})" : $"slot {slot + 1}");
+
+        rows.Add(new HeadingRow("Next steps"));
+        string site = run.Build.Source == LetFormat.Source ? "Last Epoch Tools" : "Maxroll";
+        AddSteps(rows, "passive", "Passive tree", guidance.Passive, site, Nodes(guidance.Passive.TreeId));
+        foreach (var skill in planned)
+        {
+            string name = SkillName(feature, skill);
+            AddSteps(rows, "skill." + skill.AbilityId, name, skill.Tree, site, Nodes(skill.Tree.TreeId, name));
+        }
+    }
+
+    // Done out of total in its state's colour, then the open items by name under it.
+    private static void AddSection(List<MenuRow> rows, string key, string label, ChecklistSection list, Func<int, string> name)
+    {
+        string count = $"{list.Done} / {list.Total}";
+        var state = list.Done == list.Total && list.OffPlan.Count == 0 ? StatusState.Active : StatusState.Waiting;
+        rows.Add(new LiveText(label, () => (count, state)) { Key = "check." + key });
+        var parts = new List<string>();
+        Items(parts, S.ToPlaceColour.Label, list.Missing, name);
+        Items(parts, S.PartialColour.Label, list.Partial, name);
+        Items(parts, S.OffPlanColour.Label, list.OffPlan, name);
+        if (list.Unknown > 0) parts.Add($"Not in this game version: {list.Unknown}.");
+        if (parts.Count == 0) return;
+        string text = string.Join(" ", parts);
+        rows.Add(new HintRow(() => text) { Key = "check." + key + ".items" });
+    }
+
+    private static void Items(List<string> parts, string lead, List<int> ids, Func<int, string> name)
+    {
+        if (ids.Count > 0) parts.Add($"{lead}: {string.Join(", ", ids.Select(name))}.");
+    }
+
+    // The tree's next steps, numbered; the planner's own words when it gives no order.
+    private static void AddSteps(List<MenuRow> rows, string key, string label, TreeGuide tree, string site, Func<int, string> name)
+    {
+        string text;
+        if ((tree.Flags & TreeFlags.NoOrder) != 0) text = $"{label}: {Words.NoOrder(site)}";
+        else if (tree.Next.Count > 0) text = $"{label}: " + string.Join(", ", tree.Next.Select(step => $"{step.Number}. {name(step.Node)} +{step.Add}")) + ".";
+        else return;
+        rows.Add(new HintRow(() => text) { Key = "steps." + key });
+    }
+
+    // Node names only change with a game update.
+    private static readonly Dictionary<(string, byte), string> s_nodeNames = new();
+
+    private static string NodeName(Core.Feature feature, string treeId, byte node)
+    {
+        if (s_nodeNames.TryGetValue((treeId, node), out var cached)) return cached;
+        string fallback = $"node {node}";
+        if (treeId.Length == 0 || !feature.Has(GameDataGroup)) return fallback;
+        string name = fallback;
+        try
+        {
+            var trees = GlobalTreeData.get();
+            var data = Game.Alive(trees) ? trees!.getTreeData(treeId)?.getNode(node) : null;
+            if (data == null) return fallback;
+            if (!string.IsNullOrWhiteSpace(data.name)) name = data.name;
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("planner:node name", $"Planner: the node's name couldn't be read: {e.Message}", 30);
+            return fallback;
+        }
+        s_nodeNames[(treeId, node)] = name;
+        return name;
     }
 
     // The ids this game version lacks, for the build shown. The check needs the game's data, so until it can be read

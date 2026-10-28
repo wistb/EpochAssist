@@ -82,6 +82,8 @@ internal static partial class Planner
 
         public static string SkillNotInBuild(string skill) => $"{skill} isn't in this build.";
 
+        public static string NoOrder(string site) => $"{site} gives no order for this tree; next steps aren't shown.";
+
         public static string UnknownIds(BuildResolution resolution) =>
             $"{resolution.UnknownNodes.Count} nodes and {resolution.UnknownSkills.Count} skills aren't in this game version.";
 

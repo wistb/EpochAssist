@@ -133,15 +133,30 @@ internal static class TextRows
             float buttonWidth = Controls.ButtonWidth(row.Button.Label);
             var style = Widgets.Style(() => Theme.Label, GUI.skin.label);
             string text = Text(row);
+            float x = parts.Control.x;
+            if (row.Before is { } before)
+            {
+                float beforeWidth = Controls.ButtonWidth(before.Label);
+                Button(new Rect(x, parts.Control.y, beforeWidth, RowLayout.ControlHeight), before, ctx.Prefix + row.Key + ".before");
+                x += beforeWidth + 12f;
+            }
             // The button follows the text, or sits at the end when the text needs the room.
-            float textWidth = Mathf.Min(TextCache.Width(text, style), parts.Control.width - buttonWidth - 12f);
-            var button = new Rect(parts.Control.x + textWidth + 12f, parts.Control.y, buttonWidth, RowLayout.ControlHeight);
+            float textWidth = Mathf.Min(TextCache.Width(text, style), parts.Control.xMax - x - buttonWidth - 12f);
+            var button = new Rect(x + textWidth + 12f, parts.Control.y, buttonWidth, RowLayout.ControlHeight);
             if (Event.current.type == EventType.Repaint)
             {
                 Widgets.Paint(parts.Label, row.Label, style);
-                Widgets.Paint(new Rect(parts.Control.x, parts.Control.y, textWidth, parts.Control.height), text, style);
+                Widgets.Paint(new Rect(x, parts.Control.y, textWidth, parts.Control.height), text, style);
             }
-            if (Controls.Button(button, row.Button.Label, ctx.Prefix + row.Key + ".button", row.Button.Primary, row.Button.Tip)) Run(row.Button);
+            Button(button, row.Button, ctx.Prefix + row.Key + ".button");
+        }
+
+        private static void Button(Rect r, ActionButton button, string key)
+        {
+            bool enabled = GUI.enabled;
+            GUI.enabled = enabled && Safe.Enabled(button);
+            if (Controls.Button(r, button.Label, key, button.Primary, button.Tip)) Run(button);
+            GUI.enabled = enabled;
         }
 
         protected override IEnumerable<string> Search(TextButtonRow row) => new[] { row.Label, Text(row) };

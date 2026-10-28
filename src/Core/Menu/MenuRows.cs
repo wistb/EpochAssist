@@ -124,6 +124,8 @@ internal sealed class TextButtonRow : MenuRow
     public string Label { get; }
     public Func<string> Text { get; }
     public ActionButton Button { get; }
+    /// <summary>A second small button before the text (a stepper's back), or null.</summary>
+    public ActionButton? Before { get; init; }
     protected override string DefaultKey => "textbutton." + MenuEntry.Slug(Label);
 }
 

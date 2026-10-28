@@ -73,6 +73,8 @@ internal sealed class PlannerFeature : Feature
         Need(typeof(GlobalTreeData), nameof(GlobalTreeData.get), Planner.GameDataGroup),
         Need<GlobalTreeData>(nameof(GlobalTreeData.getTreeData), Planner.GameDataGroup),
         Need<GlobalTreeData.TreeData>(nameof(GlobalTreeData.TreeData.nodes), Planner.GameDataGroup),
+        Need<GlobalTreeData.TreeData>(nameof(GlobalTreeData.TreeData.getNode), Planner.GameDataGroup),
+        Need<GlobalTreeData.NodeData>(nameof(GlobalTreeData.NodeData.name), Planner.GameDataGroup),
         Need<GlobalTreeData.NodeData>(nameof(GlobalTreeData.NodeData.requiredMastery), Planner.GameDataGroup),
         Need<GlobalTreeData.NodeData>(nameof(GlobalTreeData.NodeData.maxPoints), Planner.GameDataGroup),
         Need(typeof(AbilityManager), nameof(AbilityManager.getPlayerAbility), Planner.GameDataGroup),
