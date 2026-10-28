@@ -591,6 +591,9 @@ internal static partial class Planner
                 // The node's own hexagon frame, tinted: our copy sits exactly over the game's border, which stays as it is.
                 // Pivoted at its centre, so the outline size setting grows it evenly around the node.
                 var source = border.rectTransform;
+                // A taken weaver node shows its frame as "BorderActive" inside "Border", under the bright frame drawn after
+                // it: the copy lines up with "Border" so it goes above that.
+                if (source.parent is { } nested && nested.name == BorderName && nested.TryCast<RectTransform>() is { } outer) source = outer;
                 rect.SetParent(source.parent, false);
                 rect.anchorMin = source.anchorMin;
                 rect.anchorMax = source.anchorMax;
@@ -978,9 +981,9 @@ internal static partial class Planner
             RenderTexture? rt = null;
             bool hollow = recolour == null && frame.name.StartsWith(WeaverFramePrefix, StringComparison.Ordinal);
             bool round = frame.name.StartsWith(WeaverRoundPrefix, StringComparison.Ordinal);
-            // A weaver socket's card keeps its own drawn border (the line art near the outer edge), not a cut shape, so the
-            // tint lies on the frame as the game draws it.
-            bool card = hollow && frame.name.StartsWith(WeaverSlotPrefix, StringComparison.Ordinal);
+            // A weaver socket's card and a key node's hexagon keep their own drawn border (the line art near the outer edge),
+            // not a cut shape, so the tint lies on the frame as the game draws it.
+            bool card = hollow && (frame.name.StartsWith(WeaverSlotPrefix, StringComparison.Ordinal) || frame.name.StartsWith(WeaverKeyPrefix, StringComparison.Ordinal));
             var before = RenderTexture.active;
             try
             {
@@ -1051,7 +1054,7 @@ internal static partial class Planner
         }
 
         private static readonly List<Texture2D> s_whiteTextures = new();
-        private const string WeaverFramePrefix = "Weaver_", WeaverRoundPrefix = "Weaver_Circle", WeaverSlotPrefix = "Weaver_Slot";
+        private const string WeaverFramePrefix = "Weaver_", WeaverRoundPrefix = "Weaver_Circle", WeaverSlotPrefix = "Weaver_Slot", WeaverKeyPrefix = "Weaver_KeyNode";
         // How far in from a socket card's outer edge its border art reaches (corner curls included), as a share of the
         // sprite's width, and the brightness (0–255, the art's brightest at 255) below which a pixel is the dark fill.
         private const float WeaverCardBand = 0.2f, CardDark = 48f, CardSoft = 32f;
