@@ -143,6 +143,14 @@ internal sealed class PlannerFeature : Feature
         Need<Il2CppLE.Factions.WeaverTree>(nameof(Il2CppLE.Factions.WeaverTree.nodeList), Planner.WeaverUiGroup),
         Need<UIBase>(nameof(UIBase.OpenWeaverRankPanel), Planner.WeaverUiGroup),
         Need<Il2CppLE.Factions.FactionRankUIWeaver>(nameof(Il2CppLE.Factions.FactionRankUIWeaver.IsWeaverTreeOpened), Planner.WeaverUiGroup),
+
+        // The weaver tree's item sockets: the game's node id to socket map, the socketed items and the socket elements.
+        Need<ItemContainersManager>(nameof(ItemContainersManager.weaverTreeItems), Planner.WeaverItemsGroup),
+        Need(typeof(ItemContainersManager.WeaverTreeContainer), nameof(ItemContainersManager.WeaverTreeContainer.WeaverTreeLargeContainerNodeIDs), Planner.WeaverItemsGroup),
+        Need(typeof(ItemContainersManager.WeaverTreeContainer), nameof(ItemContainersManager.WeaverTreeContainer.WeaverTreeSmallContainerNodeIDs), Planner.WeaverItemsGroup),
+        Need<ItemContainersManager.WeaverTreeContainer>(nameof(ItemContainersManager.WeaverTreeContainer.TryGetContainer), Planner.WeaverItemsGroup),
+        Need<Il2CppLE.Factions.WeaverTreeItemContainerUI>(nameof(Il2CppLE.Factions.WeaverTreeItemContainerUI.LinkedNodeID), Planner.WeaverItemsGroup),
+        Need<TooltipItemManager.SlotType>(nameof(TooltipItemManager.SlotType.WEAVER_TREE_NODE), Planner.WeaverItemsGroup),
     };
 
     public override FeatureStatus Status => State == FeatureState.Running ? Planner.StatusOf(this) : base.Status;

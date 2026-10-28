@@ -345,8 +345,8 @@ internal static partial class Planner
 
     private static void ClearGearMarks()
     {
-        // A tooltip the build view opened is its own to close.
-        if (s_menuShown == null) CloseGearTip();
+        // A tooltip the build view or a weaver socket opened is theirs to close.
+        if (s_menuShown == null && s_gearHover?.Hint.Kind != HintKind.WeaverItem) CloseGearTip();
         if (s_gearMarks.Count == 0 && s_cellHolders.Count == 0) return;
         foreach (var mark in s_gearMarks) Marks.Clear(mark);
         s_gearMarks.Clear();
@@ -373,18 +373,23 @@ internal static partial class Planner
     private static void GearHover(Run run)
     {
         PlannerMark? mark = null;
-        if (s_gearMarks.Count > 0 && run.Gear != null)
+        bool sockets = run.WeaverMarkedItems != null && run.WeaverMarks.Count > 0;
+        if ((s_gearMarks.Count > 0 || sockets) && run.Gear != null)
         {
             var point = InputState.Pointer;
             var topLeft = new Vector2(point.x, Screen.height - point.y);
             bool overMenu = InputGate.Menu && InputGate.MenuHitTest?.Invoke(topLeft) == true;
             if (!overMenu && InputGate.HudHitTest?.Invoke(topLeft) != true)
+            {
                 foreach (var m in s_gearMarks)
                     if (Marks.Contains(m, point, s_gearCamera))
                     {
                         mark = m;
                         break;
                     }
+                // The weaver page pans and zooms in its own canvas: its sockets are found by the game's raycast.
+                if (mark == null && sockets && Marks.Under(point) is { Hint.Kind: HintKind.WeaverItem } socket) mark = socket;
+            }
         }
         if (mark != s_gearHover)
         {
@@ -417,29 +422,33 @@ internal static partial class Planner
         if (s_tipDone == mark || Clock.Now - s_gearSince < S.InventoryTooltipDelay.Value) return;
         s_tipDone = mark;
         if (GuideOf(run.Gear, mark.Hint) is not { } guide) return;
+        // A socket's card follows the trees' hover switch; the inventory icons have their own.
+        bool weaver = mark.Hint.Kind == HintKind.WeaverItem;
+        bool card = weaver ? S.HoverHints.Value : S.InventoryHints.Value;
         if (guide.Unknown)
         {
-            if (S.InventoryHints.Value)
+            if (card)
             {
-                HudHint.Show(run.Feature, PlaceName(guide.Planned), UnknownWords(guide), UnknownColour, S.InventoryHintPosition.Value == "tooltip");
+                HudHint.Show(run.Feature, CardTitle(run, guide.Planned), UnknownWords(guide), UnknownColour, S.InventoryHintPosition.Value == "tooltip");
                 s_noteShown = true;
             }
             return;
         }
         // The mini HUD card says what the build wants here, as the trees' marks do; the game's tooltip shows the item.
-        if (S.InventoryHints.Value)
+        if (card)
         {
             // An item on the cursor is the one being weighed up: the card compares it instead of the worn one.
             var held = CarriedItem();
             var shown = held != null ? GuideAgainst(guide.Planned, held) : guide;
             var (state, text) = GearWords(run, shown, mark.Hint, held);
-            HudHint.Show(run.Feature, PlaceName(guide.Planned) + (held != null ? " · carried" : string.Empty), Said(state, text), StateColour(state),
+            HudHint.Show(run.Feature, CardTitle(run, guide.Planned) + (held != null ? " · carried" : string.Empty), Said(state, text), StateColour(state),
                 S.InventoryHintPosition.Value == "tooltip");
             s_noteShown = true;
         }
         // The game draws no item tooltip while it carries an item on the cursor.
         if (!run.Feature.Has(ItemDataGroup) || !run.Feature.Has(ItemTooltipGroup) || Carrying()) return;
-        OpenPlanned(guide.Planned, mark.Node.gameObject, null);
+        // A socket has no equipped item for the game to compare with: the socketed one is given instead.
+        OpenPlanned(guide.Planned, mark.Node.gameObject, weaver ? WornItem(guide.Planned, mark.Hint) : null);
         s_tipDone = null;
     }
 
@@ -451,6 +460,7 @@ internal static partial class Planner
             HintKind.EquipSlot when hint.AbilityId != null => SlotGuide(gear, hint.AbilityId),
             HintKind.IdolCell => gear.Idols.TryGetValue((hint.Slot % IdolGridWidth, hint.Slot / IdolGridWidth), out var idol) ? idol : null,
             HintKind.BlessingSlot => gear.Blessings.TryGetValue(hint.Slot, out var blessing) ? blessing : null,
+            HintKind.WeaverItem => gear.WeaverItems.TryGetValue(hint.Slot, out var socketed) ? socketed : null,
             _ => null,
         };
     }
@@ -525,6 +535,7 @@ internal static partial class Planner
         {
             PlannedPlace.Slot => SlotContainer(hint.AbilityId ?? planned.Slot),
             PlannedPlace.Idol => ItemContainersManager.Instance?.idols?.TryCast<IItemContainer>(),
+            PlannedPlace.WeaverNode => SocketContainer(planned.Socket),
             _ => null,
         };
         var content = box?.GetContent();
@@ -541,13 +552,18 @@ internal static partial class Planner
     public static string UnknownWords(ItemGuide guide) =>
         guide.Locked ? $"{PlaceName(guide.Planned)}: on a cell not unlocked yet." : $"{PlaceName(guide.Planned)}: not in this game version.";
 
-    /// <summary>A planned item's place as the player reads it: its slot, "Idol" or "Blessing".</summary>
+    /// <summary>A planned item's place as the player reads it: its slot, "Idol", "Blessing" or "Weaver item".</summary>
     public static string PlaceName(PlannedItem item) => item.Place switch
     {
         PlannedPlace.Slot => SlotName(item.Slot),
         PlannedPlace.Idol => "Idol",
+        PlannedPlace.WeaverNode => "Weaver item",
         _ => "Blessing",
     };
+
+    // A hover card's title: the place, with a weaver socket's node name before it.
+    private static string CardTitle(Run run, PlannedItem item) =>
+        item.Place == PlannedPlace.WeaverNode ? $"{SocketName(run.Feature, item.Socket)} · {PlaceName(item)}" : PlaceName(item);
 
     // The game's tooltip manager has no static instance; it's found in the scene like the panels.
     private static TooltipItemManager? Tooltips()
@@ -571,7 +587,9 @@ internal static partial class Planner
             // Alone (beside the menu, with no game element behind it) it's shown as equipped: the game hides an inventory
             // tooltip that has no element, and there's nothing to compare it with there.
             var type = planned.Place == PlannedPlace.Blessing ? TooltipItemManager.SlotType.BLESSING
-                : alone ? TooltipItemManager.SlotType.EQUIPPED : TooltipItemManager.SlotType.INVENTORY;
+                : alone ? TooltipItemManager.SlotType.EQUIPPED
+                : planned.Place == PlannedPlace.WeaverNode ? TooltipItemManager.SlotType.WEAVER_TREE_NODE
+                : TooltipItemManager.SlotType.INVENTORY;
             tooltips.OpenItemTooltip(item, type, Vector2.zero, position, opener, size);
             if (against != null && tooltips.activeParameters is { } shown && tooltips.SetEquippedItemTextForComparison(against, shown))
                 tooltips.ShowComparison(shown);

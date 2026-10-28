@@ -15,7 +15,7 @@ internal sealed class WornItem
 }
 
 /// <summary>What the character has, as read from the game: equipment by slot, idols by top-left cell, blessings by
-/// timeline. Rebuilt in place when its signature changes.</summary>
+/// timeline, weaver items by node. Rebuilt in place when its signature changes.</summary>
 internal sealed class EquippedSide
 {
     public readonly Dictionary<string, WornItem> Slots = new();
@@ -25,6 +25,8 @@ internal sealed class EquippedSide
     public readonly HashSet<(int X, int Y)> LockedCells = new();
     /// <summary>Weaver tree points by node, entries at 0 left out.</summary>
     public readonly Dictionary<byte, byte> Weaver = new();
+    /// <summary>Weaver socket (the game's container id) → the item in it.</summary>
+    public readonly Dictionary<int, WornItem> WeaverItems = new();
     public ulong Signature;
 }
 
@@ -55,6 +57,9 @@ internal sealed class GearGuidance
     public readonly ChecklistSection Gear = new();
     public readonly ChecklistSection IdolList = new();
     public readonly ChecklistSection BlessingList = new();
+    /// <summary>Weaver socket (the game's container id) → the planned item against the socketed one.</summary>
+    public readonly SortedDictionary<int, ItemGuide> WeaverItems = new();
+    public readonly ChecklistSection WeaverItemList = new();
 }
 
 internal static partial class Planner
@@ -68,11 +73,47 @@ internal static partial class Planner
     // alone so neither side needs an item made.
     private static bool TwoHandedType(byte type) => type is >= 12 and <= 16 or 23 or 24;
 
+    // The weaver tree's sockets, container id → the node it sits on, from the game's own lists; read once, empty when they
+    // can't be.
+    private static Dictionary<int, byte>? s_sockets;
+
+    /// <summary>The weaver tree's item sockets as the game lists them: each one's container id (the key Last Epoch Tools
+    /// uses) → the weaver node it sits on.</summary>
+    public static IReadOnlyDictionary<int, byte> WeaverSockets
+    {
+        get
+        {
+            if (s_sockets != null) return s_sockets;
+            s_sockets = new Dictionary<int, byte>();
+            try
+            {
+                foreach (var list in new[] { ItemContainersManager.WeaverTreeContainer.WeaverTreeLargeContainerNodeIDs, ItemContainersManager.WeaverTreeContainer.WeaverTreeSmallContainerNodeIDs })
+                    if (list != null)
+                        foreach (var pair in list) s_sockets[Convert.ToInt32(pair.Value, s_inv)] = pair.Key;
+            }
+            catch (Exception e)
+            {
+                Log.ErrorThrottled("planner:sockets", $"Planner: the weaver tree's sockets couldn't be read: {e.Message}", 30);
+            }
+            return s_sockets;
+        }
+    }
+
+    /// <summary>The game's container for a weaver tree socket (by its container id), or null.</summary>
+    public static IItemContainer? SocketContainer(int socket)
+    {
+        var sockets = ItemContainersManager.Instance?.weaverTreeItems;
+        if (sockets == null || !WeaverSockets.TryGetValue(socket, out byte node)) return null;
+        IItemContainer? box = null;
+        return sockets.TryGetContainer(node, out box) ? box : null;
+    }
+
     /// <summary>
     /// Reads what the character has into <paramref name="side"/>, only when its signature changed; false when the game's
-    /// containers aren't there (a zone load), leaving the last read as it was.
+    /// containers aren't there (a zone load), leaving the last read as it was. Weaver sockets are read only when
+    /// <paramref name="weaverItems"/> says the game has them.
     /// </summary>
-    public static bool ReadEquipped(EquippedSide side)
+    public static bool ReadEquipped(EquippedSide side, bool weaverItems)
     {
         var manager = ItemContainersManager.Instance;
         if (!Game.Alive(manager) || manager!.equipment == null) return false;
@@ -86,6 +127,8 @@ internal static partial class Planner
         var weaver = Game.LocalTree?.weaverTree?.nodes;
         for (int i = 0; weaver != null && i < weaver.Count; i++)
             if (weaver[i] is { pointsAllocated: > 0 } node) Mix(ref h, node.id << 8 | node.pointsAllocated);
+        if (weaverItems)
+            foreach (int socket in WeaverSockets.Keys) MixBox(SocketContainer(socket), ref h);
         if (side.Signature == h && h != 0) return true;
 
         side.Slots.Clear();
@@ -106,6 +149,10 @@ internal static partial class Planner
         side.Weaver.Clear();
         for (int i = 0; weaver != null && i < weaver.Count; i++)
             if (weaver[i] is { pointsAllocated: > 0 } node) side.Weaver[node.id] = node.pointsAllocated;
+        side.WeaverItems.Clear();
+        if (weaverItems)
+            foreach (int socket in WeaverSockets.Keys)
+                if (First(SocketContainer(socket)) is { } entry && Worn(entry) is { } worn) side.WeaverItems[socket] = worn;
         side.Signature = h;
         return true;
     }
@@ -191,6 +238,15 @@ internal static partial class Planner
         {
             guidance.Weaver = new TreeGuide();
             CompareTree(guidance.Weaver, WeaverTreeId, gear.Weaver, side.Weaver, s_noUnknown, s_noCaps, null, NextStepCount);
+        }
+
+        foreach (var (socket, planned) in gear.WeaverItems)
+        {
+            var guide = Guide(planned, side.WeaverItems.TryGetValue(socket, out var worn) ? worn : null);
+            // A socket this game version doesn't have.
+            if (!WeaverSockets.ContainsKey(socket)) guide.Unknown = true;
+            guidance.WeaverItems[socket] = guide;
+            Count(guidance.WeaverItemList, guide, socket);
         }
         return guidance;
     }

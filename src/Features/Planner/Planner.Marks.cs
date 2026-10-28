@@ -606,7 +606,9 @@ internal static partial class Planner
                 var bright = source.parent != null ? source.parent.Find(BrightName)?.GetComponent<Image>() : null;
                 var frameSprite = Game.Alive(bright) && Game.Alive(bright!.sprite) ? bright.sprite : border.sprite;
                 ring.sprite = WhiteFrame(frameSprite!) ?? frameSprite;
-                ring.type = Image.Type.Simple;
+                // Drawn as the game draws it: a weaver socket stretches its card frame nine-sliced (square on a small one).
+                ring.type = border.type == Image.Type.Sliced ? Image.Type.Sliced : Image.Type.Simple;
+                ring.pixelsPerUnitMultiplier = border.pixelsPerUnitMultiplier;
                 ring.preserveAspect = border.preserveAspect;
                 // Over the game's frames and over its overlays too (the dark square on a node not taken yet would cut
                 // through the outline), and under the point counter, which stays readable.
@@ -976,6 +978,9 @@ internal static partial class Planner
             RenderTexture? rt = null;
             bool hollow = recolour == null && frame.name.StartsWith(WeaverFramePrefix, StringComparison.Ordinal);
             bool round = frame.name.StartsWith(WeaverRoundPrefix, StringComparison.Ordinal);
+            // A weaver socket's card keeps its own drawn border (the line art near the outer edge), not a cut shape, so the
+            // tint lies on the frame as the game draws it.
+            bool card = hollow && frame.name.StartsWith(WeaverSlotPrefix, StringComparison.Ordinal);
             var before = RenderTexture.active;
             try
             {
@@ -999,6 +1004,7 @@ internal static partial class Planner
                 // The frame's own light and shade, in grey, stretched so its brightest part is white: tinted, it keeps
                 // the game's bevels and edges in the state's colour instead of a flat band.
                 int brightest = 1;
+                var edge = card ? EdgeDistance(pixels, w, h) : null;
                 for (int i = 0; i < pixels.Length; i++)
                 {
                     var p = pixels[i];
@@ -1017,7 +1023,9 @@ internal static partial class Planner
                     // The weaver tree's frames are drawn with their inside filled: only the band outside the inner hexagon
                     // is the frame.
                     byte alpha = p.a;
-                    if (hollow) alpha = (byte)(alpha * (1f - (round ? InsideCircle(i % w, i / w, w, h) : InsideHex(i % w, i / w, w, h))));
+                    // A card keeps its drawn border only: the line art near its edge, not the dark fill inside it.
+                    if (edge != null) alpha = (byte)(alpha * Mathf.Clamp01(w * WeaverCardBand - edge[i] + 0.5f) * Mathf.Clamp01((grey - CardDark) / CardSoft));
+                    else if (hollow) alpha = (byte)(alpha * (1f - (round ? InsideCircle(i % w, i / w, w, h) : InsideHex(i % w, i / w, w, h))));
                     // A floor, so the darkest parts of the frame still carry some colour.
                     byte v = (byte)(FrameFloor + grey * (255 - FrameFloor) / 255);
                     pixels[i] = new Color32(v, v, v, alpha);
@@ -1043,7 +1051,34 @@ internal static partial class Planner
         }
 
         private static readonly List<Texture2D> s_whiteTextures = new();
-        private const string WeaverFramePrefix = "Weaver_", WeaverRoundPrefix = "Weaver_Circle";
+        private const string WeaverFramePrefix = "Weaver_", WeaverRoundPrefix = "Weaver_Circle", WeaverSlotPrefix = "Weaver_Slot";
+        // How far in from a socket card's outer edge its border art reaches (corner curls included), as a share of the
+        // sprite's width, and the brightness (0–255, the art's brightest at 255) below which a pixel is the dark fill.
+        private const float WeaverCardBand = 0.2f, CardDark = 48f, CardSoft = 32f;
+
+        // Each pixel's distance in pixels to the art's outside (a see-through pixel or the sprite's edge), by a two-pass
+        // chamfer (straight steps 1, diagonal 1.4).
+        private static float[] EdgeDistance(Color32[] pixels, int w, int h)
+        {
+            var d = new float[pixels.Length];
+            for (int i = 0; i < d.Length; i++) d[i] = pixels[i].a < 32 ? 0f : float.MaxValue;
+            float At(int x, int y) => x < 0 || y < 0 || x >= w || y >= h ? 0f : d[y * w + x];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int i = y * w + x;
+                    if (d[i] == 0f) continue;
+                    d[i] = Mathf.Min(d[i], Mathf.Min(Mathf.Min(At(x - 1, y), At(x, y - 1)) + 1f, Mathf.Min(At(x - 1, y - 1), At(x + 1, y - 1)) + 1.4f));
+                }
+            for (int y = h - 1; y >= 0; y--)
+                for (int x = w - 1; x >= 0; x--)
+                {
+                    int i = y * w + x;
+                    if (d[i] == 0f) continue;
+                    d[i] = Mathf.Min(d[i], Mathf.Min(Mathf.Min(At(x + 1, y), At(x, y + 1)) + 1f, Mathf.Min(At(x + 1, y + 1), At(x - 1, y + 1)) + 1.4f));
+                }
+            return d;
+        }
         // The weaver frames' insides, as a share of the sprite's half width: a key node's hexagon (pointed top and bottom)
         // and a round node's circle.
         private const float WeaverInner = 0.8f, WeaverRoundInner = 0.82f;
@@ -1332,7 +1367,8 @@ internal static partial class Planner
     private static void MarkWeaver(Run run)
     {
         var guide = run.Gear?.Weaver;
-        if (guide == null || !S.Enabled.Value || !S.WeaverLook.Marks!.Value || !run.Feature.Has(WeaverUiGroup))
+        var items = run.Gear is { WeaverItems.Count: > 0 } gear && run.Feature.Has(WeaverItemsGroup) ? gear.WeaverItems : null;
+        if (guide == null && items == null || !S.Enabled.Value || !S.WeaverLook.Marks!.Value || !run.Feature.Has(WeaverUiGroup))
         {
             ClearWeaverMarks(run);
             return;
@@ -1349,12 +1385,14 @@ internal static partial class Planner
             }
             var nodes = tree!.nodeList;
             int count = nodes?.Count ?? 0;
-            guide = PanelWeaverGuide(run, guide, nodes);
+            if (guide != null) guide = PanelWeaverGuide(run, guide, nodes);
             var look = MarkLook.Now(GuidedPanel.Weaver);
-            if (run.WeaverMarkedTree == tree.Pointer && run.WeaverMarkedNodes == count && run.WeaverMarkedGuide == guide && run.WeaverMarkedLook.Same(look)) return;
+            if (run.WeaverMarkedTree == tree.Pointer && run.WeaverMarkedNodes == count && run.WeaverMarkedGuide == guide && run.WeaverMarkedItems == items
+                && run.WeaverMarkedLook.Same(look)) return;
             run.WeaverMarkedTree = tree.Pointer;
             run.WeaverMarkedNodes = count;
             run.WeaverMarkedGuide = guide;
+            run.WeaverMarkedItems = items;
             run.WeaverMarkedLook = look;
 
             int pass = ++s_pass;
@@ -1366,11 +1404,14 @@ internal static partial class Planner
                 var node = nodes![i];
                 if (!Game.Alive(node)) continue;
                 if (!string.IsNullOrWhiteSpace(node!.nodeName)) s_weaverNames[node.id] = node.nodeName;
+                // A socket node keeps its point mark beside its card's item mark: the point and the item are separate steps.
+                if (guide == null) continue;
                 if (!node.gameObject.activeInHierarchy || !guide.Nodes.TryGetValue(node.id, out var nodeGuide)) continue;
                 var mark = MarkNode(node.transform, nodeGuide, look, pass);
                 if (look.Next && nodeGuide.NextStep == 1 && mark != null) next = mark;
             }
             if (next != null) Marks.PulseOn(next);
+            if (items != null) MarkSockets(page!, items, look, pass);
             foreach (var mark in run.WeaverMarks)
                 if (mark.Pass != pass) Marks.Clear(mark);
             run.WeaverMarks.Clear();
@@ -1386,6 +1427,31 @@ internal static partial class Planner
     }
 
     private static int s_weaverRetries;
+
+    // Each planned socket's card frame on the weaver page, in its item's state colour (grey when this game version lacks the
+    // item). Looked for only when the marks are made again, not every tick.
+    private static void MarkSockets(Il2CppLE.Factions.FactionRankUIWeaver page, SortedDictionary<int, ItemGuide> items, in MarkLook look, int pass)
+    {
+        foreach (var element in page.GetComponentsInChildren<Il2CppLE.Factions.WeaverTreeItemContainerUI>(false))
+        {
+            if (!Game.Alive(element) || SocketOn(items, element!.LinkedNodeID) is not (>= 0 and var socket)) continue;
+            var mark = Marks.Mark(element.transform, IconColour(items[socket]), null, 1f, Color.clear, look.LabelSize, look.LabelPlace);
+            if (mark != null) mark.Hint = new MarkHint(HintKind.WeaverItem, Slot: socket);
+            Keep(mark, pass);
+        }
+    }
+
+    // The planned socket on a weaver node, or -1.
+    private static int SocketOn(SortedDictionary<int, ItemGuide> items, byte node)
+    {
+        foreach (int socket in items.Keys)
+            if (WeaverSockets.TryGetValue(socket, out byte on) && on == node) return socket;
+        return -1;
+    }
+
+    /// <summary>A weaver socket's name: the node it sits on, or the socket's id when this game version lacks it.</summary>
+    private static string SocketName(Core.Feature feature, int socket) =>
+        WeaverSockets.TryGetValue(socket, out byte node) ? WeaverNodeName(feature, node) : $"Socket {socket}";
 
     // The weaver tree takes points unconfirmed until its Confirm button: the character's tree data has only confirmed
     // ones. While the tree is open its marks follow the panel's own counts, as the player sees them, and remember which
@@ -1464,6 +1530,7 @@ internal static partial class Planner
         run.WeaverMarkedTree = IntPtr.Zero;
         run.WeaverMarkedNodes = -1;
         run.WeaverMarkedGuide = null;
+        run.WeaverMarkedItems = null;
     }
 
     private static void ClearPassiveMarks(Run run)

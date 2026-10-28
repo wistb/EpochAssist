@@ -17,9 +17,14 @@ internal sealed class PlannedGear
     public readonly SortedDictionary<int, PlannedItem> Blessings = new();
     /// <summary>Null when the stage plans no weaver points.</summary>
     public PlannedTree? Weaver;
+    /// <summary>Socket (the game's container id) → planned item; Last Epoch Tools only.</summary>
+    public readonly SortedDictionary<int, PlannedItem> WeaverItems = new();
+    /// <summary>The Maxroll profile lists weaver items, which this version doesn't read.</summary>
+    public bool MaxrollWeaverItemsSkipped;
 
-    /// <summary>The stage plans no gear of any kind.</summary>
-    public bool Empty => Slots.Count == 0 && Idols.Count == 0 && Blessings.Count == 0 && Weaver == null;
+    /// <summary>The stage plans no gear of any kind (Maxroll weaver items, though unread, still get their note).</summary>
+    public bool Empty => Slots.Count == 0 && Idols.Count == 0 && Blessings.Count == 0 && Weaver == null && WeaverItems.Count == 0
+        && !MaxrollWeaverItemsSkipped;
 }
 
 internal static partial class Planner
@@ -88,6 +93,7 @@ internal static partial class Planner
     public static void ForgetGear()
     {
         s_gear.Clear();
+        s_sockets = null;
         s_gearGeneration = -1;
         ForgetMade();
     }
@@ -101,6 +107,7 @@ internal static partial class Planner
         foreach (var item in gear.Slots.Values) Check(item);
         foreach (var item in gear.Idols) Check(item);
         foreach (var item in gear.Blessings.Values) Check(item);
+        foreach (var item in gear.WeaverItems.Values) Check(item);
         return gear;
     }
 
@@ -145,6 +152,8 @@ internal static partial class Planner
 
         var weaver = MaxrollFormat.ReadTree(string.Empty, profile["weaver"] as JsonObject);
         if (weaver.Total > 0) gear.Weaver = weaver;
+        // Every Maxroll build seen so far lists none, so the shape of an entry isn't known yet.
+        gear.MaxrollWeaverItemsSkipped = profile["weaverItems"] is JsonArray { Count: > 0 };
     }
 
     // Maxroll tiers count from 1 and its rolls run 0 to 1; the game's tiers count from 0 and its rolls are bytes. It
@@ -192,7 +201,7 @@ internal static partial class Planner
     // ---- Last Epoch Tools ----
 
     // One stage: equipment by its slot names, idols at their cells, blessings by timeline number from 1, and the weaver
-    // tree's points with its order when the planner gives one.
+    // tree's points with its order when the planner gives one, and its socketed items by the game's socket container id.
     private static void ReadLetGear(JsonObject raw, PlannedGear gear)
     {
         if (raw["data"] is not JsonObject data) return;
@@ -220,6 +229,15 @@ internal static partial class Planner
 
         var weaver = LetFormat.ReadTree(string.Empty, (data["weaverTree"] as JsonObject)?["selected"] as JsonObject, data["weaverTreeProgression"] as JsonArray);
         if (weaver.Total > 0) gear.Weaver = weaver;
+
+        if (data["weaverTreeContainers"] is JsonObject sockets)
+            foreach (var (key, node) in sockets)
+                if (byte.TryParse(key, NumberStyles.None, s_inv, out byte id) && node is JsonObject o
+                    && LetItem(o, PlannedPlace.WeaverNode, string.Empty) is { } socketed)
+                {
+                    socketed.Socket = id;
+                    gear.WeaverItems[id] = socketed;
+                }
     }
 
     // "I" ids hold 1 + base 3 + subtype 3 + rarity 1 + unique; "U" ids subtype 3 + unique 3 with the base from the game's
@@ -264,7 +282,10 @@ internal static partial class Planner
         static byte[] Bytes(JsonNode? n) => (n as JsonArray)?.Select(x => (byte)Math.Clamp(Build.Int(x) ?? 0, 0, 255)).ToArray() ?? Array.Empty<byte>();
         item.Implicits = Bytes(o["ir"]);
         item.UniqueRolls = Bytes(o["ur"]);
-        if (place == PlannedPlace.Slot && o["ir"] is not JsonArray) item.RollsFilled = true;
+        // Equipment always has implicits: a missing list, or an empty one on a non-unique, is made at full roll (a woven
+        // echo in a weaver socket has none; Check clears it).
+        bool equipment = place is PlannedPlace.Slot or PlannedPlace.WeaverNode;
+        if (equipment && (o["ir"] is not JsonArray || item.Implicits.Length == 0 && item.Unique == 0)) item.RollsFilled = true;
         return item;
     }
 }

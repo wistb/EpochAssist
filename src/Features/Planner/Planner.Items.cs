@@ -4,8 +4,8 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
 namespace EpochAssist.Features;
 
-/// <summary>Where a planned item goes: a paper doll slot, an idol grid cell or a blessing timeline.</summary>
-internal enum PlannedPlace { Slot, Idol, Blessing }
+/// <summary>Where a planned item goes: a paper doll slot, an idol grid cell, a blessing timeline or a weaver tree socket.</summary>
+internal enum PlannedPlace { Slot, Idol, Blessing, WeaverNode }
 
 /// <summary>One planned affix: the game's id, its tier counted from 0, its roll as a byte, and how the item holds it.</summary>
 internal readonly record struct PlannedAffix(ushort Id, byte Tier, byte Roll, SealedAffixType Sealed);
@@ -21,6 +21,8 @@ internal sealed class PlannedItem
     public int X, Y;
     /// <summary>A blessing's timeline, counted from 0.</summary>
     public int Timeline = -1;
+    /// <summary>A weaver item's socket: the game's container id for it, as Last Epoch Tools keys it (not the node id).</summary>
+    public int Socket;
     public byte ItemType;
     public ushort SubType;
     /// <summary>The unique or set id, 0 for none.</summary>
@@ -103,6 +105,8 @@ internal static partial class Planner
                 return;
             }
             item.Name = FirstName(other.displayName, other.name, items.GetItemDisplayName(item.ItemType, item.SubType));
+            // A weaver socket also takes woven echoes, which have no implicits to fill.
+            if (item.Place == PlannedPlace.WeaverNode) item.RollsFilled = false;
             return;
         }
         item.Name = FirstName(sub.displayName, sub.name, items.GetItemDisplayName(item.ItemType, item.SubType));

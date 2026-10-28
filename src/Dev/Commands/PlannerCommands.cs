@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n>|weaver <socket> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -584,6 +584,112 @@ internal static class PlannerCommands
         {
             lines.Add("planned: none");
         }
+
+        // The sockets: the game's container ids for them, its node id lists, the socketed items and the socket elements.
+        var socketIds = Enum.GetValues(typeof(ContainerID)).Cast<ContainerID>().Where(id => id.ToString().Contains("WEAVER_TREE_ITEM_NODE", StringComparison.Ordinal));
+        lines.Add("socket container ids: " + string.Join(" ", socketIds.Select(id => $"{id}={Convert.ToInt64(id, s_inv)} item node {ContainerIDExtensions.IsWeaverItemNode(id)}")));
+        var owner = typeof(ItemContainersManager.WeaverTreeContainer);
+        foreach (var (label, list) in new[] { ("large", ItemContainersManager.WeaverTreeContainer.WeaverTreeLargeContainerNodeIDs), ("small", ItemContainersManager.WeaverTreeContainer.WeaverTreeSmallContainerNodeIDs) })
+        {
+            var pairs = new List<string>();
+            if (list != null)
+                foreach (var pair in list) pairs.Add($"{pair.Key}={pair.Value}");
+            lines.Add($"{owner.Name}.{label} node ids: {(list == null ? "null" : string.Join(" ", pairs))}");
+        }
+        lines.Add("socket map: " + string.Join(" ", Planner.WeaverSockets.Select(p => $"{p.Key}={p.Value}")));
+        var smallTypes = ItemContainersManager.WeaverTreeContainer.WeaverTreeSmallContainerBaseTypes;
+        lines.Add($"small socket base types: {(smallTypes == null ? "null" : string.Join(" ", smallTypes))}");
+        var weaverData = GlobalTreeData.get()?.getTreeData(Planner.WeaverTreeId);
+        foreach (int id in Planner.WeaverSockets.Values.Select(n => (int)n).Concat(Enumerable.Range(89, 9)))
+        {
+            var data = weaverData?.getNode((byte)id);
+            lines.Add($"  game data node {id}: {(data == null ? "none" : $"{data.name} max {data.maxPoints}")}");
+        }
+        var sockets = ItemContainersManager.Instance?.weaverTreeItems;
+        if (sockets == null)
+        {
+            lines.Add("weaverTreeItems: none");
+        }
+        else
+        {
+            var boxes = sockets.containers;
+            var held = new List<string>();
+            if (boxes != null)
+                foreach (var pair in boxes) held.Add($"{pair.Key}->node {sockets.GetLinkedNodeIdFromContainerId(pair.Key)}");
+            lines.Add($"weaverTreeItems: {sockets.GetType().Name}, containers {boxes?.Count.ToString(s_inv) ?? "null"} [{string.Join(" ", held)}], large {ItemContainersManager.WeaverTreeContainer.LargeContainerSize.x}x{ItemContainersManager.WeaverTreeContainer.LargeContainerSize.y}, small {ItemContainersManager.WeaverTreeContainer.SmallContainerSize.x}x{ItemContainersManager.WeaverTreeContainer.SmallContainerSize.y}");
+            foreach (var (socket, node) in Planner.WeaverSockets) AddEntries(lines, $"socket {socket} node {node}", Planner.SocketContainer(socket));
+        }
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<Il2CppLE.Factions.WeaverTreeItemContainerUI>(), true))
+        {
+            var ui = obj.TryCast<Il2CppLE.Factions.WeaverTreeItemContainerUI>();
+            if (!Game.Alive(ui)) continue;
+            lines.Add($"  socket element {ElementPath(ui!.transform)} node {ui.LinkedNodeID} active {ui.gameObject.activeInHierarchy} rect {Rect(ui.transform)}");
+            // One socket of each size is enough to see its art.
+            if (ui.name is "ItemSlot" or "ItemSlotSmall")
+            foreach (var image in ui.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                if (Game.Alive(image) && image.gameObject.activeInHierarchy && !image.name.StartsWith("EA.PlannerMark", StringComparison.Ordinal))
+                    lines.Add($"    image {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} sprite {(Game.Alive(image.sprite) ? $"{image.sprite!.name} {image.sprite.rect.width}x{image.sprite.rect.height} border {image.sprite.border}" : "none")} type {image.type} colour {image.color} rect {Rect(image.transform)}");
+        }
+        // Which canvas draws over which: the item tooltip's and the weaver page's.
+        string CanvasText(Component c)
+        {
+            var canvas = c.GetComponentInParent<Canvas>();
+            var root = canvas != null ? canvas.rootCanvas : null;
+            return root == null ? "no canvas" : $"canvas {root.name} order {root.sortingOrder} layer {root.sortingLayerName} mode {root.renderMode}, own {canvas!.name} override {canvas.overrideSorting} order {canvas.sortingOrder}";
+        }
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<TooltipItemManager>(), true))
+            if (obj.TryCast<TooltipItemManager>() is { } manager && Game.Alive(manager))
+                lines.Add($"  tooltip manager {ElementPath(manager.transform)}: {CanvasText(manager)}, active item {(manager.ActiveItem != null ? manager.ActiveItem.FullName : "none")}");
+        if (UITooltipItem.instance is { } tipUi && Game.Alive(tipUi)) lines.Add($"  item tooltip ui {ElementPath(tipUi.transform)}: {CanvasText(tipUi)}");
+        if (Panel<Il2CppLE.Factions.FactionRankUIWeaver>() is { } rank && Game.Alive(rank)) lines.Add($"  weaver page {ElementPath(rank.transform)}: {CanvasText(rank)}");
+        // The tree's own layout: its direct children and what they draw, to tell its background from its nodes.
+        if (Panel<Il2CppLE.Factions.WeaverTree>() is { } shown && Game.Alive(shown))
+        {
+            for (var at = shown.transform; at != null && at.name != "Panel System"; at = at.parent)
+            {
+                var own = at.GetComponent<UnityEngine.UI.Graphic>();
+                lines.Add($"  tree chain {at.name}: {(Game.Alive(own) ? $"{own!.GetType().Name} {(own.TryCast<UnityEngine.UI.Image>()?.sprite is { } sp && Game.Alive(sp) ? sp.name : "-")} enabled {own.enabled}" : "no graphic")}, {at.childCount} children");
+            }
+            var groups = new Dictionary<string, int>();
+            for (int i = 0; i < shown.transform.childCount; i++)
+            {
+                var child = shown.transform.GetChild(i);
+                string key = System.Text.RegularExpressions.Regex.Replace(child.name, @"\s*\(\d+\)$", string.Empty);
+                groups[key] = groups.TryGetValue(key, out int c) ? c + 1 : 1;
+            }
+            lines.Add("  tree children: " + string.Join(", ", groups.Select(g => $"{g.Key} x{g.Value}")));
+        }
+        var socketNodes = tree?.nodes;
+        var inTree = new List<string>();
+        for (int i = 0; socketNodes != null && i < socketNodes.Count; i++)
+            if (socketNodes[i] is { } n && Planner.WeaverSockets.Values.Contains(n.id)) inTree.Add($"{n.id}:{n.pointsAllocated}");
+        lines.Add($"socket nodes in the character's weaver tree: {(inTree.Count == 0 ? "none" : string.Join(" ", inTree))}");
+        var panelTree = Panel<Il2CppLE.Factions.WeaverTree>();
+        if (Open(panelTree) && panelTree!.nodeList is { } list2)
+        {
+            var listed = new List<string>();
+            for (int i = 0; i < list2.Count; i++)
+                if (list2[i] is { } n && Planner.WeaverSockets.Values.Contains((byte)n.id))
+                {
+                    listed.Add($"{n.id}:{n.pointsAllocated} {n.nodeName}");
+                    // The node's images and any mark on it, for the socket node nearest the first planned socket.
+                    if (n.id == 45)
+                        foreach (var image in n.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                            if (Game.Alive(image))
+                                lines.Add($"    node 45 image {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} enabled {image.enabled} sprite {(Game.Alive(image.sprite) ? image.sprite!.name : "none")} colour {image.color} sibling {image.transform.GetSiblingIndex()} rot {image.transform.localEulerAngles} scale {image.transform.localScale} size {image.rectTransform.rect.size}");
+                }
+            lines.Add($"socket nodes in the panel's nodeList ({list2.Count}): {(listed.Count == 0 ? "none" : string.Join(", ", listed))}");
+        }
+        foreach (var (node, socketItem) in PlannedGear()?.WeaverItems ?? new SortedDictionary<int, PlannedItem>())
+        {
+            string state = Planner.CurrentGear?.WeaverItems.TryGetValue(node, out var guide) == true
+                ? (guide!.Unknown ? "unknown" : guide.State.ToString()) + (guide.Missing.Count > 0 ? $" missing [{string.Join(" ", guide.Missing.Select(m => $"{m.Id}/t{m.Tier}"))}]" : string.Empty)
+                : "none";
+            lines.Add($"  planned socket {node} on node {(Planner.WeaverSockets.TryGetValue(node, out byte on) ? on.ToString(s_inv) : "none")} {state}: {PlannedText(socketItem)}");
+        }
+        if (Planner.CurrentGear is { } guidance)
+            lines.Add($"  checklist weaver items {guidance.WeaverItemList.Done}/{guidance.WeaverItemList.Total} (unknown {guidance.WeaverItemList.Unknown})");
+        if (PlannedGear()?.MaxrollWeaverItemsSkipped == true) lines.Add("  maxroll weaver items skipped");
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
@@ -598,7 +704,7 @@ internal static class PlannerCommands
             + $"affixes [{affixes}] implicits [{string.Join(",", p.Implicits)}] unique rolls [{string.Join(",", p.UniqueRolls)}]{(p.RollsFilled ? " rolls filled" : string.Empty)}{unknown}";
     }
 
-    // planner tooltip <slot>|idol <x> <y>|blessing <n> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] | close:
+    // planner tooltip <slot>|idol <x> <y>|blessing <n>|weaver <socket> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] | close:
     // the active stage's planned item, made as a new item in memory (never placed in a container, saved or sent) and shown
     // with the game's own item tooltip, at the equipped item when the inventory shows it. "against hovered" compares it
     // with the item behind the game's open tooltip; "reverse" shows that item with the planned one as the comparison.
@@ -630,16 +736,27 @@ internal static class PlannerCommands
             what = $"blessing {timeline}";
             next = 4;
         }
+        else if (slot == "weaver" && int.TryParse(call.Lower(3), out int node))
+        {
+            planned = gear.WeaverItems.TryGetValue(node, out var w) ? w : null;
+            what = $"weaver {node}";
+            next = 4;
+        }
         else
         {
             planned = gear.Slots.FirstOrDefault(p => p.Key.Equals(slot, StringComparison.OrdinalIgnoreCase)).Value;
         }
         if (planned == null)
             return CommandResult.Ok($"planner tooltip {what}: nothing planned; slots {string.Join(" ", gear.Slots.Keys)}; idols {string.Join(" ", gear.Idols.Select(i => $"{i.X},{i.Y}"))}; "
-                + $"blessings {string.Join(" ", gear.Blessings.Keys)}; slot types {string.Join(" ", types)}");
+                + $"blessings {string.Join(" ", gear.Blessings.Keys)}; weaver {string.Join(" ", gear.WeaverItems.Keys)}; slot types {string.Join(" ", types)}");
 
         byte? rarity = null;
-        string typeName = planned.Place == PlannedPlace.Blessing ? "BLESSING" : types.FirstOrDefault(t => t.Contains("Equip", StringComparison.OrdinalIgnoreCase)) ?? types[0];
+        string typeName = planned.Place switch
+        {
+            PlannedPlace.Blessing => "BLESSING",
+            PlannedPlace.WeaverNode => nameof(TooltipItemManager.SlotType.WEAVER_TREE_NODE),
+            _ => types.FirstOrDefault(t => t.Contains("Equip", StringComparison.OrdinalIgnoreCase)) ?? types[0],
+        };
         bool compare = false, against = false, reverse = false, carried = false, noShow = false;
         Vector3? at = null;
         for (int i = next; i <= call.Args.Length; i++)
@@ -677,6 +794,7 @@ internal static class PlannerCommands
         {
             PlannedPlace.Slot => EquippedOpener(planned.Slot),
             PlannedPlace.Idol => IdolOpener(planned.X, planned.Y),
+            PlannedPlace.WeaverNode => SocketOpener(planned.Socket),
             _ => BlessingOpener(planned.Timeline),
         };
         var size = opener != null ? opener.GetComponent<RectTransform>()?.rect.size ?? Vector2.zero : Vector2.zero;
@@ -695,6 +813,10 @@ internal static class PlannerCommands
         else
         {
             tooltips!.OpenItemTooltip(item, type, Vector2.zero, position, opener, size);
+            // A socket has no equipped item: its socketed one is the comparison.
+            var socketed = planned.Place == PlannedPlace.WeaverNode ? Planner.SocketContainer(planned.Socket)?.GetContent() : null;
+            if (compare && socketed is { Count: > 0 } && socketed[0]?.data?.getAsUnpacked() is { } inSocket && tooltips.activeParameters is { } p)
+                comparison = $", against socketed {inSocket.FullName}: comparison set {tooltips.SetEquippedItemTextForComparison(inSocket, p)}";
             if (compare && tooltips.activeParameters is { } shown) tooltips.ShowComparison(shown);
         }
         return CommandResult.Ok($"planner tooltip {what}: {item.FullName} {PlannedText(planned)} id {item.id?.Length ?? 0} implicits {item.implicitRolls?.Length ?? 0} of {ItemData.numberOfImplicitRolls} "
@@ -723,10 +845,10 @@ internal static class PlannerCommands
         for (int stage = 0; stage < build.Stages.Count; stage++)
         {
             var gear = Planner.GearOf(build, stage);
-            var all = gear.Slots.Values.Concat(gear.Idols).Concat(gear.Blessings.Values);
+            var all = gear.Slots.Values.Concat(gear.Idols).Concat(gear.Blessings.Values).Concat(gear.WeaverItems.Values);
             foreach (var p in all)
             {
-                string where = p.Place switch { PlannedPlace.Slot => p.Slot, PlannedPlace.Idol => $"idol {p.X},{p.Y}", _ => $"blessing {p.Timeline}" };
+                string where = p.Place switch { PlannedPlace.Slot => p.Slot, PlannedPlace.Idol => $"idol {p.X},{p.Y}", PlannedPlace.WeaverNode => $"weaver {p.Socket}", _ => $"blessing {p.Timeline}" };
                 string missing = p.Unknown.Count > 0 ? $" UNKNOWN [{string.Join(", ", p.Unknown)}]" : string.Empty;
                 if (p.Unknown.Count > 0) unknown++;
                 if (p.Unmakeable && p.Unknown.Contains("base") || p.Unknown.Contains("unique"))
@@ -960,7 +1082,7 @@ internal static class PlannerCommands
         if (!Game.Alive(tooltips)) return CommandResult.Ok("planner tooltipcheck: no tooltip manager");
         if (PlannedGear() is not { } gear) return CommandResult.Ok("planner tooltipcheck: no active build");
         int count = int.TryParse(call.Lower(2), out int n) ? Math.Clamp(n, 1, 1000) : 100;
-        var planned = gear.Slots.Values.Concat(gear.Idols).Concat(gear.Blessings.Values).Where(p => !p.Unmakeable).ToList();
+        var planned = gear.Slots.Values.Concat(gear.Idols).Concat(gear.Blessings.Values).Concat(gear.WeaverItems.Values).Where(p => !p.Unmakeable).ToList();
         if (planned.Count == 0) return CommandResult.Ok("planner tooltipcheck: nothing planned to show");
         string before = CharacterState(), tipBefore = TooltipState(tooltips!);
         int opened = 0;
@@ -1027,6 +1149,18 @@ internal static class PlannerCommands
         var content = ItemContainersManager.Instance?.idols?.TryCast<IItemContainer>()?.GetContent();
         for (int i = 0; content != null && i < content.Count; i++)
             if (content[i] is { } entry && entry.Position.x == x && entry.Position.y == y) return EntryUi(entry);
+        return null;
+    }
+
+    // The weaver tree's element for a socket (by container id), while it shows.
+    private static GameObject? SocketOpener(int socket)
+    {
+        if (!Planner.WeaverSockets.TryGetValue(socket, out byte node)) return null;
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<Il2CppLE.Factions.WeaverTreeItemContainerUI>(), false))
+        {
+            var ui = obj.TryCast<Il2CppLE.Factions.WeaverTreeItemContainerUI>();
+            if (Game.Alive(ui) && ui!.gameObject.activeInHierarchy && ui.LinkedNodeID == node) return ui.gameObject;
+        }
         return null;
     }
 
@@ -1110,6 +1244,14 @@ internal static class PlannerCommands
     private static string AbilityText(Ability? ability) => Game.Alive(ability) ? $"{ability!.playerAbilityID} {ability.abilityName}" : "none";
 
     // Screen rect, top-left origin: x,y wxh.
+    // An element's name with its parents', up to three.
+    private static string ElementPath(Transform t)
+    {
+        var names = new List<string>();
+        for (var at = t; at != null && names.Count < 4; at = at.parent) names.Insert(0, at.name);
+        return string.Join("/", names);
+    }
+
     private static string Rect(Transform t)
     {
         var rt = t.TryCast<RectTransform>();

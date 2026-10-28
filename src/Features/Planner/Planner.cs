@@ -30,6 +30,7 @@ internal static partial class Planner
     public const string InventoryUiGroup = "inventory ui";
     public const string BlessingUiGroup = "blessing ui";
     public const string WeaverUiGroup = "weaver ui";
+    public const string WeaverItemsGroup = "weaver items";
 
     private const float FetchPollSeconds = 0.1f;
     private const float PanelSeconds = 0.1f;
@@ -87,6 +88,7 @@ internal static partial class Planner
         public IntPtr WeaverMarkedTree;
         public int WeaverMarkedNodes = -1;
         public TreeGuide? WeaverMarkedGuide;
+        public SortedDictionary<int, ItemGuide>? WeaverMarkedItems;
         // The open weaver panel's own counts compared with the plan, and the nodes whose points aren't confirmed yet.
         public TreeGuide? WeaverPanelGuide, WeaverPanelBase;
         public ulong WeaverPanelSignature;
@@ -439,7 +441,7 @@ internal static partial class Planner
         if (!S.Enabled.Value || run.Character == null || run.Build is not { } build || !run.Feature.Has(InventoryUiGroup)) return;
         try
         {
-            if (!ReadEquipped(run.Equipped)) return;
+            if (!ReadEquipped(run.Equipped, run.Feature.Has(WeaverItemsGroup))) return;
             if (run.Gear != null && run.GearSignature == run.Equipped.Signature && run.GearBuild == build && run.GearStage == run.Stage) return;
             // Items made for another stage or build won't be hovered again.
             if (run.GearBuild != build || run.GearStage != run.Stage) ForgetMade();
@@ -614,6 +616,7 @@ internal static partial class Planner
         if (!feature.Has(InventoryUiGroup)) kinds.Add("inventory");
         if (!feature.Has(BlessingUiGroup)) kinds.Add("blessings");
         if (!feature.Has(WeaverUiGroup)) kinds.Add("weaver tree");
+        if (!feature.Has(WeaverItemsGroup)) kinds.Add("weaver items");
         return kinds.Count > 0 ? string.Join(", ", kinds) : null;
     }
 

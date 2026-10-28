@@ -6,11 +6,12 @@ using S = EpochAssist.Features.PlannerSettings;
 namespace EpochAssist.Features;
 
 /// <summary>Which kind of element a mark is on, for its hover hint.</summary>
-internal enum HintKind { None, Node, BarSlot, Pick, SpecSlot, PageIcon, EquipSlot, IdolCell, BlessingSlot }
+internal enum HintKind { None, Node, BarSlot, Pick, SpecSlot, PageIcon, EquipSlot, IdolCell, BlessingSlot, WeaverItem }
 
 /// <summary>What a marked element is to the plan: a tree node and its guide, a bar or specialisation slot (0-based), the
 /// selection pick planned for a slot, or a Skills page skill; or a gear icon: a paper doll slot (its name in AbilityId),
-/// an idol cell (y × 5 + x in Slot) or a blessing timeline (Slot), whose hover opens the game's tooltip instead. The words
+/// an idol cell (y × 5 + x in Slot), a blessing timeline (Slot) or a weaver tree socket (its container id in Slot), whose hover
+/// opens the game's tooltip instead. The words
 /// are made only when the hint shows.</summary>
 internal readonly record struct MarkHint(HintKind Kind, NodeGuide Guide = default, int Slot = -1, string? AbilityId = null);
 
@@ -38,6 +39,8 @@ internal static partial class Planner
             // The menu's area counts only while it is open: it keeps its rect when closed.
             bool overMenu = InputGate.Menu && InputGate.MenuHitTest?.Invoke(topLeft) == true;
             if (!overMenu && InputGate.HudHitTest?.Invoke(topLeft) != true) mark = Marks.Under(point);
+            // A socket's item has the gear hover: the game's tooltip with its own card.
+            if (mark?.Hint.Kind == HintKind.WeaverItem) mark = null;
         }
         if (mark != s_hovered)
         {

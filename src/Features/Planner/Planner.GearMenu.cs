@@ -21,8 +21,8 @@ internal static partial class Planner
     private static PlannedItem? s_menuShown;
     private static GUIStyle? s_gearLabel;
 
-    // The build view's gear sections after 018's: Gear, Idols and Blessings, each only when the stage plans that kind;
-    // done out of planned, then one line per planned item in its state's words.
+    // The build view's gear sections after 018's: Gear, Idols, Blessings, Weaver tree and Weaver items, each only when the
+    // stage plans that kind; done out of planned, then one line per planned item in its state's words.
     private static void AddGear(List<MenuRow> rows, Run run, GearGuidance gear)
     {
         if (!MenuBlocks.Has(GearBlock)) MenuBlocks.Register(GearBlock, DrawGear, data => ((List<GearLine>)data!).Select(l => $"{l.Label}: {Plain(l.Text)}"), GearHeight);
@@ -30,8 +30,6 @@ internal static partial class Planner
         foreach (var (slot, _, _) in GearSlots)
             if (gear.Slots.TryGetValue(slot, out var guide)) slots.Add(new GearLine(SlotName(slot), LineWords(guide), guide.Unknown ? null : guide.Planned));
         AddGearSection(rows, "gear", "Gear", gear.Gear, slots);
-        if (slots.Any(l => l.Item?.RollsFilled == true) || gear.Slots.Values.Any(g => g.Planned.RollsFilled))
-            rows.Add(new HintRow(() => Words.RollsFilled) { Key = "check.gear.rolls" });
 
         var idols = gear.Idols.OrderBy(p => p.Key.Y).ThenBy(p => p.Key.X)
             .Select(p => new GearLine($"Idol {p.Key.X + 1}, {p.Key.Y + 1}", LineWords(p.Value), p.Value.Unknown ? null : p.Value.Planned)).ToList();
@@ -48,6 +46,14 @@ internal static partial class Planner
             string site = run.Build!.Source == PlannerFormats.LetFormat.Source ? "Last Epoch Tools" : "Maxroll";
             AddSteps(rows, "weaver", "Weaver tree", weaver, site, name);
         }
+
+        var sockets = gear.WeaverItems.Select(p => new GearLine(SocketName(run.Feature, p.Key), LineWords(p.Value), p.Value.Unknown ? null : p.Value.Planned)).ToList();
+        AddGearSection(rows, "weaveritems", "Weaver items", gear.WeaverItemList, sockets);
+        if (run.Build is { } build && GearOf(build, run.Stage).MaxrollWeaverItemsSkipped)
+            rows.Add(new HintRow(() => "Maxroll weaver items aren't read yet.") { Key = "check.weaveritems.maxroll" });
+        // One note for every planned item with a roll made at its best.
+        if (gear.Slots.Values.Any(g => g.Planned.RollsFilled) || gear.WeaverItems.Values.Any(g => g.Planned.RollsFilled))
+            rows.Add(new HintRow(() => Words.RollsFilled) { Key = "check.gear.rolls" });
     }
 
     private static void AddGearSection(List<MenuRow> rows, string key, string label, ChecklistSection list, List<GearLine> lines)
