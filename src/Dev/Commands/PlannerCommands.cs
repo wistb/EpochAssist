@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n>|weaver <socket> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings [timeline] | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n>|weaver <socket> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off";
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -55,7 +55,7 @@ internal static class PlannerCommands
         "mastery" => Mastery(),
         "gear" => Gear(),
         "idols" => Idols(),
-        "blessings" => Blessings(),
+        "blessings" => Blessings(call),
         "weaver" => Weaver(),
         "tooltip" => Tooltip(call),
         "carried" => Carried(),
@@ -538,12 +538,25 @@ internal static class PlannerCommands
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 
-    private static CommandResult Blessings()
+    private static CommandResult Blessings(CommandCall call)
     {
         var manager = ItemContainersManager.Instance;
         if (!Game.Alive(manager) || manager!.blessings == null) return CommandResult.Ok("planner blessings: no item containers");
         var boxes = manager.blessings.Containers;
-        var lines = new List<string> { $"ok planner blessings: {boxes?.Count ?? 0} slots" };
+        var lines = new List<string> { $"ok planner blessings: {boxes?.Count ?? 0} slots; marks see {Planner.BlessingListText}" };
+        // planner blessings frame: the inventory panel's own parts two levels down, to tell its frame art from its content.
+        if (call.Lower(2) == "frame" && GameObject.Find("Right Panel Stack") is { } stack && stack.transform.Find("InventoryPanel (Clone)") is { } panel)
+        {
+            void Walk(Transform t, int depth)
+            {
+                var g = t.GetComponent<UnityEngine.UI.Image>();
+                lines.Add($"  {new string(' ', depth * 2)}{t.name} active {t.gameObject.activeSelf}{(Game.Alive(g) ? $" image {(Game.Alive(g!.sprite) ? g.sprite!.name : "none")} {g.type}" : string.Empty)} rect {Rect(t)} children {t.childCount}");
+                if (depth < 2)
+                    for (int i = 0; i < t.childCount; i++) Walk(t.GetChild(i), depth + 1);
+            }
+            Walk(panel, 0);
+            return new CommandResult(DevOutput.Reply("planner", lines));
+        }
         for (int i = 0; boxes != null && i < boxes.Count; i++)
             AddEntries(lines, $"slot {i}", boxes[i]?.TryCast<IItemContainer>());
         var map = ItemContainersManager.BlessingItemContainer.TimelineToBlessingContainer;
@@ -558,13 +571,25 @@ internal static class PlannerCommands
             var ui = obj.TryCast<InventoryBlessingSlotUI>();
             if (!Game.Alive(ui) || !ui!.gameObject.activeInHierarchy) continue;
             var item = ui.itemData;
-            if (SlotTimeline(ui) == 3 && ui.transform.parent is { } around)
+            if (SlotTimeline(ui) == (int.TryParse(call.Lower(2), out int look) ? look : 3) && ui.transform.parent is { } around)
                 foreach (var image in around.GetComponentsInChildren<UnityEngine.UI.Image>(true))
                     lines.Add($"    slot image {ui.name}<{around.name}: {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} sprite {(Game.Alive(image.sprite) ? $"{image.sprite!.name} {image.sprite.rect.width}x{image.sprite.rect.height}" : "none")} type {image.type} preserve {image.preserveAspect} rect {Rect(image.transform)}");
-            lines.Add($"  shown timeline {SlotTimeline(ui)} {(item != null ? item.FullName : "empty")} grand {ui.isGrand} roll {ui.powerRoll.ToString("0.##", s_inv)} rect {Rect(ui.transform)}");
+            if (SlotTimeline(ui) < 0 && item?.subType == (ushort)(int.TryParse(call.Lower(3), out int sub) ? sub : -1))
+                foreach (var image in ui.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                    lines.Add($"    entry image {image.transform.parent?.name}/{image.name} active {image.gameObject.activeInHierarchy} sprite {(Game.Alive(image.sprite) ? image.sprite!.name : "none")} colour {image.color} rect {Rect(image.transform)}");
+            lines.Add($"  shown timeline {SlotTimeline(ui)} {(item != null ? $"{item.FullName} sub {item.subType}" : "empty")} at {ElementPath(ui.transform)} grand {ui.isGrand} roll {ui.powerRoll.ToString("0.##", s_inv)} rect {Rect(ui.transform)}");
         }
+        string SubName(byte type, ushort sub) => $"'{Planner.SubTypeName(type, sub)}'";
         foreach (var (timeline, planned) in PlannedGear()?.Blessings ?? new SortedDictionary<int, PlannedItem>())
+        {
             lines.Add($"  planned timeline {timeline}: {PlannedText(planned)}");
+            var worn = timeline < (boxes?.Count ?? 0) ? boxes![timeline]?.TryCast<IItemContainer>()?.GetContent() : null;
+            var first = worn is { Count: > 0 } ? worn[0] : null;
+            var data = first?.data;
+            lines.Add($"    equipped entries {(worn == null ? "none" : worn.Count.ToString(s_inv))}, data {(data == null ? "null" : data.subType.ToString(s_inv))}");
+            if (data != null)
+                lines.Add($"    planned {SubName(planned.ItemType, planned.SubType)}; equipped sub {data.subType} {SubName(data.itemType, data.subType)}; normal of grand {Planner.NormalOfGrand(planned, data.subType)}");
+        }
         return new CommandResult(DevOutput.Reply("planner", lines));
     }
 

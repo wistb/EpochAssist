@@ -34,26 +34,88 @@ internal static partial class Planner
         S.InventoryIconOffsetX.Value, S.InventoryIconOffsetY.Value, S.InventoryIdolIconSize.Value, S.InventoryIdolOffsetX.Value, S.InventoryIdolOffsetY.Value)
         ^ (S.InventoryAltar.Value ? 1 : 0);
     private static int s_gearPass;
-    private static int s_blessingSlots = -1;
+    private static int s_blessingSlots = -1, s_blessingList;
     private static float s_blessingCheck;
 
     // The Blessings tab's timeline slots, found once (hidden ones too) and kept while they live: an object search scans
     // the whole scene. Looked for again at most every few seconds while none are known.
     private static readonly List<InventoryBlessingSlotUI> s_blessingUis = new();
+    // The Discovered Blessings list's holder, whose entries the game fills for the selected timeline.
+    private static Transform? s_discovered;
     private const float BlessingFindSeconds = 5f;
 
     private static List<InventoryBlessingSlotUI> BlessingUis()
     {
         if (s_blessingUis.Count > 0 && s_blessingUis.TrueForAll(ui => Game.Alive(ui))) return s_blessingUis;
         s_blessingUis.Clear();
+        s_selectedBorders.Clear();
         if (Clock.Now < s_blessingCheck) return s_blessingUis;
         s_blessingCheck = Clock.Now + BlessingFindSeconds;
         foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<InventoryBlessingSlotUI>(), true))
         {
             var ui = obj.TryCast<InventoryBlessingSlotUI>();
-            if (Game.Alive(ui) && ui!.blessingUIContainer?.Container != null) s_blessingUis.Add(ui);
+            if (!Game.Alive(ui)) continue;
+            if (ui!.blessingUIContainer?.Container != null) s_blessingUis.Add(ui);
+            else if (ui.transform.parent is { name: DiscoveredHolderName } holder) s_discovered = holder;
         }
         return s_blessingUis;
+    }
+
+    // Each timeline slot's selected border (shown or not), found once per slot: a search of its row's images.
+    private static readonly Dictionary<IntPtr, Transform?> s_selectedBorders = new();
+
+    private static Transform? SelectedBorder(InventoryBlessingSlotUI ui, Transform row)
+    {
+        if (s_selectedBorders.TryGetValue(ui.Pointer, out var known) && (known == null || Game.Alive(known))) return known;
+        ui.transform.TryCast<RectTransform>()!.GetWorldCorners(s_altarCorners);
+        var centre = (s_altarCorners[0] + s_altarCorners[2]) / 2f;
+        Transform? found = null;
+        foreach (var image in row.GetComponentsInChildren<Image>(true))
+            if (Game.Alive(image) && image.name == BlessingSelectedName && Covers(image.rectTransform, centre)) { found = image.transform; break; }
+        s_selectedBorders[ui.Pointer] = found;
+        return found;
+    }
+
+    private const string DiscoveredHolderName = "DiscoveredBlessings", DiscoveredPath = "TimelineBlessingsContainer/DiscoveredBlessings";
+
+    // The timeline (from 0) whose slot is selected for the list, or -1, and the list's entries mixed into one number:
+    // either changing marks the tab again.
+    private static int BlessingListKey(out int selected)
+    {
+        selected = -1;
+        if (!S.BlessingMarks.Value) return 0;
+        foreach (var ui in BlessingUis())
+        {
+            if (!ui.gameObject.activeInHierarchy || ui.transform.parent is not { } row) continue;
+            if (SelectedBorder(ui, row) is { } chosen && chosen.gameObject.activeInHierarchy)
+            {
+                selected = ui.blessingUIContainer?.Container?.TryCast<BlessingContainer>() is { } box ? (int)box.TimelineID - 1 : -1;
+                break;
+            }
+        }
+        int h = selected;
+        // Beside the slots on the tab: looked for up a slot's parents while it isn't known.
+        if (!Game.Alive(s_discovered) && BlessingUis().Count > 0)
+            for (var at = BlessingUis()[0].transform; at != null && !Game.Alive(s_discovered); at = at.parent)
+                s_discovered = at.Find(DiscoveredPath);
+        if (Game.Alive(s_discovered) && s_discovered!.gameObject.activeInHierarchy)
+            for (int i = 0; i < s_discovered.childCount; i++)
+            {
+                var child = s_discovered.GetChild(i);
+                if (!child.gameObject.activeSelf || child.GetComponent<InventoryBlessingSlotUI>() is not { } entry || entry.itemData is not { } data) continue;
+                h = h * 31 + data.subType;
+            }
+        return h;
+    }
+
+    /// <summary>The selected timeline and the list as the marks see them, for the dev bridge.</summary>
+    internal static string BlessingListText
+    {
+        get
+        {
+            int key = BlessingListKey(out int selected);
+            return $"selected timeline {selected}, list {(Game.Alive(s_discovered) ? $"{s_discovered!.name} {s_discovered.childCount} entries, shown {s_discovered.gameObject.activeInHierarchy}" : "not found")}, key {key}";
+        }
     }
 
     // How many timeline slots the Blessings tab shows now.
@@ -85,8 +147,10 @@ internal static partial class Planner
             | (S.BlessingMarks.Value ? 16 : 0), ColourKey(), IconKey());
         // The Blessings tab draws its slots only while it's shown: its tab switch is caught by a count of them.
         int blessingSlots = BlessingSlotsShown();
-        if (run.Gear == s_gearMarked && look == s_gearLook && blessingSlots == s_blessingSlots && s_gearMarks.TrueForAll(OnTop)) return;
+        int blessingList = BlessingListKey(out int selectedTimeline);
+        if (run.Gear == s_gearMarked && look == s_gearLook && blessingSlots == s_blessingSlots && blessingList == s_blessingList && s_gearMarks.TrueForAll(OnTop)) return;
         s_blessingSlots = blessingSlots;
+        s_blessingList = blessingList;
         s_gearMarked = run.Gear;
         s_gearLook = look;
         int pass = ++s_gearPass;
@@ -143,6 +207,17 @@ internal static partial class Planner
                 mark.Hint = new MarkHint(HintKind.BlessingSlot, Slot: timeline);
                 KeepGear(mark, pass);
             }
+            // The list under the slots holds the selected timeline's blessings: the one the build plans there is marked,
+            // in the matches colour once it's in the slot, else the to-place colour. No hint: the game's tooltip stays.
+            if (selectedTimeline >= 0 && gear.Blessings.TryGetValue(selectedTimeline, out var wanted) && !wanted.Unknown && Game.Alive(s_discovered))
+                for (int i = 0; i < s_discovered!.childCount; i++)
+                {
+                    var child = s_discovered.GetChild(i);
+                    if (!child.gameObject.activeInHierarchy || child.GetComponent<InventoryBlessingSlotUI>() is not { } entry
+                        || entry.itemData is not { } data || data.subType != wanted.Planned.SubType || data.itemType != wanted.Planned.ItemType) continue;
+                    var colour = StateColour(wanted.State == GuidanceState.Matches ? GuidanceState.Matches : GuidanceState.ToPlace);
+                    if (BlessingRing(entry, colour) is { } mark) KeepGear(mark, pass);
+                }
         }
         for (int i = s_gearMarks.Count - 1; i >= 0; i--)
         {
@@ -217,8 +292,10 @@ internal static partial class Planner
     private static readonly Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<Vector3> s_altarCorners = new(4);
 
     // A blessing slot's round frame is a "BlessingBackgroundBlack" image beside the slot's element, at its place; the
-    // band from BlessingRingInner of its radius outward is the ring, still seen round a locked slot's padlock.
-    private const float BlessingRingInner = 0.86f;
+    // band from BlessingRingInner of its radius outward is the ring, still seen round a locked slot's padlock. An
+    // equipped blessing's roll gauge ("power-roll/power-roll-fill"; a Grand one's gold frame is drawn after it) is drawn over that band, so its ring goes just outside the gauge
+    // instead, at BlessingGaugeRing of the gauge's radius, and the roll stays readable.
+    private const float BlessingRingInner = 0.86f, BlessingGaugeRing = 1.12f;
 
     private static PlannerMark? BlessingRing(InventoryBlessingSlotUI ui, Color colour)
     {
@@ -226,7 +303,18 @@ internal static partial class Planner
         if (row == null || ui.transform.TryCast<RectTransform>() is not { } slot) return null;
         slot.GetWorldCorners(s_altarCorners);
         var centre = (s_altarCorners[0] + s_altarCorners[2]) / 2f;
-        foreach (var image in row.GetComponentsInChildren<Image>(false))
+        var images = row.GetComponentsInChildren<Image>(false);
+        // The slot picked for the list below shows the game's selected border: the state takes that border's shape.
+        foreach (var image in images)
+            if (Game.Alive(image) && image.name == BlessingSelectedName && Covers(image.rectTransform, centre))
+                return Marks.ArtCopy(image, colour);
+        foreach (var image in images)
+        {
+            if (!Game.Alive(image) || image.name != BlessingGaugeName || image.transform.parent?.name != BlessingGaugeHolder || !Covers(image.rectTransform, centre)) continue;
+            var gauge = image.rectTransform;
+            return Marks.CircleRing(gauge, Mathf.Min(gauge.rect.width, gauge.rect.height) / 2f * BlessingGaugeRing, colour);
+        }
+        foreach (var image in images)
         {
             if (!Game.Alive(image) || image.name != BlessingFrameName || !Game.Alive(image.sprite)) continue;
             var rect = image.rectTransform;
@@ -238,7 +326,15 @@ internal static partial class Planner
         return null;
     }
 
-    private const string BlessingFrameName = "BlessingBackgroundBlack";
+    private const string BlessingFrameName = "BlessingBackgroundBlack", BlessingGaugeName = "power-roll-fill", BlessingGaugeHolder = "power-roll",
+        BlessingSelectedName = "SelectedBlessing";
+
+    // Whether an element's drawn area holds a screen point.
+    private static bool Covers(RectTransform rect, Vector3 point)
+    {
+        rect.GetWorldCorners(s_altarCorners);
+        return point.x >= s_altarCorners[0].x && point.x <= s_altarCorners[2].x && point.y >= s_altarCorners[0].y && point.y <= s_altarCorners[2].y;
+    }
 
     // Each icon choice's game sprite, and its share of the badge on the stone background.
     private static (string Sprite, float Scale) Glyph(string choice) => choice switch
@@ -475,6 +571,7 @@ internal static partial class Planner
         string head = guide.State switch
         {
             GuidanceState.Matches => $"{planned}, as planned.",
+            GuidanceState.Partial when guide.Planned.Place == PlannedPlace.Blessing && worn != null => $"{worn.FullName}; {planned} planned.",
             GuidanceState.Partial => $"{planned}; not all its affixes yet.",
             GuidanceState.ToPlace => $"{planned}.",
             _ when !S.InventoryHintWorn.Value || worn == null => $"The build wants {planned}.",

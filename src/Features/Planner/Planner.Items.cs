@@ -86,6 +86,16 @@ internal static partial class Planner
 
     private static string FirstName(params string?[] names) => names.FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? string.Empty;
 
+    /// <summary>The game's name for a base type and subtype (equipment list first, then the rest), or empty.</summary>
+    public static string SubTypeName(byte type, ushort subType)
+    {
+        var items = ItemList.get();
+        if (items == null) return string.Empty;
+        if (items.GetEquipmentBaseItem(type) != null && items.GetEquipmentSubItem(type, subType) is { } sub)
+            return FirstName(sub.displayName, sub.name, items.GetItemDisplayName(type, subType));
+        return items.GetNonEquipmentSubItem(type, subType) is { } other ? FirstName(other.displayName, other.name, items.GetItemDisplayName(type, subType)) : string.Empty;
+    }
+
     private static void BaseNameAndSize(ItemList? items, PlannedItem item)
     {
         if (items == null)

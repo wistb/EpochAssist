@@ -62,8 +62,8 @@ internal static partial class Planner
 
         private static readonly Dictionary<IntPtr, PlannerMark> s_marks = new();
         private static readonly List<PlannerMark> s_dead = new();
-        private static Texture2D? s_texture;
-        private static Sprite? s_ring;
+        private static Texture2D? s_texture, s_circleTexture;
+        private static Sprite? s_ring, s_circle;
         private static Font? s_font;
 
         public static int Count => s_marks.Count;
@@ -200,6 +200,118 @@ internal static partial class Planner
         /// <paramref name="centre"/>, recoloured and laid exactly over it. A child of the image, so it draws just after it
         /// and under whatever the panel draws later.
         /// </summary>
+        /// <summary>
+        /// A plain round ring of <paramref name="outer"/> radius on an element's centre, in the element's own units, with
+        /// its band <see cref="CircleBand"/> of the radius wide: for a slot whose own art leaves no room for a ring on it
+        /// (a blessing's roll gauge fills its edge).
+        /// </summary>
+        public static PlannerMark? CircleRing(RectTransform host, float outer, Color colour)
+        {
+            if (!Game.Alive(host)) return null;
+            if (!s_marks.TryGetValue(host.Pointer, out var mark) || !Game.Alive(mark.Object))
+            {
+                if (mark != null)
+                {
+                    s_marks.Remove(host.Pointer);
+                    Destroy(mark);
+                }
+                try
+                {
+                    var go = new GameObject(MarkName);
+                    go.AddComponent<RectTransform>().SetParent(host, false);
+                    go.AddComponent<LayoutElement>().ignoreLayout = true;
+                    var face = go.AddComponent<Image>();
+                    face.raycastTarget = false;
+                    face.sprite = s_circle ??= CircleSprite(out s_circleTexture);
+                    mark = new PlannerMark { Object = go, Ring = face, Colour = Color.clear, Parent = host.Pointer, Node = host };
+                    s_marks[host.Pointer] = mark;
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorThrottled("planner:mark", $"Planner: a ring couldn't be made: {e.Message}", 30);
+                    return null;
+                }
+            }
+            var r = mark.Object.transform.TryCast<RectTransform>()!;
+            r.anchorMin = r.anchorMax = r.pivot = new Vector2(0.5f, 0.5f);
+            r.sizeDelta = new Vector2(2f * outer, 2f * outer);
+            r.anchoredPosition = Vector2.zero;
+            // Over what the slot draws after its host (a Grand blessing's gold frame), under the game's tooltips.
+            Above(mark.Object, host);
+            mark.Ring.color = mark.Colour = colour;
+            return mark;
+        }
+
+        /// <summary>
+        /// A copy of an element's own art over it, in <paramref name="colour"/> with the art's light and shade: for a game
+        /// border that should itself show the state (a selected blessing slot's border).
+        /// </summary>
+        public static PlannerMark? ArtCopy(Image image, Color colour)
+        {
+            if (!Game.Alive(image) || !Game.Alive(image.sprite)) return null;
+            var host = image.rectTransform;
+            if (!s_marks.TryGetValue(host.Pointer, out var mark) || !Game.Alive(mark.Object) || mark.Art != image.sprite)
+            {
+                if (mark != null)
+                {
+                    s_marks.Remove(host.Pointer);
+                    Destroy(mark);
+                }
+                try
+                {
+                    var go = new GameObject(MarkName);
+                    var r = go.AddComponent<RectTransform>();
+                    r.SetParent(host, false);
+                    r.anchorMin = Vector2.zero;
+                    r.anchorMax = Vector2.one;
+                    r.offsetMin = r.offsetMax = Vector2.zero;
+                    go.AddComponent<LayoutElement>().ignoreLayout = true;
+                    var face = go.AddComponent<Image>();
+                    face.raycastTarget = false;
+                    face.sprite = WhiteFrame(image.sprite) ?? image.sprite;
+                    face.preserveAspect = image.preserveAspect;
+                    mark = new PlannerMark { Object = go, Ring = face, Colour = Color.clear, Parent = host.Pointer, Node = host, Art = image.sprite };
+                    s_marks[host.Pointer] = mark;
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorThrottled("planner:mark", $"Planner: a border copy couldn't be made: {e.Message}", 30);
+                    return null;
+                }
+            }
+            Above(mark.Object, host);
+            mark.Ring.color = mark.Colour = colour;
+            return mark;
+        }
+
+        /// <summary>A round ring's band, as a share of its radius.</summary>
+        public const float CircleBand = 0.09f;
+        private const int CircleSize = 128;
+
+        private static Sprite CircleSprite(out Texture2D made)
+        {
+            var texture = new Texture2D(CircleSize, CircleSize, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+            float half = CircleSize / 2f, band = half * CircleBand;
+            for (int y = 0; y < CircleSize; y++)
+                for (int x = 0; x < CircleSize; x++)
+                {
+                    float d = new Vector2(x + 0.5f - half, y + 0.5f - half).magnitude;
+                    // Soft by a pixel at both edges.
+                    float alpha = Mathf.Clamp01(half - 0.5f - d) * Mathf.Clamp01(d - (half - band) + 0.5f);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            texture.Apply(false, true);
+            made = texture;
+            var sprite = Sprite.Create(texture, new Rect(0f, 0f, CircleSize, CircleSize), new Vector2(0.5f, 0.5f), 100f, 0u, SpriteMeshType.FullRect);
+            sprite.hideFlags = HideFlags.HideAndDontSave;
+            return sprite;
+        }
+
         public static PlannerMark? ArtRing(Image image, Vector2 centre, float inner, float outer, Color colour, bool onTop = false)
         {
             var art = image.sprite;
@@ -541,6 +653,10 @@ internal static partial class Planner
             ClearAll();
             if (s_ring != null) UnityEngine.Object.Destroy(s_ring);
             if (s_texture != null) UnityEngine.Object.Destroy(s_texture);
+            if (s_circle != null) UnityEngine.Object.Destroy(s_circle);
+            if (s_circleTexture != null) UnityEngine.Object.Destroy(s_circleTexture);
+            s_circle = null;
+            s_circleTexture = null;
             if (s_plate != null) UnityEngine.Object.Destroy(s_plate);
             if (s_plateTexture != null) UnityEngine.Object.Destroy(s_plateTexture);
             s_ring = null;

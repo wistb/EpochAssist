@@ -72,6 +72,7 @@ internal static partial class Planner
         string name = PlannedName(guide.Planned);
         string extra = guide.State == GuidanceState.Partial && guide.Missing.Count > 0
             ? $" (missing {string.Join(", ", guide.Missing.Select(m => $"{AffixName(m.Id)} T{m.Tier + 1}"))})"
+            : guide.State == GuidanceState.Partial && guide.Planned.Place == PlannedPlace.Blessing ? " (normal one equipped)"
             : string.Empty;
         return $"{Coloured(guide.State, StateName(guide.State))}  {name}{extra}";
     }

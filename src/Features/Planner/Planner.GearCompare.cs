@@ -275,13 +275,26 @@ internal static partial class Planner
         return guide;
     }
 
-    // A blessing is its subtype; its roll is ignored as an item's are.
+    // A blessing is its subtype; its roll is ignored as an item's are. A planned Grand blessing's normal one (another
+    // subtype, the same name without "Grand ") is partial: the right blessing, not yet its Grand form.
     private static ItemGuide BlessingGuide(PlannedItem planned, WornItem? worn) => new()
     {
         Planned = planned,
         Unknown = planned.Unmakeable,
-        State = worn == null ? GuidanceState.ToPlace : worn.SubType == planned.SubType && worn.ItemType == planned.ItemType ? GuidanceState.Matches : GuidanceState.NotInBuild,
+        State = worn == null ? GuidanceState.ToPlace
+            : worn.SubType == planned.SubType && worn.ItemType == planned.ItemType ? GuidanceState.Matches
+            : worn.ItemType == planned.ItemType && NormalOfGrand(planned, worn.SubType) ? GuidanceState.Partial
+            : GuidanceState.NotInBuild,
     };
+
+    private const string GrandPrefix = "Grand ";
+
+    /// <summary>Whether a blessing subtype is the normal form of a planned Grand blessing, by the game's names.</summary>
+    public static bool NormalOfGrand(PlannedItem planned, ushort subType)
+    {
+        if (!planned.Name.StartsWith(GrandPrefix, StringComparison.Ordinal)) return false;
+        return SubTypeName(planned.ItemType, subType).Equals(planned.Name[GrandPrefix.Length..], StringComparison.OrdinalIgnoreCase);
+    }
 
     // Each planned ring takes the worn ring it's closer to, so a ring worn on the other hand still matches. The guide is
     // kept under the worn slot it's paired with, where its icon goes.
