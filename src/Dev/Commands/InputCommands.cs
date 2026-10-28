@@ -34,7 +34,7 @@ internal static class InputCommands
     public static void Register(string owner)
     {
         void Add(string name, string usage, string help, Func<CommandCall, CommandResult> run) =>
-            Commands.Register(new Command(name, usage, help, CommandMark.Dev, owner, call => Guard(call) ?? run(call)));
+            Commands.Register(new Command(name, usage, help, CommandMark.Dev, owner, call => Guard(call) ?? Aimed(call, run)));
 
         Add("key", "key <Key> [ms]", "Presses and releases a key inside the game (60 ms when not given).", Key);
         Add("down", "down <Key>", "Holds a key inside the game until up or the end of the batch.", call => Hold(call, true));
@@ -49,6 +49,14 @@ internal static class InputCommands
             CommandResult.Ok(InputBlockWatch.Describe()));
         Add("input", "input", "Shows the bridge's injected keys, buttons and pointer, and real and injected focus.", _ =>
             CommandResult.Ok($"input: {VirtualInput.Describe()}, focused real {InputState.RealFocused}"));
+    }
+
+    // The pointer commands take #n, the centre of item n of the last see list, in place of x y.
+    private static CommandResult Aimed(CommandCall call, Func<CommandCall, CommandResult> run)
+    {
+        if (call.Name is not ("click" or "press" or "cursor" or "button" or "wheel")) return run(call);
+        var aimed = DevCommands.Marked(call, out string? error);
+        return error != null ? CommandResult.Error(error) : run(aimed);
     }
 
     private static CommandResult? Guard(CommandCall call)

@@ -37,6 +37,9 @@ internal static class Focus
     /// <summary>Set by the menu while it draws; controls drawn elsewhere (the HUD panel) aren't focusable.</summary>
     public static bool Active;
 
+    /// <summary>Dev builds: told of each control as it repaints, with its full key and rect in GUI space; null otherwise.</summary>
+    public static Action<string, Rect>? Seen;
+
     /// <summary>Prefix for the controls of the page being drawn.</summary>
     public static string Scope = string.Empty;
 
@@ -163,6 +166,7 @@ internal static class Focus
             case EventType.Repaint:
                 Rect r = rect ?? GUILayoutUtility.GetLastRect();
                 s_building.Add(full);
+                Seen?.Invoke(full, r);
                 if (full == s_focused && s_showRing)
                 {
                     Theme.DrawSliced(new Rect(r.x - 2f, r.y - 2f, r.width + 4f, r.height + 4f), Theme.FocusRing, Theme.FocusRadius);

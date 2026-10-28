@@ -215,6 +215,7 @@ internal sealed class DevBridgeFeature : Feature
         ThemeVerbs.Register(Id);
         CoreCommands.CompatSelfTest = () => new CompatProbeFeature();
         Ui.SettingsContent.DevSwitches = DevCommands.DebugSwitches;
+        Ui.Focus.Seen = DevCommands.SeeControl;
         // Matte shots: the backdrop goes under the HUD and the menu.
         FeatureHost.AddLayerHook(this, GuiLayer.Hud, DevCommands.DrawBackdrop);
     }
@@ -231,6 +232,7 @@ internal sealed class DevBridgeFeature : Feature
         Application.runInBackground = _runInBackground;
         CoreCommands.CompatSelfTest = null;
         Ui.SettingsContent.DevSwitches = null;
+        Ui.Focus.Seen = null;
         DevBridge.Reset();
         DevCommands.Reset();
     }

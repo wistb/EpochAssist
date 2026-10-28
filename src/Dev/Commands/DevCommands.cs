@@ -59,6 +59,8 @@ internal static partial class DevCommands
         });
         Add("shot", "shot full|menu|hud|ui <target> [name] [matte] [jpg[quality]]", "Saves a screenshot of the screen, the menu, the HUD or one piece of game UI to shots/; matte gives a transparent background, trimmed to what is drawn; jpg saves a JPG.",
             ShotCommand);
+        Add("see", "see [game|ours|text|all] [filter]", "Lists what is on screen, numbered, in game-window pixels: game windows, game controls and what covers them, our menu, HUD and menu controls; text adds game text. click #n and shot ... marks use the numbers.",
+            SeeCommand);
         Add("draw", "draw test|minimap|arrows|bars|roles on|off", "Draws a test pattern around the player, markers on the minimap, edge arrows for the 10 nearest rares, bars over enemies, or the colour role swatch.", DrawCommand);
         Add("focus", "focus [key]", "Shows the menu control that has keyboard focus, or moves it to a control by its full key.", call =>
         {

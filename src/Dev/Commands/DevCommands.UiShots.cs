@@ -106,17 +106,20 @@ internal static partial class DevCommands
         return shown;
     }
 
-    // The union of the screen rects of the visible graphics at or under root; root's own rect when it draws none.
-    private static Rect? DrawnArea(RectTransform root)
+    // The union of the screen rects of the visible graphics at or under root; root's own rect when it draws none, unless
+    // strict.
+    private static Rect? DrawnArea(RectTransform root, bool strict = false)
     {
         Rect? area = null;
+        var screen = new Rect(0f, 0f, Screen.width, Screen.height);
         foreach (var graphic in root.GetComponentsInChildren<UnityEngine.UI.Graphic>(false))
         {
-            if (!Game.Alive(graphic) || !graphic.enabled || graphic.color.a <= 0f || graphic.canvasRenderer.GetAlpha() <= 0f) continue;
+            if (!Game.Alive(graphic) || !graphic.enabled || graphic.color.a <= 0f || graphic.canvasRenderer.GetInheritedAlpha() <= 0f) continue;
             var r = ScreenRect(graphic.rectTransform);
-            if (r.width >= 1f && r.height >= 1f) area = Union(area, r);
+            // Parked off screen (a hidden tooltip's way) or too small to see.
+            if (r.width >= 1f && r.height >= 1f && r.Overlaps(screen)) area = Union(area, r);
         }
-        return area ?? (ScreenRect(root) is { width: >= 1f, height: >= 1f } own ? own : null);
+        return area ?? (!strict && ScreenRect(root) is { width: >= 1f, height: >= 1f } own ? own : null);
     }
 
     // Screen pixels, top-left origin, through the canvas's camera when it has one.
