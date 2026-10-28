@@ -37,6 +37,8 @@ internal sealed class PlannerMark
     public IntPtr Parent;
     /// <summary>The marking pass that last kept it; a mark the latest pass skipped is cleared.</summary>
     public int Pass;
+    /// <summary>The game art a frame corner is drawn with; null for the plain outline.</summary>
+    public Sprite? Art;
 }
 
 internal static partial class Planner
@@ -132,6 +134,296 @@ internal static partial class Planner
                 Log.ErrorThrottled("planner:mark", $"Planner: a mark couldn't be made: {e.Message}", 30);
                 return null;
             }
+        }
+
+        /// <summary>
+        /// A small icon at one corner of an element: a rounded square in the state colour with a dark edge, inset by
+        /// <paramref name="inset"/> and <paramref name="size"/> wide in the element's units. Made on first use, moved and
+        /// resized after; null when it couldn't be made. <paramref name="corner"/> is the corner as anchor (0 or 1 each).
+        /// </summary>
+        public static PlannerMark? Icon(Transform parent, Color colour, Vector2 corner, float size, float inset = 2f)
+        {
+            if (!Game.Alive(parent)) return null;
+            if (!s_marks.TryGetValue(parent.Pointer, out var mark) || !Game.Alive(mark.Object) || mark.Object.GetComponent<RectMask2D>() != null)
+            {
+                if (mark != null)
+                {
+                    s_marks.Remove(parent.Pointer);
+                    Destroy(mark);
+                }
+                try
+                {
+                    var go = new GameObject(MarkName);
+                    var rect = go.AddComponent<RectTransform>();
+                    rect.SetParent(parent, false);
+                    go.AddComponent<LayoutElement>().ignoreLayout = true;
+                    var body = go.AddComponent<Image>();
+                    body.raycastTarget = false;
+                    body.sprite = PlateSprite();
+                    body.type = Image.Type.Sliced;
+                    var edge = new GameObject(MarkName + ".Edge");
+                    var edgeRect = edge.AddComponent<RectTransform>();
+                    edgeRect.SetParent(rect, false);
+                    edgeRect.anchorMin = Vector2.zero;
+                    edgeRect.anchorMax = Vector2.one;
+                    edgeRect.offsetMin = edgeRect.offsetMax = Vector2.zero;
+                    var ring = edge.AddComponent<Image>();
+                    ring.raycastTarget = false;
+                    ring.sprite = Ring();
+                    ring.type = Image.Type.Sliced;
+                    ring.color = IconEdge;
+                    rect.SetAsLastSibling();
+                    mark = new PlannerMark { Object = go, Ring = body, Colour = Color.clear, Parent = parent.Pointer, Node = parent };
+                    s_marks[parent.Pointer] = mark;
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorThrottled("planner:mark", $"Planner: an icon couldn't be made: {e.Message}", 30);
+                    return null;
+                }
+            }
+            var r = mark.Object.transform.TryCast<RectTransform>()!;
+            if (r.GetSiblingIndex() != parent.childCount - 1) r.SetAsLastSibling();
+            r.anchorMin = r.anchorMax = r.pivot = corner;
+            r.sizeDelta = new Vector2(size, size);
+            r.anchoredPosition = new Vector2(corner.x > 0.5f ? -inset : inset, corner.y > 0.5f ? -inset : inset);
+            Recolour(mark, colour);
+            return mark;
+        }
+
+        private static readonly Color IconEdge = new(0.04f, 0.04f, 0.05f, 0.9f);
+
+
+        /// <summary>
+        /// A ring of a game image's own art in the state colour: the part of <paramref name="image"/>'s art between
+        /// <paramref name="inner"/> and <paramref name="outer"/> (radii in the image's local units) round
+        /// <paramref name="centre"/>, recoloured and laid exactly over it. A child of the image, so it draws just after it
+        /// and under whatever the panel draws later.
+        /// </summary>
+        public static PlannerMark? ArtRing(Image image, Vector2 centre, float inner, float outer, Color colour, bool onTop = false)
+        {
+            var art = image.sprite;
+            if (!Game.Alive(image) || !Game.Alive(art)) return null;
+            var host = image.rectTransform;
+            if (!s_marks.TryGetValue(host.Pointer, out var mark) || !Game.Alive(mark.Object))
+            {
+                if (mark != null)
+                {
+                    s_marks.Remove(host.Pointer);
+                    Destroy(mark);
+                }
+                try
+                {
+                    var go = new GameObject(MarkName);
+                    go.AddComponent<RectTransform>().SetParent(host, false);
+                    go.AddComponent<LayoutElement>().ignoreLayout = true;
+                    var face = go.AddComponent<Image>();
+                    face.raycastTarget = false;
+                    mark = new PlannerMark { Object = go, Ring = face, Colour = Color.clear, Parent = host.Pointer, Node = host, Art = art };
+                    s_marks[host.Pointer] = mark;
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorThrottled("planner:mark", $"Planner: a ring couldn't be made: {e.Message}", 30);
+                    return null;
+                }
+            }
+            var r = mark.Object.transform.TryCast<RectTransform>()!;
+            r.anchorMin = r.anchorMax = r.pivot = new Vector2(0.5f, 0.5f);
+            r.sizeDelta = new Vector2(2f * outer, 2f * outer);
+            r.anchoredPosition = centre - host.rect.center;
+            // Over what the panel draws after the image (a locked slot's padlock), under the game's tooltips.
+            if (onTop) Above(mark.Object, host);
+            if (mark.Colour != colour)
+            {
+                // The art as the image draws it, to map the ring into the sprite's pixels.
+                var drawn = Drawn(image, art);
+                var scale = new Vector2(art.rect.width / drawn.width, art.rect.height / drawn.height);
+                var pixelCentre = (centre - drawn.min) * scale;
+                if (RingCopy(art, pixelCentre, inner * scale.x, outer * scale.x, colour) is { } copy)
+                {
+                    mark.Ring.sprite = copy;
+                    mark.Colour = colour;
+                }
+            }
+            return mark;
+        }
+
+        // Where an image draws its sprite inside its rect: the whole rect, or kept to the sprite's shape and placed by
+        // the image's pivot when it keeps its aspect, as the game draws it.
+        private static Rect Drawn(Image image, Sprite art)
+        {
+            var drawn = image.rectTransform.rect;
+            if (!image.preserveAspect || art.rect.height <= 0f || drawn.height <= 0f) return drawn;
+            float aspect = art.rect.width / art.rect.height;
+            var size = drawn.width / drawn.height > aspect ? new Vector2(drawn.height * aspect, drawn.height) : new Vector2(drawn.width, drawn.width / aspect);
+            var pivot = image.rectTransform.pivot;
+            return new Rect(drawn.x + (drawn.width - size.x) * pivot.x, drawn.y + (drawn.height - size.y) * pivot.y, size.x, size.y);
+        }
+
+        // A sprite's pixels, read through a render texture since game atlases aren't readable; null when they can't be.
+        private static Color32[]? ReadArt(Sprite art, out int w, out int h)
+        {
+            var area = art.textureRect;
+            w = Mathf.Max(1, Mathf.RoundToInt(area.width));
+            h = Mathf.Max(1, Mathf.RoundToInt(area.height));
+            var before = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            Texture2D? texture = null;
+            try
+            {
+                var source = art.texture;
+                Graphics.Blit(source, rt, new Vector2(area.width / source.width, area.height / source.height), new Vector2(area.x / source.width, area.y / source.height));
+                RenderTexture.active = rt;
+                texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+                texture.ReadPixels(new Rect(0f, 0f, w, h), 0, 0, false);
+                return texture.GetPixels32();
+            }
+            catch (Exception e)
+            {
+                Log.ErrorThrottled("planner:art", $"Planner: game art couldn't be read: {e.Message}", 30);
+                return null;
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(rt);
+                if (texture != null) UnityEngine.Object.Destroy(texture);
+            }
+        }
+
+        // The art's pixels between two radii round a point (sprite pixels, bottom-left origin), recoloured, as a square
+        // sprite the outer radius wide; outside the ring is clear, its edges softened over a pixel. Made once per colour.
+        private static Sprite? RingCopy(Sprite art, Vector2 centre, float inner, float outer, Color colour)
+        {
+            string key = $"{art.name}#ring#{centre.x:0}#{centre.y:0}#{inner:0}#{outer:0}#{ColorUtility.ToHtmlStringRGB(colour)}";
+            if (s_white.TryGetValue(key, out var made)) return Game.Alive(made) ? made : null;
+            Sprite? ring = null;
+            if (ReadArt(art, out int w, out int h) is { } pixels)
+            {
+                int brightest = 1;
+                foreach (var p in pixels)
+                    if (p.a >= 32) brightest = Math.Max(brightest, (p.r * 77 + p.g * 150 + p.b * 29) >> 8);
+                int side = Mathf.Max(1, Mathf.CeilToInt(2f * outer));
+                var cut = new Color32[side * side];
+                for (int y = 0; y < side; y++)
+                {
+                    for (int x = 0; x < side; x++)
+                    {
+                        float sx = centre.x - outer + x + 0.5f, sy = centre.y - outer + y + 0.5f;
+                        int ix = Mathf.FloorToInt(sx), iy = Mathf.FloorToInt(sy);
+                        if (ix < 0 || iy < 0 || ix >= w || iy >= h) continue;
+                        float d = Vector2.Distance(new Vector2(sx, sy), centre);
+                        float keep = Mathf.Clamp01(outer - d + 0.5f) * Mathf.Clamp01(d - inner + 0.5f);
+                        if (keep <= 0f) continue;
+                        var p = pixels[iy * w + ix];
+                        int grey = Math.Min(255, ((p.r * 77 + p.g * 150 + p.b * 29) >> 8) * 255 / brightest);
+                        var c = Recoloured(colour, p, grey / 255f);
+                        c.a = (byte)(c.a * keep);
+                        cut[y * side + x] = c;
+                    }
+                }
+                var texture = new Texture2D(side, side, TextureFormat.RGBA32, false)
+                {
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear,
+                };
+                texture.SetPixels32(cut);
+                texture.Apply(false, true);
+                ring = Sprite.Create(texture, new Rect(0f, 0f, side, side), new Vector2(0.5f, 0.5f), art.pixelsPerUnit);
+                ring.hideFlags = HideFlags.HideAndDontSave;
+                s_whiteTextures.Add(texture);
+            }
+            s_white[key] = ring;
+            return ring;
+        }
+
+        /// <summary>
+        /// A small badge at one corner inside an element: an optional round <paramref name="back"/> drawn as it is, and
+        /// <paramref name="glyph"/> recoloured to the state colour keeping its own shading. <paramref name="size"/> wide,
+        /// inset by <paramref name="inset"/> and moved by <paramref name="offset"/> (x right, y down), at
+        /// <paramref name="opacity"/>.
+        /// </summary>
+        public static PlannerMark? Badge(Transform parent, Sprite? back, Sprite glyph, float glyphScale, Color colour, Vector2 corner, float size,
+            Vector2 offset, float opacity, float inset = 4f)
+        {
+            if (!Game.Alive(parent) || !Game.Alive(glyph)) return null;
+            if (!s_marks.TryGetValue(parent.Pointer, out var mark) || !Game.Alive(mark.Object) || mark.Art?.Pointer != glyph.Pointer)
+            {
+                if (mark != null)
+                {
+                    s_marks.Remove(parent.Pointer);
+                    Destroy(mark);
+                }
+                try
+                {
+                    var go = new GameObject(MarkName);
+                    go.AddComponent<RectTransform>().SetParent(parent, false);
+                    go.AddComponent<LayoutElement>().ignoreLayout = true;
+                    var body = go.AddComponent<Image>();
+                    body.raycastTarget = false;
+                    body.preserveAspect = true;
+                    var face = new GameObject(MarkName + ".Glyph");
+                    face.AddComponent<RectTransform>().SetParent(go.transform, false);
+                    var glyphImage = face.AddComponent<Image>();
+                    glyphImage.raycastTarget = false;
+                    glyphImage.preserveAspect = true;
+                    glyphImage.sprite = glyph;
+                    mark = new PlannerMark { Object = go, Ring = glyphImage, Colour = Color.clear, Parent = parent.Pointer, Node = parent, Art = glyph };
+                    s_marks[parent.Pointer] = mark;
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorThrottled("planner:mark", $"Planner: a badge couldn't be made: {e.Message}", 30);
+                    return null;
+                }
+            }
+            var r = mark.Object.transform.TryCast<RectTransform>()!;
+            if (r.GetSiblingIndex() != parent.childCount - 1) r.SetAsLastSibling();
+            r.anchorMin = r.anchorMax = r.pivot = corner;
+            r.sizeDelta = new Vector2(size, size);
+            r.anchoredPosition = new Vector2((corner.x > 0.5f ? -inset : inset) + offset.x, (corner.y > 0.5f ? -inset : inset) - offset.y);
+            Above(mark.Object, parent);
+            // The stone background, drawn as the game draws it; none leaves the glyph the whole badge.
+            var background = mark.Object.GetComponent<Image>();
+            bool stone = back != null && Game.Alive(back);
+            if (stone) background.sprite = back;
+            background.color = stone ? new Color(1f, 1f, 1f, opacity) : Color.clear;
+            var glyphRect = mark.Ring.rectTransform;
+            glyphRect.anchorMin = new Vector2(0.5f - glyphScale / 2f, 0.5f - glyphScale / 2f);
+            glyphRect.anchorMax = new Vector2(0.5f + glyphScale / 2f, 0.5f + glyphScale / 2f);
+            glyphRect.offsetMin = glyphRect.offsetMax = Vector2.zero;
+            if (mark.Colour != colour && WhiteFrame(glyph, 0f, colour) is { } recoloured)
+            {
+                mark.Ring.sprite = recoloured;
+                mark.Colour = colour;
+            }
+            mark.Ring.color = new Color(1f, 1f, 1f, opacity);
+            return mark;
+        }
+
+        // Drawn on a canvas of its own one step above the panel's, so the panel's later cells, frames and items never
+        // cover it; the game's tooltips sit higher still (the inventory draws at 101, the item tooltip at 105).
+        private static void Above(GameObject mark, Transform parent)
+        {
+            var panel = parent.GetComponentInParent<Canvas>();
+            if (!Game.Alive(panel)) return;
+            var own = mark.GetComponent<Canvas>();
+            if (!Game.Alive(own)) own = mark.AddComponent<Canvas>();
+            own!.overrideSorting = true;
+            own.sortingLayerID = panel!.sortingLayerID;
+            int order = panel.sortingOrder + 1;
+            if (own.sortingOrder != order) own.sortingOrder = order;
+        }
+
+        /// <summary>Whether a screen point (bottom-left origin) is on a mark's own image; <paramref name="camera"/> is its
+        /// canvas's camera, null for an overlay canvas.</summary>
+        public static bool Contains(PlannerMark mark, Vector2 point, Camera? camera)
+        {
+            if (!Game.Alive(mark.Object)) return false;
+            var rect = mark.Object.transform.TryCast<RectTransform>();
+            return Game.Alive(rect) && RectTransformUtility.RectangleContainsScreenPoint(rect, point, camera);
         }
 
         /// <summary>A line of words on a panel element, with no ring: a note about the whole panel rather than one node.
@@ -674,11 +966,16 @@ internal static partial class Planner
         // transparency, tints to the exact state colour along the frame's outline. Made once per sprite.
         private static readonly Dictionary<string, Sprite?> s_white = new();
 
-        private static Sprite? WhiteFrame(Sprite frame)
+        private static Sprite? WhiteFrame(Sprite frame, float border = 0f, Color? recolour = null)
         {
-            if (s_white.TryGetValue(frame.name, out var made)) return Game.Alive(made) ? made : null;
+            string key = border > 0f || recolour != null
+                ? $"{frame.name}#{border}#{(recolour is { } c ? ColorUtility.ToHtmlStringRGB(c) : string.Empty)}"
+                : frame.name;
+            if (s_white.TryGetValue(key, out var made)) return Game.Alive(made) ? made : null;
             Sprite? white = null;
             RenderTexture? rt = null;
+            bool hollow = recolour == null && frame.name.StartsWith(WeaverFramePrefix, StringComparison.Ordinal);
+            bool round = frame.name.StartsWith(WeaverRoundPrefix, StringComparison.Ordinal);
             var before = RenderTexture.active;
             try
             {
@@ -712,13 +1009,23 @@ internal static partial class Planner
                 {
                     var p = pixels[i];
                     int grey = Math.Min(255, ((p.r * 77 + p.g * 150 + p.b * 29) >> 8) * 255 / brightest);
+                    if (recolour is { } to)
+                    {
+                        pixels[i] = Recoloured(to, p, grey / 255f);
+                        continue;
+                    }
+                    // The weaver tree's frames are drawn with their inside filled: only the band outside the inner hexagon
+                    // is the frame.
+                    byte alpha = p.a;
+                    if (hollow) alpha = (byte)(alpha * (1f - (round ? InsideCircle(i % w, i / w, w, h) : InsideHex(i % w, i / w, w, h))));
                     // A floor, so the darkest parts of the frame still carry some colour.
                     byte v = (byte)(FrameFloor + grey * (255 - FrameFloor) / 255);
-                    pixels[i] = new Color32(v, v, v, p.a);
+                    pixels[i] = new Color32(v, v, v, alpha);
                 }
                 texture.SetPixels32(pixels);
                 texture.Apply(false, true);
-                white = Sprite.Create(texture, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), frame.pixelsPerUnit, 0u, SpriteMeshType.FullRect, frame.border);
+                white = Sprite.Create(texture, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), frame.pixelsPerUnit, 0u, SpriteMeshType.FullRect,
+                    border > 0f ? new Vector4(border, border, border, border) : frame.border);
                 white.hideFlags = HideFlags.HideAndDontSave;
                 s_whiteTextures.Add(texture);
             }
@@ -731,14 +1038,48 @@ internal static partial class Planner
                 RenderTexture.active = before;
                 if (rt != null) RenderTexture.ReleaseTemporary(rt);
             }
-            s_white[frame.name] = white;
+            s_white[key] = white;
             return white;
         }
 
         private static readonly List<Texture2D> s_whiteTextures = new();
-        private const int FrameFloor = 70;
+        private const string WeaverFramePrefix = "Weaver_", WeaverRoundPrefix = "Weaver_Circle";
+        // The weaver frames' insides, as a share of the sprite's half width: a key node's hexagon (pointed top and bottom)
+        // and a round node's circle.
+        private const float WeaverInner = 0.8f, WeaverRoundInner = 0.82f;
 
+        private static float InsideCircle(int x, int y, int w, int h)
+        {
+            float half = w / 2f;
+            float d = new Vector2(x + 0.5f - half, y + 0.5f - h / 2f).magnitude / (half * WeaverRoundInner);
+            return Mathf.Clamp01((1f - d) * half * WeaverRoundInner + 0.5f);
+        }
+
+        // How far a pixel is inside the frame's inner hexagon: 1 well inside, 0 outside, a pixel's softening between.
+        private static float InsideHex(int x, int y, int w, int h)
+        {
+            float half = w / 2f;
+            float dx = Mathf.Abs(x + 0.5f - half) / half, dy = Mathf.Abs(y + 0.5f - h / 2f) / half;
+            float d = Mathf.Max(dx, dx * 0.5f + dy * 0.866f) / WeaverInner;
+            return Mathf.Clamp01((1f - d) * half * WeaverInner + 0.5f);
+        }
+        // The art's brightness the state colour lands on (darker parts darker, brighter towards white), and how much of
+        // the art's own colour stays.
+        private const float RecolourMid = 0.7f, OwnColour = 0.15f;
+
+        // A pixel of game art in another colour, keeping its own light and shade: its brightness (0 to 1, the art's
+        // brightest at 1) scales the colour, running on towards white past the colour's own brightness so bevels and
+        // highlights stay; a little of the art's own colour is kept.
+        private static Color32 Recoloured(Color to, Color32 own, float brightness)
+        {
+            float k = brightness / RecolourMid;
+            Color c = k <= 1f ? to * k : Color.Lerp(to, Color.white, Mathf.Clamp01((k - 1f) / (1f / RecolourMid - 1f)));
+            c = Color.Lerp(c, own, OwnColour);
+            return new Color32((byte)(Mathf.Clamp01(c.r) * 255f), (byte)(Mathf.Clamp01(c.g) * 255f), (byte)(Mathf.Clamp01(c.b) * 255f), own.a);
+        }
+        private const int FrameFloor = 70;
         private static Sprite Ring() => s_ring ??= RoundedSprite(false, out s_texture);
+
 
         // The label plate: the ring's rounded square, filled. A sprite-less image draws nothing in this game.
         private static Sprite PlateSprite() => s_plate ??= RoundedSprite(true, out s_plateTexture);
@@ -872,6 +1213,7 @@ internal static partial class Planner
         GuidedPanel.Passive => S.PassiveLook,
         GuidedPanel.SkillTree => S.SkillTreeLook,
         GuidedPanel.SkillChoice => S.SkillChoiceLook,
+        GuidedPanel.Weaver => S.WeaverLook,
         _ => S.SkillsPageLook,
     };
 
@@ -984,6 +1326,92 @@ internal static partial class Planner
     private const float SkillNoteDrop = 36f;
 
     /// <summary>Destroys the passive tree's marks and forgets what they were made from.</summary>
+    /// <summary>
+    /// The weaver tree, while its panel shows: each node the stage plans or the character has points in, by state, with
+    /// the next point; made again when the guidance, the panel or the look changes.
+    /// </summary>
+    private static void MarkWeaver(Run run)
+    {
+        var guide = run.Gear?.Weaver;
+        // The weaver panels are looked for only while the game says its factions panel is open: an object search for
+        // one that isn't there scans the whole scene.
+        if (guide == null || !S.Enabled.Value || !S.WeaverLook.Marks!.Value || !run.Feature.Has(WeaverUiGroup)
+            || UIBase.instance is not { } ui || !Game.Alive(ui) || !ui.IsFactionsPanelOpen())
+        {
+            ClearWeaverMarks(run);
+            return;
+        }
+        try
+        {
+            // The rank page says whether its tree shows: the tree itself is looked for only then.
+            var page = Panels.Find<Il2CppLE.Factions.FactionRankUIWeaver>();
+            var tree = Panels.Open(page) && page!.IsWeaverTreeOpened ? Panels.Find<Il2CppLE.Factions.WeaverTree>() : null;
+            if (!Panels.Open(tree))
+            {
+                ClearWeaverMarks(run);
+                return;
+            }
+            var nodes = tree!.nodeList;
+            int count = nodes?.Count ?? 0;
+            var look = MarkLook.Now(GuidedPanel.Weaver);
+            if (run.WeaverMarkedTree == tree.Pointer && run.WeaverMarkedNodes == count && run.WeaverMarkedGuide == guide && run.WeaverMarkedLook.Same(look)) return;
+            run.WeaverMarkedTree = tree.Pointer;
+            run.WeaverMarkedNodes = count;
+            run.WeaverMarkedGuide = guide;
+            run.WeaverMarkedLook = look;
+
+            int pass = ++s_pass;
+            Marks.FrameMissing = false;
+            s_kept.Clear();
+            PlannerMark? next = null;
+            for (int i = 0; i < count; i++)
+            {
+                var node = nodes![i];
+                if (!Game.Alive(node)) continue;
+                if (!string.IsNullOrWhiteSpace(node!.nodeName)) s_weaverNames[node.id] = node.nodeName;
+                if (!node.gameObject.activeInHierarchy || !guide.Nodes.TryGetValue(node.id, out var nodeGuide)) continue;
+                var mark = MarkNode(node.transform, nodeGuide, look, pass);
+                if (look.Next && nodeGuide.NextStep == 1 && mark != null) next = mark;
+            }
+            if (next != null) Marks.PulseOn(next);
+            foreach (var mark in run.WeaverMarks)
+                if (mark.Pass != pass) Marks.Clear(mark);
+            run.WeaverMarks.Clear();
+            run.WeaverMarks.AddRange(s_kept);
+            if (Marks.FrameMissing && ++s_weaverRetries < FrameRetries) run.WeaverMarkedNodes = -1;
+            else if (!Marks.FrameMissing) s_weaverRetries = 0;
+            s_kept.Clear();
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("planner:weaver marks", $"Planner: the weaver tree couldn't be marked: {e.Message}", 30);
+        }
+    }
+
+    private static int s_weaverRetries;
+
+    // The weaver nodes' names as the panel shows them; the game data holds only internal ids ("Node_EchoWeb…").
+    private static readonly Dictionary<byte, string> s_weaverNames = new();
+
+    /// <summary>A weaver node's name: the panel's once seen, else the internal id made readable.</summary>
+    private static string WeaverNodeName(Core.Feature feature, byte node)
+    {
+        if (s_weaverNames.TryGetValue(node, out var name)) return name;
+        string id = NodeName(feature, WeaverTreeId, node);
+        if (id.StartsWith("Node_", StringComparison.Ordinal)) id = id[5..];
+        return System.Text.RegularExpressions.Regex.Replace(id, "(?<=[a-z])(?=[A-Z])", " ");
+    }
+
+    private static void ClearWeaverMarks(Run run)
+    {
+        if (run.WeaverMarkedTree == IntPtr.Zero && run.WeaverMarks.Count == 0) return;
+        foreach (var mark in run.WeaverMarks) Marks.Clear(mark);
+        run.WeaverMarks.Clear();
+        run.WeaverMarkedTree = IntPtr.Zero;
+        run.WeaverMarkedNodes = -1;
+        run.WeaverMarkedGuide = null;
+    }
+
     private static void ClearPassiveMarks(Run run)
     {
         if (run.MarkedTree == IntPtr.Zero && run.PassiveMarks.Count == 0) return;

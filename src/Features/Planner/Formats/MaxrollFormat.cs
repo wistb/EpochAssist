@@ -111,7 +111,7 @@ internal static class MaxrollFormat
     }
 
     // {history, position}: a number adds one point to that node, {"<id>": n} adds n.
-    private static PlannedTree ReadTree(string treeId, JsonObject? tree)
+    internal static PlannedTree ReadTree(string treeId, JsonObject? tree)
     {
         if (tree?["history"] is not JsonArray history) return new PlannedTree { TreeId = treeId };
         int count = Math.Clamp(Build.Int(tree["position"]) ?? history.Count, 0, history.Count);

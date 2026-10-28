@@ -87,6 +87,63 @@ internal sealed class PlannerFeature : Feature
         Need<LocalTreeData.SkillTreeData>(nameof(LocalTreeData.SkillTreeData.ability), Planner.OpenUiGroup),
         Need(typeof(CharacterClassList), nameof(CharacterClassList.getClass), Planner.GameDataGroup),
         Need(typeof(CharacterClassList), nameof(CharacterClassList.getClassName), Planner.GameDataGroup),
+
+        // Planned items made in memory from the game's own data.
+        Need<ItemData>(nameof(ItemData.RefreshIDAndValues), Planner.ItemDataGroup),
+        Need<ItemData>(nameof(ItemData.numberOfImplicitRolls), Planner.ItemDataGroup),
+        Need<ItemData>(nameof(ItemData.IsTwoHanded), Planner.ItemDataGroup),
+        Need<ItemData>(nameof(ItemData.hasSealedRegularAffix), Planner.ItemDataGroup),
+        Need<ItemData>(nameof(ItemData.hasSealedPrimordialAffix), Planner.ItemDataGroup),
+        Need<ItemData>(nameof(ItemData.hasSealedAffixFromCorruption), Planner.ItemDataGroup),
+        Need<ItemAffix>(nameof(ItemAffix.sealedAffixType), Planner.ItemDataGroup),
+        Need(typeof(UniqueList), nameof(UniqueList.getUnique), Planner.ItemDataGroup),
+        Need(typeof(UniqueList), nameof(UniqueList.getUniqueItemType), Planner.ItemDataGroup),
+        Need(typeof(ItemList), nameof(ItemList.get), Planner.ItemDataGroup),
+        Need<ItemList>(nameof(ItemList.GetEquipmentBaseItem), Planner.ItemDataGroup),
+        Need<ItemList>(nameof(ItemList.GetEquipmentSubItem), Planner.ItemDataGroup),
+        Need<ItemList>(nameof(ItemList.GetNonEquipmentSubItem), Planner.ItemDataGroup),
+        Need<ItemList>(nameof(ItemList.GetItemDisplayName), Planner.ItemDataGroup),
+        Need<ItemList.BaseItem>(nameof(ItemList.BaseItem.gridSize), Planner.ItemDataGroup),
+        Need(typeof(AffixList), nameof(AffixList.get), Planner.ItemDataGroup),
+        Need<AffixList>(nameof(AffixList.GetAffix), Planner.ItemDataGroup),
+        Need<AffixList>(nameof(AffixList.GetAffixName), Planner.ItemDataGroup),
+
+        // The game's own item tooltip, opened for a planned item.
+        Need<TooltipItemManager>(nameof(TooltipItemManager.OpenItemTooltip), Planner.ItemTooltipGroup),
+        Need<TooltipItemManager>(nameof(TooltipItemManager.CloseTooltip), Planner.ItemTooltipGroup),
+        Need(typeof(TooltipItemManager), nameof(TooltipItemManager.ForceClose), Planner.ItemTooltipGroup),
+        Need<TooltipItemManager>(nameof(TooltipItemManager.ActiveItem), Planner.ItemTooltipGroup),
+        Need<TooltipItemManager>(nameof(TooltipItemManager.activeParameters), Planner.ItemTooltipGroup),
+        Need<TooltipItemManager>(nameof(TooltipItemManager.ShowComparison), Planner.ItemTooltipGroup),
+        Need<TooltipItemManager>(nameof(TooltipItemManager.SetEquippedItemTextForComparison), Planner.ItemTooltipGroup),
+        Need<UITooltipItem>(nameof(UITooltipItem.instance), Planner.ItemTooltipGroup),
+        Need<UITooltipItem>(nameof(UITooltipItem._itemTooltipPrompts), Planner.ItemTooltipGroup),
+        Need<TooltipItemManager>(nameof(TooltipItemManager.ActiveTooltipRect), Planner.ItemTooltipGroup),
+
+        // The equipped side and the inventory's slot elements.
+        Need(typeof(ItemContainersManager), nameof(ItemContainersManager.Instance), Planner.InventoryUiGroup),
+        Need<ItemContainersManager>(nameof(ItemContainersManager.equipment), Planner.InventoryUiGroup),
+        Need<ItemContainersManager>(nameof(ItemContainersManager.idols), Planner.InventoryUiGroup),
+        Need<ItemContainersManager>(nameof(ItemContainersManager.cursor), Planner.InventoryUiGroup),
+        Need<UIBase>(nameof(UIBase.IsInventoryOpen), Planner.InventoryUiGroup),
+        Need<UIBase>(nameof(UIBase.openInventory), Planner.InventoryUiGroup),
+        Need<ItemContainerUI>(nameof(ItemContainerUI.Container), Planner.InventoryUiGroup),
+        Need<ItemContainerEntry>(nameof(ItemContainerEntry.Position), Planner.InventoryUiGroup),
+
+        // The blessings panel.
+        Need<ItemContainersManager>(nameof(ItemContainersManager.blessings), Planner.BlessingUiGroup),
+        Need<ItemContainersManager.BlessingItemContainer>(nameof(ItemContainersManager.BlessingItemContainer.Containers), Planner.BlessingUiGroup),
+        Need<InventoryBlessingSlotUI>(nameof(InventoryBlessingSlotUI.blessingUIContainer), Planner.BlessingUiGroup),
+        Need<BlessingContainer>(nameof(BlessingContainer.TimelineID), Planner.BlessingUiGroup),
+        Need<TabUIElement>(nameof(TabUIElement.controller), Planner.BlessingUiGroup),
+        Need<TabUIController>(nameof(TabUIController.Select), Planner.BlessingUiGroup),
+
+        // The weaver tree.
+        Need<LocalTreeData>(nameof(LocalTreeData.weaverTree), Planner.WeaverUiGroup),
+        Need<Il2CppLE.Factions.WeaverTree>(nameof(Il2CppLE.Factions.WeaverTree.nodeList), Planner.WeaverUiGroup),
+        Need<UIBase>(nameof(UIBase.OpenWeaverRankPanel), Planner.WeaverUiGroup),
+        Need<UIBase>(nameof(UIBase.IsFactionsPanelOpen), Planner.WeaverUiGroup),
+        Need<Il2CppLE.Factions.FactionRankUIWeaver>(nameof(Il2CppLE.Factions.FactionRankUIWeaver.IsWeaverTreeOpened), Planner.WeaverUiGroup),
     };
 
     public override FeatureStatus Status => State == FeatureState.Running ? Planner.StatusOf(this) : base.Status;

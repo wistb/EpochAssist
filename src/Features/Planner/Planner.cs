@@ -8,7 +8,7 @@ using S = EpochAssist.Features.PlannerSettings;
 namespace EpochAssist.Features;
 
 /// <summary>The game panel a planner guides, when one is open. Runtime only, never stored.</summary>
-internal enum GuidedPanel { None, Passive, SkillTree, SkillChoice, SkillsPage }
+internal enum GuidedPanel { None, Passive, SkillTree, SkillChoice, SkillsPage, Weaver }
 
 /// <summary>
 /// Guides the character towards a planner build: the active build and stage for the character in play, the character's
@@ -25,6 +25,11 @@ internal static partial class Planner
     public const string SkillsPageGroup = "skills page";
     public const string GameDataGroup = "game data";
     public const string OpenUiGroup = "open ui";
+    public const string ItemDataGroup = "item data";
+    public const string ItemTooltipGroup = "item tooltip";
+    public const string InventoryUiGroup = "inventory ui";
+    public const string BlessingUiGroup = "blessing ui";
+    public const string WeaverUiGroup = "weaver ui";
 
     private const float FetchPollSeconds = 0.1f;
     private const float PanelSeconds = 0.1f;
@@ -70,6 +75,19 @@ internal static partial class Planner
         public MarkLook ChoiceMarkedLook;
         public (int Class, int Mastery) MasteryWordsFor = (-1, -1);
         public string? MasteryWords;
+        // The character's gear and its comparison with the stage's planned gear, made again when either changes.
+        public readonly EquippedSide Equipped = new();
+        public GearGuidance? Gear;
+        public ulong GearSignature;
+        public Build? GearBuild;
+        public int GearStage = -1;
+        public bool InventoryOpen;
+        // The weaver tree's marks and what they were made from.
+        public readonly List<PlannerMark> WeaverMarks = new();
+        public IntPtr WeaverMarkedTree;
+        public int WeaverMarkedNodes = -1;
+        public TreeGuide? WeaverMarkedGuide;
+        public MarkLook WeaverMarkedLook;
         public string StatusDetail = "Off";
         public StatusState StatusState = StatusState.Off;
     }
@@ -84,12 +102,15 @@ internal static partial class Planner
         s_run = run;
         Library.Load();
         Marks.Sweep();
+        SweepTooltip();
         Scheduler.Every(feature, "planner fetch", FetchPollSeconds, () => PollFetch());
         Scheduler.Every(feature, "planner panels", PanelSeconds, () => { if (s_run == run) Tick(run); }, startNow: true);
         Scheduler.Every(feature, "planner allocation", AllocationSeconds, () =>
         {
             if (s_run == run && run.Open == GuidedPanel.None) ReadAndCompare(run);
+            if (s_run == run && !run.InventoryOpen) ReadGear(run);
         });
+        Actions.Register(feature.Id, "planner.compare", "Compare with build", CompareHovered);
     }
 
     /// <summary>While a guided panel is open the allocation is checked every frame, so a spent point shows at once.</summary>
@@ -99,6 +120,14 @@ internal static partial class Planner
         {
             ReadAndCompare(run);
             Marks.Pulse();
+        }
+        // A swapped item recolours its icon in the same frame.
+        if (s_run is { } menuRun) MenuHover(menuRun);
+        // The icons follow at the tick (0.1 s): made again every frame they'd cost more than the rest together.
+        if (s_run is { InventoryOpen: true } open)
+        {
+            ReadGear(open);
+            GearHover(open);
         }
     }
 
@@ -114,8 +143,12 @@ internal static partial class Planner
         Fetch.Drop();
         if (s_run is { } stopping) ClearHint(stopping);
         s_hovered = null;
+        ClearGearMarks();
+        s_gearHover = null;
+        ForgetMenuAnchor();
         Marks.Release();
         Panels.Forget();
+        ForgetGear();
         s_run = null;
     }
 
@@ -124,14 +157,21 @@ internal static partial class Planner
     {
         if (s_run is { } run0) ClearHint(run0);
         s_hovered = null;
+        // The tooltip manager goes with the scene: nothing to close.
+        s_tipItem = null;
+        ClearGearMarks();
+        s_gearHover = null;
         Marks.ClearAll();
         Panels.Forget();
+        ForgetMade();
         if (s_run is { } run)
         {
             run.Open = GuidedPanel.None;
+            run.InventoryOpen = false;
             ClearPassiveMarks(run);
             ClearSkillMarks(run);
             ClearChoiceMarks(run);
+            ClearWeaverMarks(run);
         }
     }
 
@@ -145,6 +185,8 @@ internal static partial class Planner
     public static Allocation? CurrentAllocation => s_run is { HasAllocation: true } run ? run.Allocation : null;
     public static Guidance? CurrentGuidance => s_run?.Guidance;
     public static GuidedPanel OpenPanel => s_run?.Open ?? GuidedPanel.None;
+    /// <summary>The stage's gear against the character's, or null before the first read or with no gear planned.</summary>
+    public static GearGuidance? CurrentGear => s_run?.Gear;
 
     // ---- import ----
 
@@ -304,7 +346,10 @@ internal static partial class Planner
                 run.Character = key;
                 run.HasAllocation = false;
                 run.Guidance = null;
+                run.Gear = null;
+                run.Equipped.Signature = 0;
                 run.LibraryGeneration = -1;
+                ClearGearMarks();
                 Marks.ClearAll();
                 ClearPassiveMarks(run);
                 ClearSkillMarks(run);
@@ -317,6 +362,12 @@ internal static partial class Planner
                 run.Build = Library.Find(binding?.Build);
                 run.Stage = run.Build != null ? Math.Clamp(binding!.Value.Stage, 0, run.Build.Stages.Count - 1) : 0;
             }
+            bool inventory = S.Enabled.Value && key != null && run.Build != null && run.Feature.Has(InventoryUiGroup) && UIBase.instance is { } ui && Game.Alive(ui) && ui.IsInventoryOpen();
+            if (inventory != run.InventoryOpen)
+            {
+                run.InventoryOpen = inventory;
+                if (inventory) ReadGear(run);
+            }
             var open = S.Enabled.Value && key != null && run.Build != null ? Panels.Detect(run.Feature) : GuidedPanel.None;
             if (open != run.Open)
             {
@@ -327,6 +378,11 @@ internal static partial class Planner
             MarkPassive(run);
             MarkSkillTree(run);
             MarkSkillChoice(run);
+            // Here too, for the inventory closing or a switch turned off.
+            MarkGear(run);
+            MarkWeaver(run);
+            ChooseBlessingsTab();
+            if (!run.InventoryOpen) GearHover(run);
             Hover(run);
         }
         catch (Exception e)
@@ -371,6 +427,28 @@ internal static partial class Planner
         Fill(allocation, tree);
         allocation.Signature = signature;
         run.HasAllocation = true;
+    }
+
+    // The character's gear, and the stage's planned gear compared with it when either changed.
+    private static void ReadGear(Run run)
+    {
+        if (!S.Enabled.Value || run.Character == null || run.Build is not { } build || !run.Feature.Has(InventoryUiGroup)) return;
+        try
+        {
+            if (!ReadEquipped(run.Equipped)) return;
+            if (run.Gear != null && run.GearSignature == run.Equipped.Signature && run.GearBuild == build && run.GearStage == run.Stage) return;
+            // Items made for another stage or build won't be hovered again.
+            if (run.GearBuild != build || run.GearStage != run.Stage) ForgetMade();
+            var gear = GearOf(build, run.Stage);
+            run.Gear = gear.Empty ? null : CompareGear(gear, run.Equipped);
+            run.GearSignature = run.Equipped.Signature;
+            run.GearBuild = build;
+            run.GearStage = run.Stage;
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("planner:gear", $"Planner: reading the character's gear failed: {e.Message}", 30);
+        }
     }
 
     // FNV-1a over everything the guidance reads: class, mastery, level, every node with points, each specialised
@@ -527,6 +605,11 @@ internal static partial class Planner
         if (!feature.Has(SkillChoiceGroup)) kinds.Add("skill choice");
         if (!feature.Has(SkillsPageGroup)) kinds.Add("Skills & Specializations page");
         if (!feature.Has(GameDataGroup)) kinds.Add("game data");
+        // Without the items or the game's tooltip the icons still show their state.
+        if (!feature.Has(ItemDataGroup) || !feature.Has(ItemTooltipGroup)) kinds.Add("item tooltips");
+        if (!feature.Has(InventoryUiGroup)) kinds.Add("inventory");
+        if (!feature.Has(BlessingUiGroup)) kinds.Add("blessings");
+        if (!feature.Has(WeaverUiGroup)) kinds.Add("weaver tree");
         return kinds.Count > 0 ? string.Join(", ", kinds) : null;
     }
 

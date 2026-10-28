@@ -6,10 +6,12 @@ using S = EpochAssist.Features.PlannerSettings;
 namespace EpochAssist.Features;
 
 /// <summary>Which kind of element a mark is on, for its hover hint.</summary>
-internal enum HintKind { None, Node, BarSlot, Pick, SpecSlot, PageIcon }
+internal enum HintKind { None, Node, BarSlot, Pick, SpecSlot, PageIcon, EquipSlot, IdolCell, BlessingSlot }
 
 /// <summary>What a marked element is to the plan: a tree node and its guide, a bar or specialisation slot (0-based), the
-/// selection pick planned for a slot, or a Skills page skill. The words are made only when the hint shows.</summary>
+/// selection pick planned for a slot, or a Skills page skill; or a gear icon: a paper doll slot (its name in AbilityId),
+/// an idol cell (y × 5 + x in Slot) or a blessing timeline (Slot), whose hover opens the game's tooltip instead. The words
+/// are made only when the hint shows.</summary>
 internal readonly record struct MarkHint(HintKind Kind, NodeGuide Guide = default, int Slot = -1, string? AbilityId = null);
 
 internal static partial class Planner
@@ -27,7 +29,8 @@ internal static partial class Planner
     private static void Hover(Run run)
     {
         PlannerMark? mark = null;
-        if (S.Enabled.Value && S.HoverHints.Value && run.Open != GuidedPanel.None && run.Guidance != null)
+        // The weaver tree isn't one of the guided panels; its marks show while it's open.
+        if (S.Enabled.Value && S.HoverHints.Value && (run.Open != GuidedPanel.None || run.WeaverMarks.Count > 0) && run.Guidance != null)
         {
             // Not through the mod's own menu or HUD, which the game's raycast doesn't see.
             var point = InputState.Pointer;

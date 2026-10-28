@@ -68,7 +68,7 @@ internal static class LetFormat
 
     // Points from the selected map (zero entries skipped); the order from the progression list, one point per entry,
     // or none when the list is missing or empty.
-    private static PlannedTree ReadTree(string treeId, JsonObject? selected, JsonArray? progression)
+    internal static PlannedTree ReadTree(string treeId, JsonObject? selected, JsonArray? progression)
     {
         PlannedTree tree;
         if (progression is { Count: > 0 })

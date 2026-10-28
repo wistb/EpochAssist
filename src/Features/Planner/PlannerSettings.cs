@@ -70,7 +70,94 @@ internal static class PlannerSettings
     public static readonly PanelLook SkillsPageLook = new(Group.Section("skillspage", "Skills & Specializations"), "SkillsPage",
         ("SkillsPageMarks", "Marks each skill and specialisation slot on the Skills & Specializations page."));
 
-    public static readonly PanelLook[] Panels = { PassiveLook, SkillTreeLook, SkillChoiceLook, SkillsPageLook };
+    // The inventory's equipment slots and idols, and the blessings panel: icons in the state colours, the planned item on
+    // hover. Pages under Interfaces with no look of their own.
+    public static readonly Section Inventory = Group.Section("inventory", "Inventory");
+    public static readonly Toggle InventoryMarks = new(Inventory, "InventoryMarks", "Show icons", true)
+    {
+        Help = "Shows an icon at the corner of each equipment slot and idol the build plans; hover it to see the planned item.",
+    };
+    public static readonly Toggle InventoryMatches = new(Inventory, "InventoryMatches", "Icons on matching slots", true)
+    {
+        Help = "Off shows icons only where the item isn't the planned one.",
+    };
+    public static readonly Choice<string> InventoryIconGlyph = new(Inventory, "InventoryIconGlyph", "Icon", "diamond",
+        ("diamond", "Diamond"), ("gem", "Gem"), ("star", "Star"))
+    {
+        Help = "The game's own art, in the state colour.",
+        Preview = Planner.GlyphPreview,
+    };
+    public static readonly Toggle InventoryIconBackground = new(Inventory, "InventoryIconBackground", "Stone background", true)
+    {
+        Help = "Sets the icon on the game's small round stone button.",
+    };
+    public static readonly Number InventoryIconOpacity = new(Inventory, "InventoryIconOpacity", "Icon opacity", 1f, 0.2f, 1f)
+    {
+        Step = 0.05f, Slider = true, Percent = true,
+    };
+    public static readonly Choice<string> InventoryIconCorner = new(Inventory, "InventoryIconCorner", "Icon corner", "topleft",
+        ("topright", "Top right"), ("topleft", "Top left"), ("bottomright", "Bottom right"), ("bottomleft", "Bottom left"));
+    public static readonly Number InventoryIconSize = new(Inventory, "InventoryIconSize", "Icon size", 24f, 12f, 40f) { Step = 1f, Unit = " px" };
+    public static readonly Number InventoryIconOffsetX = new(Inventory, "InventoryIconOffsetX", "Icon offset X", -18f, -20f, 20f) { Step = 1f, Slider = true, Unit = " px" };
+    public static readonly Number InventoryIconOffsetY = new(Inventory, "InventoryIconOffsetY", "Icon offset Y", -16f, -20f, 20f) { Step = 1f, Slider = true, Unit = " px" };
+    public static readonly Toggle InventoryIdols = new(Inventory, "InventoryIdols", "Icons on idols", true);
+    public static readonly Number InventoryIdolIconSize = new(Inventory, "InventoryIdolIconSize", "Idol icon size", 16f, 10f, 40f)
+    {
+        Step = 1f, Unit = " px", Help = "Idol cells are small: no bigger than a cell, whatever is set.",
+    };
+    public static readonly Number InventoryIdolOffsetX = new(Inventory, "InventoryIdolOffsetX", "Idol icon offset X", -4f, -20f, 20f) { Step = 1f, Slider = true, Unit = " px" };
+    public static readonly Number InventoryIdolOffsetY = new(Inventory, "InventoryIdolOffsetY", "Idol icon offset Y", -4f, -20f, 20f) { Step = 1f, Slider = true, Unit = " px" };
+    public static readonly Toggle InventoryAltar = new(Inventory, "InventoryAltar", "Colour the idol altar", true)
+    {
+        Help = "Colours the ring round the idol altar by the planned altar's state; hover it to see the planned one.",
+    };
+    public static readonly Number InventoryTooltipDelay = new(Inventory, "InventoryTooltipDelay", "Tooltip delay", 0.15f, 0f, 1f)
+    {
+        Step = 0.05f, Slider = true, Unit = " s", Help = "How long the pointer rests on an icon before the planned item shows.",
+    };
+    public static readonly Toggle InventoryHidePrompts = new(Inventory, "InventoryHidePrompts", "Hide prompts on planned items", true)
+    {
+        Help = "Hides the game's prompts (equip, drop, compare) under a planned item's tooltip; they act on the real item under the pointer.",
+    };
+    public static readonly Hotkey CompareHotkey = new(Inventory, "CompareHotkey", "Compare with build", string.Empty, HotkeyKind.Press, HotkeyScope.Gameplay)
+    {
+        Clearable = true, Action = "planner.compare",
+        Help = "With an item's tooltip open, shows the build's planned item for that item's slot in its place, against the equipped item.",
+    };
+    public static readonly Toggle InventoryHints = new(Inventory, "InventoryHints", "Hint card", true)
+    {
+        Help = "Hovering an icon also shows a card saying what the build wants there.",
+    };
+    public static readonly Choice<string> InventoryHintPosition = new(Inventory, "InventoryHintPosition", "Card position", "tooltip",
+        ("tooltip", "Beside the tooltip"), ("hud", "Mini HUD"));
+    public static readonly Toggle InventoryHintMissing = new(Inventory, "InventoryHintMissing", "List affixes", true)
+    {
+        Help = "Lists the planned item's affixes on the card: each one's tier on the worn item, or missing.",
+    };
+    public static readonly Toggle InventoryHintWorn = new(Inventory, "InventoryHintWorn", "Name the worn item", true)
+    {
+        Help = "A card for an item not in the build says what's worn there.",
+    };
+
+    /// <summary>The inventory page's headings: each starts its group, before the setting it names.</summary>
+    public static readonly Dictionary<Setting, string> InventoryHeadings = new()
+    {
+        [InventoryMarks] = "Icons", [InventoryIdols] = "Idols", [InventoryTooltipDelay] = "Tooltip", [InventoryHints] = "Hint card",
+    };
+
+    public static readonly Section Blessings = Group.Section("blessings", "Blessings");
+    public static readonly Toggle BlessingMarks = new(Blessings, "BlessingMarks", "Show marks", true)
+    {
+        Help = "Colours the ring round each timeline's blessing slot by the planned blessing's state; hover it to see the planned one.",
+    };
+
+    public static readonly PanelLook WeaverLook = new(Group.Section("weaver", "Weaver tree"), "Weaver",
+        ("WeaverMarks", "Marks planned nodes on the weaver tree."), next: true);
+
+    public static readonly PanelLook[] Panels = { PassiveLook, SkillTreeLook, SkillChoiceLook, SkillsPageLook, WeaverLook };
+
+    /// <summary>The interface pages with no look of their own: the inventory and the blessings panel.</summary>
+    public static readonly Section[] GearPages = { Inventory, Blessings };
 
     /// <summary>The look a panel draws with: its own while "Own look" is on, else Interfaces'.</summary>
     public static PanelLook InUse(PanelLook panel) => panel.Own?.Value == true ? panel : Interfaces;

@@ -281,15 +281,16 @@ internal static partial class Planner
 
     // The build view's rows with the checklist and next steps after them, for the character's build; made again only
     // when the guidance changes, with every text made then.
-    private static (List<MenuRow>? Rows, Guidance? Guidance) s_guideFor;
+    private static (List<MenuRow>? Rows, Guidance? Guidance, GearGuidance? Gear) s_guideFor;
     private static List<MenuRow> s_guideRows = new();
 
     private static IReadOnlyList<MenuRow> GuideRows(string id, List<MenuRow> rows)
     {
         var run = s_run;
         var guidance = run is { Guidance: { } g, Build: { } b } && b.Id == id ? g : null;
-        if (s_guideFor.Rows == rows && s_guideFor.Guidance == guidance) return s_guideRows;
-        s_guideFor = (rows, guidance);
+        var gear = guidance != null ? run!.Gear : null;
+        if (s_guideFor.Rows == rows && s_guideFor.Guidance == guidance && s_guideFor.Gear == gear) return s_guideRows;
+        s_guideFor = (rows, guidance, gear);
         s_guideRows = new List<MenuRow>(rows);
         if (guidance != null) AddGuide(s_guideRows, run!, guidance);
         return s_guideRows;
@@ -318,6 +319,7 @@ internal static partial class Planner
         }
         AddSection(rows, "bar", "Skill bar", guidance.BarChecklist, slot =>
             (stage.Bar[slot] ?? have[slot]) is { } skill ? $"{AbilityName(feature, skill, skill)} (slot {slot + 1})" : $"slot {slot + 1}");
+        if (run.Gear is { } gear) AddGear(rows, run, gear);
 
         rows.Add(new HeadingRow("Next steps"));
         string site = run.Build.Source == LetFormat.Source ? "Last Epoch Tools" : "Maxroll";
@@ -489,11 +491,16 @@ internal static partial class Planner
         {
             if (section == S.Colours) continue;
             bool first = section == S.Main || section == S.Overlay;
-            bool panel = Array.Exists(S.Panels, p => p.Section == section);
+            bool gearPage = Array.IndexOf(S.GearPages, section) >= 0;
+            bool panel = gearPage || Array.Exists(S.Panels, p => p.Section == section);
             var page = first ? overlay : new MenuPage(section.Title) { InTree = !panel };
             var next = Array.Find(S.Panels.Append(S.Interfaces).ToArray(), p => p.Section == section)?.Next;
             foreach (var setting in section.Settings)
-                if (next == null || !next.All.Contains(setting)) page.Rows.Add(new SettingRow(setting) { EnabledWhen = EnabledWhen(setting) });
+            {
+                if (next != null && next.All.Contains(setting)) continue;
+                if (S.InventoryHeadings.TryGetValue(setting, out string? heading)) page.Rows.Add(new HeadingRow(heading));
+                page.Rows.Add(new SettingRow(setting) { EnabledWhen = EnabledWhen(setting) });
+            }
             if (next != null)
             {
                 page.Rows.Add(new HeadingRow("Next point"));
@@ -505,6 +512,21 @@ internal static partial class Planner
             else if (panel)
             {
                 interfaces?.Children.Add(page);
+                if (gearPage)
+                {
+                    // Neither page's panel has a game call of its own: both open the inventory, the Blessings page then
+                    // its Blessings tab.
+                    bool blessings = section == S.Blessings;
+                    page.Actions.Add(new ActionButton("Open", $"planner.open.{section.Id}")
+                    {
+                        OnClick = () => OpenInventory(blessings),
+                        EnabledWhen = CanOpenInGame,
+                        Tip = section == S.Blessings
+                            ? "Opens the inventory's Blessings tab in the game, behind this menu. Nothing is moved or chosen."
+                            : "Opens the inventory in the game, behind this menu. Nothing is moved or equipped.",
+                    });
+                    continue;
+                }
                 var look = Array.Find(S.Panels, p => p.Section == section)!;
                 page.Actions.Add(new ActionButton("Open", $"planner.open.{section.Id}")
                 {
@@ -567,6 +589,7 @@ internal static partial class Planner
     private static string OpenTip(S.PanelLook look) => (look == S.PassiveLook ? "Opens the passive tree"
         : look == S.SkillTreeLook ? "Opens the tree of your first specialised skill"
         : look == S.SkillsPageLook ? "Opens the Skills & Specializations page"
+        : look == S.WeaverLook ? "Opens the Woven faction page, whose Weaver Tree button shows the tree,"
         : "Opens the skill selection for bar slot 1") + " in the game, behind this menu. Nothing is spent or chosen.";
 
     private static bool CanOpenInGame() => s_run is { Character: not null } run && run.Feature.Has(OpenUiGroup) && Game.Alive(UIBase.instance);
@@ -583,6 +606,7 @@ internal static partial class Planner
             if (look == S.PassiveLook) ui!.OpenPassivePanel(false);
             else if (look == S.SkillTreeLook) ui!.openSkills(false, FirstSpecialised());
             else if (look == S.SkillsPageLook) ui!.openSkills(false, null);
+            else if (look == S.WeaverLook) ui!.OpenWeaverRankPanel(false, false);
             else if (AbilityBarSelectorManager.instance is { } selector && Game.Alive(selector))
             {
                 // The selection belongs to a bar slot; the first one.
@@ -593,6 +617,54 @@ internal static partial class Planner
         catch (Exception e)
         {
             Log.ErrorThrottled("planner:open", $"Planner: the game's interface couldn't be opened: {e.Message}", 30);
+        }
+    }
+
+    private static void OpenInventory(bool blessings)
+    {
+        var ui = UIBase.instance;
+        if (!CanOpenInGame() || !Game.Alive(ui)) return;
+        try
+        {
+            ui!.CloseAllPanels();
+            ui.openInventory(false, false, false, 0, false);
+            // The tab is the inventory's own; it's chosen once the inventory has drawn it.
+            if (blessings) s_blessingsTabUntil = Clock.Now + BlessingsTabSeconds;
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("planner:open", $"Planner: the game's interface couldn't be opened: {e.Message}", 30);
+        }
+    }
+
+    // While set, the Blessings tab is chosen as soon as the inventory shows it.
+    private static float s_blessingsTabUntil;
+    private const float BlessingsTabSeconds = 2f;
+    private const string BlessingsTabName = "BlessingTab";
+
+    /// <summary>Chooses the inventory's Blessings tab after the Blessings page's Open, as its own tab would.</summary>
+    private static void ChooseBlessingsTab()
+    {
+        if (s_blessingsTabUntil <= 0f) return;
+        if (Clock.Now > s_blessingsTabUntil)
+        {
+            s_blessingsTabUntil = 0f;
+            return;
+        }
+        foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppInterop.Runtime.Il2CppType.Of<TabUIElement>(), false))
+        {
+            var tab = obj.TryCast<TabUIElement>();
+            if (!Game.Alive(tab) || tab!.name != BlessingsTabName || !tab.gameObject.activeInHierarchy || !Game.Alive(tab.controller)) continue;
+            s_blessingsTabUntil = 0f;
+            try
+            {
+                tab.controller.Select(tab, true);
+            }
+            catch (Exception e)
+            {
+                Log.ErrorThrottled("planner:open", $"Planner: the Blessings tab couldn't be chosen: {e.Message}", 30);
+            }
+            return;
         }
     }
 
@@ -617,6 +689,15 @@ internal static partial class Planner
     private static Func<bool>? EnabledWhen(Setting setting)
     {
         if (setting == S.HoverDelay || setting == S.HintPosition) return () => S.HoverHints.Value;
+        if (setting == S.InventoryMatches || setting == S.InventoryIdols || setting == S.InventoryIconSize || setting == S.InventoryIconCorner
+            || setting == S.InventoryIconGlyph || setting == S.InventoryIconBackground || setting == S.InventoryIconOpacity
+            || setting == S.InventoryIconOffsetX || setting == S.InventoryIconOffsetY || setting == S.InventoryTooltipDelay
+            || setting == S.InventoryHidePrompts || setting == S.InventoryHints) return () => S.InventoryMarks.Value;
+        if (setting == S.InventoryHintPosition || setting == S.InventoryHintMissing || setting == S.InventoryHintWorn)
+            return () => S.InventoryMarks.Value && S.InventoryHints.Value;
+        if (setting == S.InventoryAltar) return () => S.InventoryMarks.Value;
+        if (setting == S.InventoryIdolIconSize || setting == S.InventoryIdolOffsetX || setting == S.InventoryIdolOffsetY)
+            return () => S.InventoryMarks.Value && S.InventoryIdols.Value;
         foreach (var look in S.Panels.Append(S.Interfaces))
         {
             Func<bool> own = look.Own is { } switchOn ? () => switchOn.Value : () => true;
