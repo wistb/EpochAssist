@@ -36,7 +36,11 @@ internal sealed class SettingRow : MenuRow
 
     public Setting Setting { get; }
     public string? HintOverride { get; }
-    public string? Hint => HintOverride ?? Setting.Help;
+    /// <summary>The setting's help is the label's and control's tooltip instead of a hint on the row (rows that share
+    /// one help, the enemy weights).</summary>
+    public bool HelpAsTip { get; init; }
+    public string? Hint => HintOverride ?? (HelpAsTip ? null : Setting.Help);
+    public string? Tip => HelpAsTip ? Setting.Help : null;
     protected override string DefaultKey => Setting.Id;
     public override bool Visible => Setting.Visible && base.Visible;
 }
@@ -285,6 +289,8 @@ internal sealed class ValueNumber : MenuRow
     public float Max { get; }
     public float Step { get; }
     public string Unit { get; }
+    /// <summary>Drawn as a slider instead of a number field.</summary>
+    public bool Slider { get; init; }
     protected override string DefaultKey => "number." + MenuEntry.Slug(Label);
 
     public float Snap(float value) => Math.Clamp(Step > 0f ? MathF.Round(value / Step) * Step : value, Min, Max);

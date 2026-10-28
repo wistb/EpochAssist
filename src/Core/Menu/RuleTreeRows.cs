@@ -103,6 +103,8 @@ internal sealed class TreeAccess
     public Action? BeforeChange { get; init; }
     /// <summary>Why a line can't be removed (a kept entry: the enemy gate), or null.</summary>
     public Func<ConditionEntry, string?>? Kept { get; init; }
+    /// <summary>A top-level line left out of the tree (still checked): one with a page of its own, the enemy gate.</summary>
+    public Func<ConditionEntry, bool>? Hidden { get; init; }
     /// <summary>The check context for live values ("this slot" args read the slot).</summary>
     public string? Note { get; init; }
 }
@@ -192,7 +194,10 @@ internal static class RuleTreeRows
     {
         int end = group < 0 ? list.NodeCount : list.End(group);
         var children = new List<int>();
-        for (int i = group + 1; i < end; i = list.End(i)) children.Add(i);
+        for (int i = group + 1; i < end; i = list.End(i))
+        {
+            if (group >= 0 || access.Hidden?.Invoke(list.Nodes[i]) != true) children.Add(i);
+        }
         string groupPath = group < 0 ? string.Empty : PathOf(list, group);
         for (int c = 0; c < children.Count; c++)
         {

@@ -231,9 +231,10 @@ internal static class SettingRows
             var parts = RowLayout.Lay(rect, ControlWidth(setting), hint);
             // The label of a switch flips it too, as the whole row did.
             if (setting is Toggle toggle && GUI.Button(parts.Label, GUIContent.none, GUIStyle.none)) Flip(toggle, "menu");
-            // The hint shows on the row, so neither the label nor the control repeats it as a tooltip.
-            RowLayout.Label(parts.Label, setting.Label, ctx, null);
-            Control(setting, parts.Control, key, null);
+            // The hint shows on the row, so neither the label nor the control repeats it as a tooltip; help kept off the
+            // row is their tooltip.
+            RowLayout.Label(parts.Label, setting.Label, ctx, row.Tip);
+            Control(setting, parts.Control, key, row.Tip);
             // A slider's value is short and left in its column, so its reset sits just after the value, not past the column.
             var reset = setting is Number { Slider: true } slid
                 ? new Rect(Mathf.Min(parts.Reset.x, Slider.ValueEnd(parts.Control, slid) + 4f), parts.Reset.y, parts.Reset.width, parts.Reset.height)
@@ -407,18 +408,22 @@ internal static class SettingRows
 
     private sealed class ValueNumberRenderer : RowRenderer<ValueNumber>
     {
-        protected override float Height(ValueNumber row, float width, RowContext ctx) =>
-            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, NumberField.Width, null);
+        private static float Width(ValueNumber row) => row.Slider ? Slider.Width : NumberField.Width;
 
-        protected override float InlineWidth(ValueNumber row) => NumberField.Width;
+        protected override float Height(ValueNumber row, float width, RowContext ctx) =>
+            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, Width(row), null);
+
+        protected override float InlineWidth(ValueNumber row) => Width(row);
 
         protected override void Draw(ValueNumber row, Rect rect, RowContext ctx)
         {
-            var parts = RowLayout.Lay(rect, NumberField.Width, null);
+            var parts = RowLayout.Lay(rect, Width(row), null);
             Rect control = ctx.Inline ? new Rect(rect.x, rect.y, rect.width, RowLayout.ControlHeight) : parts.Control;
             if (!ctx.Inline) RowLayout.Label(parts.Label, row.Label, ctx, null);
             float value = Safe.Call(row.Get, row.Min, row.Key + ".get");
-            NumberField.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), v => Safe.Call(() => { row.Set(v); return true; }, false, row.Key + ".set"), row.Label);
+            Action<float> set = v => Safe.Call(() => { row.Set(v); return true; }, false, row.Key + ".set");
+            if (row.Slider) Slider.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), set, row.Label);
+            else NumberField.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), set, row.Label);
         }
 
         protected override IEnumerable<string> Search(ValueNumber row) => new[] { row.Label };

@@ -253,6 +253,8 @@ internal static partial class Macros
         State = () => LiveList(prefix, setting.List(key()), slot()),
         Blocked = readOnly ? () => "edit these under Shared Conditions" : () => setting.Doc.ReadOnly ? "made by a newer version" : null,
         Kept = entry => setting == S.GateConditions && entry.Id == S.GateEntryId ? "The enemy gate can be switched off, not removed." : null,
+        // The enemy gate is set on Config › Macros › Enemies.
+        Hidden = entry => setting == S.GateConditions && entry.Id == S.GateEntryId,
         Open = s_openLine is { } open && open.StartsWith(prefix + "/") ? open[(prefix.Length + 1)..] : null,
         SetOpen = path => s_openLine = path == null ? null : prefix + "/" + path,
     };
@@ -293,7 +295,7 @@ internal static partial class Macros
         var editor = new LibraryEditor(EveryKey, () => "Shared Conditions", () => ListRows(EveryKey, rows =>
         {
             rows.Add(new HintRow(() => "No live data: enter the game to see values.") { Key = "nolive", VisibleWhen = () => !Player.Exists });
-            rows.Add(new HintRow(() => "Checked for every slot macro before its own conditions. The enemy gate can be switched off, not removed.") { Key = "hint" });
+            rows.Add(new HintRow(() => "Checked for every slot macro before its own conditions, after the enemy gate (Config › Macros › Enemies).") { Key = "hint" });
             RuleTreeRows.Add(rows, ListTree("shared", S.GateConditions, () => S.EveryList, () => -1));
             rows.Add(new HeadingRow("Shared target"));
             rows.Add(new HintRow(() => "Where slot macros aim, unless a slot macro sets its own target.") { Key = "target.hint" });
@@ -483,7 +485,7 @@ internal static partial class Macros
         if (S.LibraryDoc.Doc.ReadOnly) return "This library was made by a newer version of Epoch Assist; it is kept as it is and can't be changed here.";
         if (line == null) return null;
         if (line.Key == SlotsKey) return "Slot macros cast whatever is in their slot while toggled. Toggle a slot with its tick box, or hold the modifier and press the slot's key.";
-        if (line.Key == EveryKey) return "Checked before each slot macro's own conditions. The enemy gate is the first.";
+        if (line.Key == EveryKey) return "Checked before each slot macro's own conditions, after the enemy gate.";
         if (line.Key.StartsWith(SlotsKey + "/")) return "Ticked: the slot casts its skill when ready and its conditions pass.";
         var (setId, macroId) = Split(line.Key);
         var (set, macro) = S.LibraryDoc.Doc.Find(setId, macroId);

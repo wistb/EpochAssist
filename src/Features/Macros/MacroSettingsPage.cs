@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using EpochAssist.Core;
 using S = EpochAssist.Features.MacroSettings;
 
@@ -21,17 +22,46 @@ internal static class MacroSettingsPage
         var pausing = new MenuPage("Pausing");
         pausing.Rows.Add(new SettingRow(S.PauseOnZoneChange));
         pausing.Rows.Add(new SettingRow(S.PauseInNonCombatZones));
-        // The enemy weights every enemy weight condition uses, the range ring and what the gate sees now.
+        // The enemy gate (its switch, range and weight, the Shared Conditions entry's own), the range ring and what the
+        // gate sees now; then the enemy weights every enemy weight condition uses.
         var enemies = new MenuPage("Enemies");
-        var weights = S.Gate.Settings.Where(s => s.Fold != null).OfType<Number>().ToList();
-        enemies.Rows.Add(new NumberGroup(weights, weights[0].Fold));
+        enemies.Rows.Add(new HintRow(() => "Holds slot macros until the enemies in range add up to the weight to cast.") { Key = "gate.hint" });
+        enemies.Rows.Add(new ValueToggle("Enemy gate", () => S.GateEntry() is { On: true }, SetGateOn) { Key = "gate.on" });
+        enemies.Rows.Add(GateNumber("range", "Range", 15f, 2f, 60f, " m"));
+        enemies.Rows.Add(GateNumber("weight", "Weight to cast", 1f, 1f, 100f, string.Empty));
         enemies.Rows.Add(new SettingRow(S.ShowRangeRing));
-        enemies.Rows.Add(new LiveText("Enemy gate", GateReadout) { VisibleWhen = () => S.GateEntry() is { On: true } });
+        enemies.Rows.Add(new LiveText("Now", GateReadout) { VisibleWhen = () => S.GateEntry() is { On: true } });
+        enemies.Rows.Add(new HeadingRow("Enemy weights"));
+        enemies.Rows.Add(new HintRow(() => "What each enemy in range adds, for the gate and every enemy weight condition.") { Key = "weights.hint" });
+        enemies.Rows.AddRange(S.Gate.Settings.Where(s => s.Fold != null).OfType<Number>().Select(n => new SettingRow(n) { HelpAsTip = true }));
         entry.Pages.Add(keys);
         entry.Pages.Add(pausing);
         entry.Pages.Add(enemies);
         return entry;
     }
+
+    // Through the gate's quick-toggle action, as the HUD and footer flip it.
+    private static void SetGateOn(bool on)
+    {
+        if (S.GateEntry() is { } gate && gate.On != on) Actions.Run(SettingsRegistry.ToggleAction(S.Group, "EnemyGate"), "menu");
+    }
+
+    // One of the gate entry's numbers; shown while it is still an enemy weight condition (Shared Conditions can change
+    // its kind), editable while it is on.
+    private static ValueNumber GateNumber(string arg, string label, float fallback, float min, float max, string unit) =>
+        new(label, () => S.GateEntry()?.Args[arg] is JsonValue v && v.TryGetValue(out double d) ? (float)d : fallback,
+            value => S.GateConditions.Edit(S.EveryList, list =>
+            {
+                int i = list.IndexOf(S.GateEntryId);
+                if (i >= 0) list.Entries[i].Args[arg] = value;
+                return list;
+            }, out _), min, max, 1f, unit)
+        {
+            Key = "gate." + arg,
+            Slider = true,
+            VisibleWhen = () => S.GateEntry() is { Kind: "enemies.weight" },
+            EnabledWhen = () => S.GateEntry() is { On: true },
+        };
 
     /// <summary>
     /// The shared slot target's rows (the Shared Conditions page), in the cast step's rows and words; its first change

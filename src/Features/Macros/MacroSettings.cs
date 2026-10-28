@@ -106,6 +106,6 @@ internal static class MacroSettings
 
     private static Number Weight(string id, string label, float defaultValue) => new(Gate, id, label, defaultValue, 0f, 100f)
     {
-        Fold = "Enemy weights", Help = "How much each enemy counts toward an enemy weight condition.",
+        Fold = "Enemy weights", Slider = true, Help = "How much each enemy counts toward an enemy weight condition.",
     };
 }
