@@ -17,6 +17,7 @@ internal sealed class MenuFeature : Feature
         InputGate.MenuHitTest = point => Ui.Menu.ScreenRect.Contains(point);
         DiagnosticsPage.Register();
         SessionsPage.Register();
+        SessionsPast.Register();
         RolePreview.Register();
         ConsolePage.Register();
         MenuTree.Invalidate();
@@ -64,6 +65,7 @@ internal sealed class MenuFeature : Feature
         TreeView.Reset();
         ProfilesPage.Reset();
         SessionsPage.Reset();
+        SessionsPast.Reset();
         TextCache.Clear();
         MenuBlocks.Clear();
         SettingsContent.Reset();

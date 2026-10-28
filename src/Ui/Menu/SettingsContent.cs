@@ -31,16 +31,19 @@ internal static class SettingsContent
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)
         {
+            Layout = MenuLayout.Wide,
             Title = "Current session",
             Pages = { CurrentSession() },
         },
         new MenuEntry(MenuCategory.Sessions, order: 1)
         {
+            Layout = MenuLayout.Wide,
             Title = "Past sessions",
-            Pages = { new MenuPage("Past sessions") { Rows = { new BlockRow(SessionsPage.RecentBlock) }, Resettable = false } },
+            Pages = { PastSessions() },
         },
         new MenuEntry(MenuCategory.Sessions, order: 2)
         {
+            Layout = MenuLayout.Wide,
             Title = "History",
             Pages = { SessionHistory() },
         },
@@ -113,13 +116,23 @@ internal static class SettingsContent
         foreach (var toggle in dev) toggle.Set(on);
     }
 
-    // The current session's stats, then the drops the loot filter showed.
+    // The no-session hint, then the current session's dashboard.
     private static MenuPage CurrentSession()
     {
-        var page = new MenuPage("Current session") { Resettable = false };
+        var page = new MenuPage("Current session")
+        {
+            Resettable = false,
+            Actions = { new ActionButton("New session", "sessions.split") { VisibleWhen = () => Sessions.Current != null, Tip = "Ends this session and starts a new one here" } },
+        };
         page.Rows.AddRange(SessionsPage.CurrentRows());
-        page.Rows.Add(new HeadingRow("Filtered drops"));
-        page.Rows.Add(new BlockRow(SessionsPage.FilteredBlock));
+        return page;
+    }
+
+    // The past sessions list with its filters and trend; an opened session's dashboard in place of it, Esc going back.
+    private static MenuPage PastSessions()
+    {
+        var page = new MenuPage("Past sessions") { Resettable = false, Back = SessionsPast.Back };
+        page.Rows.AddRange(SessionsPast.Rows());
         return page;
     }
 
@@ -135,6 +148,9 @@ internal static class SettingsContent
             },
         };
         page.Rows.AddRange(SessionSettings.Section.Settings.Select(s => new SettingRow(s)));
+        page.Rows.Add(new HeadingRow("Dashboard"));
+        page.Rows.Add(new HintRow(() => "Figures in focus show as tiles and in the charts; the same chips are on Current session."));
+        page.Rows.AddRange(SessionSettings.Dashboard.Settings.Select(s => new SettingRow(s)));
         page.Rows.Add(new HeadingRow("Export"));
         page.Rows.Add(new HintRow(() => "Two files in UserData/EpochAssist/exports. Excel with a comma decimal mark: open them with Data › From Text/CSV."));
         page.Rows.Add(new ValueChoice("Range", () => SessionExport.PageRange, i => SessionExport.PageRange = i, () => SessionExport.PageRanges));

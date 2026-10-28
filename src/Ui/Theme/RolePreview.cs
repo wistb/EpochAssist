@@ -5,7 +5,7 @@ namespace EpochAssist.Ui;
 
 /// <summary>
 /// The colour roles as the mod's overlays will draw them, under Colour vision on the Appearance page: one line each for
-/// item rarity, enemy rarity and danger, a swatch and the name in its colour. Read from ColourRoles, so it shows the
+/// item rarity, enemy rarity, danger and zone kinds, a swatch and the name in its colour. Read from ColourRoles, so it shows the
 /// theme's values or the chosen palette.
 /// </summary>
 internal static class RolePreview
@@ -19,6 +19,8 @@ internal static class RolePreview
         ("Items", new[] { ("Normal", 0), ("Magic", 1), ("Rare", 2), ("Exalted", 3), ("Unique", 4), ("Set", 5), ("Legendary", 6) }),
         ("Enemies", new[] { ("Normal", 7), ("Magic", 8), ("Rare", 9), ("Boss", 10) }),
         ("Danger", new[] { ("Low", 11), ("Medium", 12), ("High", 13) }),
+        ("Zones", new[] { ("Town", 14), ("Echo", 15), ("Dungeon", 16), ("Other", 17) }),
+        ("Session", new[] { ("Amber", 18), ("Corruption", 19), ("Gold", 20), ("XP", 21) }),
     };
 
     public static void Register() => MenuBlocks.Register(Block, (rect, _) => Draw(rect), _ => BridgeLines(), (_, width) => Height(width));
