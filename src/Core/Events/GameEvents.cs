@@ -20,6 +20,10 @@ internal static partial class GameEvents
     public const string Death = "events: death cause";
     public const string Echo = "events: echo";
     public const string Monolith = "events: monolith";
+    public const string MonolithReward = "events: monolith reward";
+    public const string Corruption = "events: corruption";
+    public const string Level = "events: level";
+    public const string Factions = "events: factions";
 
     private const float DropScanSeconds = 0.25f;
     private const float DeathTextSeconds = 5f;
@@ -55,14 +59,19 @@ internal static partial class GameEvents
     private static readonly Producer s_death = new("death cause", Death, offline: true, online: true);
     private static readonly Producer s_echo = new("echo", Echo, offline: true, online: true);
     private static readonly Producer s_monolith = new("monolith", Monolith, offline: true, online: true);
+    private static readonly Producer s_level = new("level", Level, offline: true, online: true);
+    private static readonly Producer s_factions = new("factions", Factions, offline: true, online: true);
 
-    internal static readonly Producer[] Producers = { s_hits, s_xp, s_gold, s_drops, s_death, s_echo, s_monolith };
+    internal static readonly Producer[] Producers = { s_hits, s_xp, s_gold, s_drops, s_death, s_echo, s_monolith, s_level, s_factions };
 
     internal static void Start(Feature feature)
     {
         s_feature = feature;
         s_sceneStamp = GameState.SceneChangedAt;
         ResetPlayer();
+        SessionStats.LevelProgress = LevelProgress;
+        SessionStats.FactionProgress = FactionProgress;
+        SessionStats.LiveFactionIds = RankedFactions;
     }
 
     internal static void Stop()
@@ -75,6 +84,9 @@ internal static partial class GameEvents
         s_zoneSubscription = null;
         s_deathSubscription = null;
         s_feature = null;
+        SessionStats.LevelProgress = null;
+        SessionStats.FactionProgress = null;
+        SessionStats.LiveFactionIds = null;
     }
 
     /// <summary>The player changed or left (Player.Reset): cached components and every baseline go.</summary>
@@ -89,6 +101,11 @@ internal static partial class GameEvents
         s_seenDrops.Clear();
         s_pendingDrops.Clear();
         s_echoBaselined = false;
+        s_lastLevel = null;
+        s_factionTracker = null;
+        s_clientFactions = null;
+        s_lastFactions.Clear();
+        s_factionProgress.Clear();
     }
 
     // A new scene is a baseline for every producer; the monolith panel is never kept across one.
@@ -101,6 +118,7 @@ internal static partial class GameEvents
         s_seenDrops.Clear();
         s_pendingDrops.Clear();
         s_echoBaselined = false;
+        s_lastFactions.Clear();
     }
 
     internal static void Update()
@@ -121,6 +139,7 @@ internal static partial class GameEvents
         UpdateDeath(feature, online);
         UpdateEcho(feature, online);
         UpdateMonolith(feature, online);
+        UpdateFactions(feature, online);
     }
 
     // Has subscribers, its group is present and the mode (once known) is one it works in.

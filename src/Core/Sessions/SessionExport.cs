@@ -37,16 +37,21 @@ internal static class SessionExport
         "session", "character", "mode", "start", "end", "end_kind", "duration_s", "xp", "gold_gained", "gold_spent",
         "drops_normal", "drops_magic", "drops_rare", "drops_exalted", "drops_unique", "drops_set", "drops_legendary", "drops_other",
         "deaths", "echoes", "picks", "town_s", "echo_s", "dungeon_s", "other_s", "mod_version", "game_version", "missing", "drops_shown",
+        "start_level", "end_level", "levels_gained", "echoes_completed", "echoes_left", "echo_clear_avg_s", "echo_total_avg_s",
+        "favour_gained", "favour_used", "reputation_gained", "rank_ups", "amber_gained", "amber_used", "factions", "left_out",
     };
     private static readonly string[] s_recordColumns =
     {
         "session", "time", "session_s", "kind", "amount", "total", "name", "base", "rarity", "scene", "zone_kind", "monolith",
-        "killer", "types", "text", "modifier", "stability", "hex", "shown",
+        "killer", "types", "text", "modifier", "stability", "hex", "shown", "faction",
     };
     private static readonly UTF8Encoding s_bomUtf8 = new(true);
 
     private static volatile ExportResult? s_finished;
     private static bool s_running;
+
+    /// <summary>An export is writing; deleting a session waits for it.</summary>
+    public static bool Running => s_running;
 
     /// <summary>The page's range: 0 current session, 1 last 7 days, 2 last 30 days, 3 all (runtime only, not stored).</summary>
     public static int PageRange { get; set; } = 3;
@@ -69,7 +74,8 @@ internal static class SessionExport
         var current = Sessions.Current;
         string? currentId = current?.Header.Id;
         var currentTotals = current?.Totals;
-        SessionWriter.Post(() => s_finished = Write(range, currentId, currentTotals));
+        var leftOut = new HashSet<string>(SessionTrends.All, StringComparer.Ordinal);
+        SessionWriter.Post(() => s_finished = Write(range, currentId, currentTotals, leftOut));
         return true;
     }
 
@@ -104,7 +110,7 @@ internal static class SessionExport
 
     // ---- Writing (the writer's thread) ----
 
-    private static ExportResult Write(ExportRange range, string? currentId, SessionTotals? currentTotals)
+    private static ExportResult Write(ExportRange range, string? currentId, SessionTotals? currentTotals, HashSet<string> leftOut)
     {
         var sessions = new List<(string Id, SessionFile File)>();
         int skipped = 0;
@@ -138,7 +144,7 @@ internal static class SessionExport
         int records = 0;
         foreach (var (id, file) in sessions)
         {
-            SessionRow(sessionRows, id, file, id == currentId ? currentTotals : null);
+            SessionRow(sessionRows, id, file, id == currentId ? currentTotals : null, leftOut.Contains(id));
             foreach (var record in file.Records)
             {
                 if (record.Kind is "test" or "totals") continue;
@@ -172,7 +178,7 @@ internal static class SessionExport
         File.Move(tmp, path, false);
     }
 
-    private static void SessionRow(StringBuilder csv, string id, SessionFile file, SessionTotals? live)
+    private static void SessionRow(StringBuilder csv, string id, SessionFile file, SessionTotals? live, bool leftOut)
     {
         var h = file.Header!;
         SessionTotals totals;
@@ -199,13 +205,29 @@ internal static class SessionExport
         fields.AddRange(new[] { Int(totals.Deaths), Int(totals.Echoes), Int(totals.Picks) });
         fields.AddRange(SessionTotals.ZoneKinds.Select(z => Sec(totals.ZoneSeconds.GetValueOrDefault(z))));
         fields.AddRange(new[] { h.ModVersion, h.GameVersion, string.Join(";", h.Missing), Int(totals.DropsShown) });
+        // Added columns (contracts/csv-additions.md): levels, echo runs, factions without and with the Weaver's amber.
+        int? startLevel = totals.StartLevel ?? h.StartLevel;
+        int completed = totals.EchoClearCount > 0 ? totals.EchoClearCount : totals.Echoes;
+        var others = totals.Factions.Where(f => f.Key != SessionStats.AmberFaction).Select(f => f.Value).ToList();
+        var amber = totals.Factions.GetValueOrDefault(SessionStats.AmberFaction);
+        fields.AddRange(new[]
+        {
+            startLevel is int start ? Int(start) : string.Empty, startLevel is int s ? Int(s + totals.LevelUps) : string.Empty, Int(totals.LevelUps),
+            Int(completed), Int(totals.EchoesLeft),
+            totals.EchoClearCount > 0 ? Sec(totals.EchoClearSum / totals.EchoClearCount) : string.Empty,
+            totals.EchoTotalCount > 0 ? Sec(totals.EchoTotalSum / totals.EchoTotalCount) : string.Empty,
+            Int(others.Sum(f => f.FavourGained)), Int(others.Sum(f => f.FavourSpent)), Int(others.Sum(f => f.ReputationGained)), Int(others.Sum(f => f.RankUps)),
+            amber != null ? Int(amber.FavourGained) : string.Empty, amber != null ? Int(amber.FavourSpent) : string.Empty,
+            string.Join(";", totals.Factions.Select(f => $"{f.Key}:{f.Value.FavourGained}/{f.Value.FavourSpent}/{f.Value.ReputationGained}/{f.Value.RankUps}")),
+            leftOut ? "yes" : string.Empty,
+        });
         Row(csv, fields);
     }
 
     private static void RecordRow(StringBuilder csv, string id, SessionHeader h, SessionRecord r)
     {
         // session, time, session_s, kind, amount, total, name, base, rarity, scene, zone_kind, monolith, killer, types,
-        // text, modifier, stability, hex, shown (by the loot filter)
+        // text, modifier, stability, hex, shown (by the loot filter), faction
         var f = new string[s_recordColumns.Length];
         f[0] = id;
         f[1] = Time(h.Start, r.T);
@@ -215,6 +237,7 @@ internal static class SessionExport
         switch (r.Kind)
         {
             case "zone":
+                f[6] = r.Text("name") ?? string.Empty;
                 f[9] = r.Text("scene") ?? string.Empty;
                 f[10] = r.Text("kind") ?? string.Empty;
                 f[11] = r.Flag("monolith") is bool m ? (m ? "true" : "false") : string.Empty;
@@ -242,12 +265,28 @@ internal static class SessionExport
                 f[15] = r.Text("modifier") ?? string.Empty;
                 f[16] = Num(r.Number("stability"));
                 f[17] = Num(r.Number("hex"));
+                f[6] = r.Text("reward") ?? string.Empty;
+                f[5] = Num(r.Number("corruption"));
+                break;
+            case "level":
+                f[4] = Num(r.Number("level"));
+                break;
+            case "favour" or "rep":
+                f[19] = r.Text("faction") ?? string.Empty;
+                f[4] = Num(r.Number("amount"));
+                f[5] = Num(r.Number("total"));
+                break;
+            case "rank":
+                f[19] = r.Text("faction") ?? string.Empty;
+                f[4] = Num(r.Number("rank"));
                 break;
             case "gap":
                 f[4] = r.Number("from") is double from && r.Number("to") is double to ? Sec(to - from) : string.Empty;
                 f[14] = r.Text("reason") ?? string.Empty;
                 break;
         }
+        // Records the dev `sessions keep` made are marked, so a spreadsheet can leave them out.
+        if (r.Flag("dev") == true && f[14].Length == 0) f[14] = "dev";
         Row(csv, f);
     }
 

@@ -43,6 +43,7 @@ internal static class GameData
     public const string Abilities = "data: abilities";
     public const string Items = "data: items";
     public const string Buffs = "data: buffs";
+    public const string SceneNames = "data: scene names";
 
     private static readonly Dictionary<int, DataEntry> s_buffs = new();
     private static readonly Dictionary<string, DataEntry> s_abilities = new();
@@ -73,6 +74,7 @@ internal static class GameData
         s_buffs.Clear();
         s_abilities.Clear();
         s_mods.Clear();
+        s_sceneNames.Clear();
         s_affixNames.Clear();
         s_affixValues.Clear();
         s_items.Clear();
@@ -256,6 +258,36 @@ internal static class GameData
 
     // The nameplate shows the mod's description ("Regenerates Health", title-cased there); its asset name is internal
     // ("Added Health Regen") and stands in only when there is no description.
+    private static readonly Dictionary<string, (string? Display, string? Echo)> s_sceneNames = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A scene's names as the game shows them, from SceneList: its display name ("The End of Time") and, for a monolith
+    /// scene, its echo name; null each when unread or empty. Cached per scene.
+    /// </summary>
+    public static (string? Display, string? Echo) SceneNamesOf(string scene)
+    {
+        if (string.IsNullOrEmpty(scene) || !Has(SceneNames)) return (null, null);
+        if (s_sceneNames.TryGetValue(scene, out var cached)) return cached;
+        (string?, string?) names = (null, null);
+        try
+        {
+            var list = SceneList.instance;
+            if (Game.Alive(list))
+            {
+                // Static, reading the list's instance.
+                string? display = SceneList.GetSceneDisplayName(scene), echo = SceneList.GetEraEchoName(scene);
+                names = (string.IsNullOrWhiteSpace(display) ? null : display.Trim(), string.IsNullOrWhiteSpace(echo) ? null : echo.Trim());
+                GameReads++;
+            }
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("data:scenenames", $"Scene names couldn't be read: {e.Message}", 30);
+        }
+        s_sceneNames[scene] = names;
+        return names;
+    }
+
     private static DataEntry ModEntry(int key, Il2Cpp.MonsterMod? mod)
     {
         if (!Game.Alive(mod)) return Unknown(DataKind.MonsterMod, key);

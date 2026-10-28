@@ -16,6 +16,8 @@ internal static partial class GameEvents
     private static long s_threshold = long.MaxValue;
     private static long s_previousThreshold;
     private static int? s_lastGold;
+    // The tracker's level at the last read: a level-up is this + 1, whether or not CurrentLevel has changed yet.
+    private static int? s_lastLevel;
 
     private static void UpdateXp(Feature feature, bool? online)
     {
@@ -36,6 +38,10 @@ internal static partial class GameEvents
         long next = s_experience.NextLevelExperience;
         long? last = s_lastXp;
         s_lastXp = xp;
+        int? levelBefore = s_lastLevel;
+        int level = s_experience.CurrentLevel;
+        // After a level-up the remembered level stays one ahead until the tracker catches up.
+        s_lastLevel = levelBefore is int known && known > level ? known : level;
         if (last is not long before)
         {
             s_previousThreshold = 0;
@@ -51,6 +57,11 @@ internal static partial class GameEvents
             amount = Math.Max(0, old - before) + xp;
             s_previousThreshold = old;
             s_threshold = next > old ? next : long.MaxValue;
+            if (feature.Has(s_level.Group) && levelBefore is int before0 && before0 > 0)
+            {
+                s_lastLevel = before0 + 1;
+                Bus.Raise(new LevelUp(before0 + 1));
+            }
         }
         else
         {
@@ -58,6 +69,14 @@ internal static partial class GameEvents
             if (next > s_previousThreshold && next < s_threshold) s_threshold = next;
         }
         if (amount > 0) Bus.Raise(new XpGained(amount, xp));
+    }
+
+    /// <summary>The live level read (xp within the level, its threshold, the level) while the XP producer runs, else null.</summary>
+    private static (long Xp, long Threshold, int? Level)? LevelProgress()
+    {
+        if (!s_xp.Active || !Game.Alive(s_experience)) return null;
+        long threshold = s_threshold != long.MaxValue ? s_threshold : s_experience!.NextLevelExperience;
+        return threshold > 0 ? (s_experience!.CurrentExperience, threshold, s_lastLevel) : null;
     }
 
     private static void UpdateGold(Feature feature, bool? online)

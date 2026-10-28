@@ -34,5 +34,20 @@ internal readonly record struct DeathCause(string? Killer, string[]? Types, stri
 /// <summary>The echo's objective was completed.</summary>
 internal readonly record struct EchoCompleted(string Scene);
 
-/// <summary>The player entered an echo chosen on the monolith.</summary>
-internal readonly record struct MonolithPick(string? Modifier, int StabilityReward, int HexIndex);
+/// <summary>The player entered an echo chosen on the monolith; Reward is its echo reward's title ("Exalted Relics"),
+/// null when it has none or it couldn't be read; Corruption the monolith's corruption at the entry (0 outside empowered
+/// monoliths), null when unread.</summary>
+internal readonly record struct MonolithPick(string? Modifier, int StabilityReward, int HexIndex, string? Reward = null, int? Corruption = null);
+
+/// <summary>The player reached a level: the level before it + 1, whichever of the game's values updated first.</summary>
+internal readonly record struct LevelUp(int Level);
+
+/// <summary>A faction's favour changed (negative when spent) and its total after; Faction is the FactionID name. Memory
+/// amber is the Weaver's (TheWeaver) favour.</summary>
+internal readonly record struct FavourChanged(string Faction, int Amount, int Total);
+
+/// <summary>Reputation gained with a faction, and its running total after.</summary>
+internal readonly record struct ReputationGained(string Faction, int Amount, int Total);
+
+/// <summary>A faction's rank rose to Rank.</summary>
+internal readonly record struct RankChanged(string Faction, int Rank);

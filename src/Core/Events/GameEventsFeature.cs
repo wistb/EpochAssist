@@ -50,6 +50,21 @@ internal sealed class GameEventsFeature : Feature
         Need<EchoWebIsland>(nameof(EchoWebIsland.mod), GameEvents.Monolith),
         Need<EchoWebIsland>(nameof(EchoWebIsland.stabilityReward), GameEvents.Monolith),
         Need<EchoWebIsland>(nameof(EchoWebIsland.hexIndex), GameEvents.Monolith),
+        Need<EchoWebIsland>(nameof(EchoWebIsland.hasDroppableReward), GameEvents.MonolithReward),
+        Need<MonolithEchoWebUI>(nameof(MonolithEchoWebUI.activeIslands), GameEvents.MonolithReward),
+        Need<EchoWebIslandUI>(nameof(EchoWebIslandUI.island), GameEvents.MonolithReward),
+        Need<EchoWebIslandUI>(nameof(EchoWebIslandUI.rewards), GameEvents.MonolithReward),
+        Need<DroppableReward>(nameof(DroppableReward.title), GameEvents.MonolithReward),
+        Need(typeof(Il2CppLE.Gameplay.Monolith.MonolithGameplayManager), nameof(Il2CppLE.Gameplay.Monolith.MonolithGameplayManager.CurrentCorruption), GameEvents.Corruption),
+        Need<ExperienceTracker>(nameof(ExperienceTracker.CurrentLevel), GameEvents.Level),
+        Need<Il2CppLE.Factions.FactionTracker>(nameof(Il2CppLE.Factions.FactionTracker.factions), GameEvents.Factions),
+        Need<Il2CppLE.Factions.ClientFactionInfo>(nameof(Il2CppLE.Factions.ClientFactionInfo.factions), GameEvents.Factions),
+        Need<Il2CppLE.Factions.Faction>(nameof(Il2CppLE.Factions.Faction.Favor), GameEvents.Factions),
+        Need<Il2CppLE.Factions.Faction>(nameof(Il2CppLE.Factions.Faction.Reputation), GameEvents.Factions),
+        Need<Il2CppLE.Factions.Faction>(nameof(Il2CppLE.Factions.Faction.TotalReputation), GameEvents.Factions),
+        Need<Il2CppLE.Factions.Faction>(nameof(Il2CppLE.Factions.Faction.Rank), GameEvents.Factions),
+        Need<Il2CppLE.Factions.Faction>(nameof(Il2CppLE.Factions.Faction.ReputationToNextRankPercent), GameEvents.Factions),
+        Need<Il2CppLE.Factions.Faction>(nameof(Il2CppLE.Factions.Faction.IsMember), GameEvents.Factions),
     };
 
     public override IEnumerable<string> DiagnosticNotes => GameEvents.Notes();

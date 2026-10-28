@@ -9,7 +9,7 @@ namespace EpochAssist.Core;
 /// </summary>
 internal sealed class SessionsFeature : Feature
 {
-    public const string Usage = "sessions [list [n] | export [current|days <n>|all]]";
+    public const string Usage = "sessions [list [n] | export [current|days <n>|all] | split]";
     private const int DefaultList = 10;
 
     public override string Id => "sessions";
@@ -21,11 +21,15 @@ internal sealed class SessionsFeature : Feature
     public override void Start()
     {
         Sessions.Start(this);
-        Commands.Register(new Command("sessions", Usage, "Shows session history, lists past sessions, or exports them as CSV.", CommandMark.Release, Id, Run)
+        Commands.Register(new Command("sessions", Usage, "Shows session history, lists past sessions, exports them as CSV, or starts a new session.", CommandMark.Release, Id, Run)
         {
-            DevVerbs = new[] { "show", "fill", "flood", "rotate", "crash", "writer" },
+            DevVerbs = new[] { "show", "fill", "flood", "rotate", "crash", "writer", "stats", "keep", "cost", "trends", "delete", "names" },
         });
         Actions.Register(Id, "sessions.export", "Export session history", () => SessionExport.Start(SessionExport.RangeOf(SessionExport.PageRange)));
+        Actions.Register(Id, "sessions.split", "New session", () =>
+        {
+            if (!Sessions.Split(out string? reason, out _)) Toasts.Show("sessions", $"No new session: {reason}.", ToastKind.Warning);
+        });
     }
 
     public override void Update()
@@ -60,6 +64,10 @@ internal sealed class SessionsFeature : Feature
                 ExportResult? result = null;
                 if (!SessionExport.Start(range, r => result = r)) return CommandResult.Error("sessions: export failed: an export is already running");
                 return new CommandResult("ok sessions export: started") { Pending = () => result == null ? null : result.Ok ? "ok " + result.Text : "error sessions: " + result.Text };
+            case "split":
+                return Sessions.Split(out string? reason, out string? ended)
+                    ? CommandResult.Ok($"sessions split: ended {ended} (split), started a new session")
+                    : CommandResult.Error($"sessions: {reason}");
             default:
                 return CommandResult.Error("sessions: usage " + Usage);
         }

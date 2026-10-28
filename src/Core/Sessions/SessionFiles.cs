@@ -12,7 +12,7 @@ namespace EpochAssist.Core;
 internal sealed record SessionCharacter(string Mode, int? Slot, string? Name, string? Id)
 {
     /// <summary>For lists, Diagnostics and the log: the mode, and the slot where there is one.</summary>
-    public string Label => Slot is int slot ? $"{Mode}, slot {slot}" : Mode;
+    public string Label => Slot is int slot ? $"{Mode} slot {slot}" : Mode;
 }
 
 /// <summary>A session file's first line (format contract: contracts/session-format.md).</summary>
@@ -33,6 +33,8 @@ internal sealed class SessionHeader
     public IReadOnlyList<string> Missing { get; set; } = Array.Empty<string>();
     /// <summary>Written by the dev `sessions fill`.</summary>
     public bool Test { get; init; }
+    /// <summary>The character's level when the session started; null when unread.</summary>
+    public int? StartLevel { get; set; }
 
     public string Mode => Character?.Mode ?? "unknown";
     public string CharacterLabel => Character?.Label ?? "unknown";
@@ -62,9 +64,19 @@ internal sealed class SessionRecord
     public string[]? List(string field) => Fields.TryGetValue(field, out var value) ? value as string[] : null;
 }
 
+/// <summary>A faction's sums in a session's totals, by its FactionID name.</summary>
+internal sealed class FactionSums
+{
+    public long FavourGained, FavourSpent, ReputationGained;
+    public int RankUps;
+
+    public FactionSums Copy() => new() { FavourGained = FavourGained, FavourSpent = FavourSpent, ReputationGained = ReputationGained, RankUps = RankUps };
+}
+
 /// <summary>
 /// A session's totals: kept live while it records, written in `totals` and `end` lines, rebuilt from records when a
-/// crashed session is closed. Zone seconds run from each zone record to the next (or the end).
+/// crashed session is closed. Zone seconds run from each zone record to the next (or the end). Echo sums are added as
+/// each run ends, so a cut session keeps them; the open run is added in by At.
 /// </summary>
 internal sealed class SessionTotals
 {
@@ -78,6 +90,14 @@ internal sealed class SessionTotals
     /// <summary>Drops the player's loot filter showed (drops recorded before the filter was read count in neither).</summary>
     public int DropsShown;
     public readonly Dictionary<string, double> ZoneSeconds = ZoneKinds.ToDictionary(k => k, _ => 0d);
+    /// <summary>Null when unknown (the header had none).</summary>
+    public int? StartLevel;
+    public int LevelUps;
+    public double EchoClearSum, EchoTotalSum;
+    public int EchoClearCount, EchoTotalCount, EchoesLeft;
+    public readonly Dictionary<string, FactionSums> Factions = new(StringComparer.Ordinal);
+
+    private EchoRunTracker _runs = new();
 
     // The zone the player is in and since when (session seconds), so its time counts up to now.
     private string? _zone;
@@ -87,6 +107,7 @@ internal sealed class SessionTotals
 
     public void Add(SessionRecord record)
     {
+        if (_runs.Add(record) is { } run) AddRun(run.Start, run.Completed, run.End);
         switch (record.Kind)
         {
             case "zone":
@@ -108,6 +129,18 @@ internal sealed class SessionTotals
                 break;
             case "echo": Echoes++; break;
             case "pick": Picks++; break;
+            case "level": LevelUps++; break;
+            case "favour" when record.Text("faction") is { Length: > 0 } faction:
+                long favour = record.Whole("amount") ?? 0;
+                if (favour > 0) Faction(faction).FavourGained += favour;
+                else Faction(faction).FavourSpent -= favour;
+                break;
+            case "rep" when record.Text("faction") is { Length: > 0 } faction:
+                Faction(faction).ReputationGained += Math.Max(0, record.Whole("amount") ?? 0);
+                break;
+            case "rank" when record.Text("faction") is { Length: > 0 } faction:
+                Faction(faction).RankUps++;
+                break;
         }
         if (record.Kind != "test") Duration = Math.Max(Duration, record.T);
     }
@@ -119,13 +152,41 @@ internal sealed class SessionTotals
         _zoneSince = since;
     }
 
-    /// <summary>A copy with the current zone counted up to t, and t as the duration.</summary>
-    public SessionTotals At(double t)
+    private FactionSums Faction(string id)
     {
-        var copy = new SessionTotals { Duration = Math.Max(Duration, t), Xp = Xp, GoldGained = GoldGained, GoldSpent = GoldSpent, Deaths = Deaths, Echoes = Echoes, Picks = Picks, DropsShown = DropsShown };
+        if (!Factions.TryGetValue(id, out var sums)) Factions[id] = sums = new FactionSums();
+        return sums;
+    }
+
+    private void AddRun(double start, double? completed, double end)
+    {
+        EchoTotalSum += end - start;
+        EchoTotalCount++;
+        if (completed is double c)
+        {
+            EchoClearSum += c - start;
+            EchoClearCount++;
+        }
+        else EchoesLeft++;
+    }
+
+    /// <summary>
+    /// A copy with the current zone counted up to t, and t as the duration. The open echo run counts once completed;
+    /// with ended (the session's end line) an open run not completed counts as left.
+    /// </summary>
+    public SessionTotals At(double t, bool ended = false)
+    {
+        var copy = new SessionTotals
+        {
+            Duration = Math.Max(Duration, t), Xp = Xp, GoldGained = GoldGained, GoldSpent = GoldSpent, Deaths = Deaths, Echoes = Echoes, Picks = Picks, DropsShown = DropsShown,
+            StartLevel = StartLevel, LevelUps = LevelUps, EchoClearSum = EchoClearSum, EchoTotalSum = EchoTotalSum, EchoClearCount = EchoClearCount,
+            EchoTotalCount = EchoTotalCount, EchoesLeft = EchoesLeft, _runs = _runs.Copy(),
+        };
         foreach (var (k, v) in Drops) copy.Drops[k] = v;
         foreach (var (k, v) in ZoneSeconds) copy.ZoneSeconds[k] = v;
+        foreach (var (k, v) in Factions) copy.Factions[k] = v.Copy();
         if (_zone != null && t > _zoneSince) copy.ZoneSeconds[_zone] = copy.ZoneSeconds.GetValueOrDefault(_zone) + (t - _zoneSince);
+        if (_runs.Start is double start && t > start && (_runs.Completed != null || ended)) copy.AddRun(start, _runs.Completed, t);
         return copy;
     }
 
@@ -156,6 +217,24 @@ internal sealed class SessionTotals
         json.WriteStartObject("zoneSeconds");
         foreach (var (zone, seconds) in ZoneSeconds) json.WriteNumber(zone, Math.Round(seconds, 1));
         json.WriteEndObject();
+        if (StartLevel is int level) json.WriteNumber("startLevel", level);
+        json.WriteNumber("levelUps", LevelUps);
+        json.WriteNumber("echoClearSum", SessionFiles.Seconds(EchoClearSum));
+        json.WriteNumber("echoClearCount", EchoClearCount);
+        json.WriteNumber("echoTotalSum", SessionFiles.Seconds(EchoTotalSum));
+        json.WriteNumber("echoTotalCount", EchoTotalCount);
+        json.WriteNumber("echoesLeft", EchoesLeft);
+        json.WriteStartObject("factions");
+        foreach (var (faction, sums) in Factions)
+        {
+            json.WriteStartObject(faction);
+            json.WriteNumber("favourGained", sums.FavourGained);
+            json.WriteNumber("favourSpent", sums.FavourSpent);
+            json.WriteNumber("repGained", sums.ReputationGained);
+            json.WriteNumber("rankUps", sums.RankUps);
+            json.WriteEndObject();
+        }
+        json.WriteEndObject();
         json.WriteEndObject();
     }
 
@@ -165,7 +244,23 @@ internal sealed class SessionTotals
         {
             Duration = Num(e, "duration"), Xp = (long)Num(e, "xp"), GoldGained = (long)Num(e, "goldGained"), GoldSpent = (long)Num(e, "goldSpent"),
             Deaths = (int)Num(e, "deaths"), Echoes = (int)Num(e, "echoes"), Picks = (int)Num(e, "picks"), DropsShown = (int)Num(e, "dropsShown"),
+            // Readers treat a missing field as 0, or unknown for the start level.
+            StartLevel = e.TryGetProperty("startLevel", out var sl) && sl.TryGetInt32(out int level) ? level : null,
+            LevelUps = (int)Num(e, "levelUps"), EchoClearSum = Num(e, "echoClearSum"), EchoClearCount = (int)Num(e, "echoClearCount"),
+            EchoTotalSum = Num(e, "echoTotalSum"), EchoTotalCount = (int)Num(e, "echoTotalCount"), EchoesLeft = (int)Num(e, "echoesLeft"),
         };
+        if (e.TryGetProperty("factions", out var factions) && factions.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var p in factions.EnumerateObject())
+            {
+                if (p.Value.ValueKind != JsonValueKind.Object) continue;
+                totals.Factions[p.Name] = new FactionSums
+                {
+                    FavourGained = (long)Num(p.Value, "favourGained"), FavourSpent = (long)Num(p.Value, "favourSpent"),
+                    ReputationGained = (long)Num(p.Value, "repGained"), RankUps = (int)Num(p.Value, "rankUps"),
+                };
+            }
+        }
         if (e.TryGetProperty("drops", out var drops) && drops.ValueKind == JsonValueKind.Object)
         {
             foreach (var p in drops.EnumerateObject())
@@ -302,6 +397,7 @@ internal static class SessionFiles
         json.WriteString("gameVersion", h.GameVersion);
         WriteList(json, "captured", h.Captured);
         WriteList(json, "missing", h.Missing);
+        if (h.StartLevel is int level) json.WriteNumber("startLevel", level);
         if (h.Test) json.WriteBoolean("test", true);
         json.WriteEndObject();
     });
@@ -399,6 +495,7 @@ internal static class SessionFiles
                 Captured = Strings(e, "captured") ?? Array.Empty<string>(),
                 Missing = Strings(e, "missing") ?? Array.Empty<string>(),
                 Test = e.TryGetProperty("test", out var t) && t.ValueKind == JsonValueKind.True,
+                StartLevel = e.TryGetProperty("startLevel", out var sl) && sl.TryGetInt32(out int level) ? level : null,
             };
         }
         catch (Exception)
@@ -532,7 +629,7 @@ internal static class SessionFiles
     }
 
     /// <summary>An end kind a later build added reads as normal.</summary>
-    public static string KnownEnd(string kind) => kind is "normal" or "unexpected" or "cut" ? kind : "normal";
+    public static string KnownEnd(string kind) => kind is "normal" or "unexpected" or "cut" or "split" ? kind : "normal";
 
     // ---- Recovery and rotation ----
 
@@ -553,7 +650,7 @@ internal static class SessionFiles
         foreach (var record in file.Records) totals.Add(record);
         // A cut session's records stop at the cut; its totals lines go on.
         double last = Math.Max(file.Records.Count > 0 ? file.Records.Max(r => r.T) : 0d, file.LastTotals?.Duration ?? 0d);
-        var closed = file.LastTotals ?? totals.At(last);
+        var closed = file.LastTotals ?? totals.At(last, ended: true);
         try
         {
             Append(path, EndLine(new SessionEnd("unexpected", last, closed)) + "\n", tornGuard: true);

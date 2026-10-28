@@ -14,13 +14,15 @@ internal sealed class SessionView
     private readonly List<SessionRecord> _records;
     private readonly Func<SessionTotals> _totals;
     private readonly Func<string> _endKind;
+    private readonly Func<bool> _cut;
 
-    internal SessionView(SessionHeader header, List<SessionRecord> records, Func<SessionTotals> totals, Func<string> endKind)
+    internal SessionView(SessionHeader header, List<SessionRecord> records, Func<SessionTotals> totals, Func<string> endKind, Func<bool> cut)
     {
         Header = header;
         _records = records;
         _totals = totals;
         _endKind = endKind;
+        _cut = cut;
     }
 
     public SessionHeader Header { get; }
@@ -28,6 +30,8 @@ internal sealed class SessionView
     /// <summary>Append-only; for the current session capped by the per-session limit.</summary>
     public IReadOnlyList<SessionRecord> Records => _records;
     public string EndKind => _endKind();
+    /// <summary>Reached its size limit: records stop at the cut, totals go on.</summary>
+    public bool Cut => _cut();
 
     public IEnumerable<SessionRecord> RecordsSince(int index)
     {
@@ -46,7 +50,7 @@ internal sealed class SessionView
 /// </summary>
 internal static class Sessions
 {
-    public static readonly string[] Captured = { "zone", "died", "xp", "gold", "drop", "death", "echo", "pick" };
+    public static readonly string[] Captured = { "zone", "died", "xp", "gold", "drop", "death", "echo", "pick", "level", "favour", "rep", "rank" };
     private const float FlushSeconds = 10f;
     private const float IndexSeconds = 5f;
     private const long MegaByte = 1024 * 1024;
@@ -54,10 +58,11 @@ internal static class Sessions
     // UnloadScene even with the player in it (game facts GF-66), so they neither start a session nor count as a zone.
     private static readonly string[] s_transitScenes = { "UnloadScene", "TransitionScene" };
 
-    // The record kind each event producer gives, for the header's missing list.
-    private static readonly Dictionary<string, string> s_producerKinds = new()
+    // The record kinds each event producer gives, for the header's missing list.
+    private static readonly Dictionary<string, string[]> s_producerKinds = new()
     {
-        ["xp"] = "xp", ["gold"] = "gold", ["drops"] = "drop", ["death cause"] = "death", ["echo"] = "echo", ["monolith"] = "pick",
+        ["xp"] = new[] { "xp" }, ["gold"] = new[] { "gold" }, ["drops"] = new[] { "drop" }, ["death cause"] = new[] { "death" }, ["echo"] = new[] { "echo" },
+        ["monolith"] = new[] { "pick" }, ["level"] = new[] { "level" }, ["factions"] = new[] { "favour", "rep", "rank" },
     };
 
     /// <summary>The session being recorded: what is written so far and the batch not yet handed to the writer.</summary>
@@ -103,7 +108,7 @@ internal static class Sessions
         {
             var live = s_live;
             if (live == null) return null;
-            return live.View ??= new SessionView(live.Header, live.Records, () => live.Totals.At(Now(live)), () => "open");
+            return live.View ??= new SessionView(live.Header, live.Records, () => live.Totals.At(Now(live)), () => "open", () => live.Cut);
         }
     }
 
@@ -154,6 +159,8 @@ internal static class Sessions
         s_feature = null;
         s_index = null;
         s_entries.Clear();
+        SessionStats.Reset();
+        SessionTrends.Reset();
     }
 
     /// <summary>Quit (Runtime.Save): the session ends normally and is written before the game closes.</summary>
@@ -176,7 +183,12 @@ internal static class Sessions
         f => Bus.Subscribe<ItemDropped>(f, OnDrop),
         f => Bus.Subscribe<DeathCause>(f, e => Keep("death", Fields(("killer", e.Killer), ("types", e.Types), ("text", e.Text)))),
         f => Bus.Subscribe<EchoCompleted>(f, e => Keep("echo", Fields(("scene", e.Scene)))),
-        f => Bus.Subscribe<MonolithPick>(f, e => Keep("pick", Fields(("modifier", e.Modifier), ("stability", (long)e.StabilityReward), ("hex", (long)e.HexIndex)))),
+        f => Bus.Subscribe<MonolithPick>(f, e => Keep("pick", Fields(("modifier", e.Modifier), ("stability", (long)e.StabilityReward), ("hex", (long)e.HexIndex), ("reward", e.Reward),
+            ("corruption", e.Corruption is int c ? (long)c : null)))),
+        f => Bus.Subscribe<LevelUp>(f, e => Keep("level", Fields(("level", (long)e.Level)))),
+        f => Bus.Subscribe<FavourChanged>(f, e => Keep("favour", Fields(("faction", e.Faction), ("amount", (long)e.Amount), ("total", (long)e.Total)))),
+        f => Bus.Subscribe<ReputationGained>(f, e => Keep("rep", Fields(("faction", e.Faction), ("amount", (long)e.Amount), ("total", (long)e.Total)))),
+        f => Bus.Subscribe<RankChanged>(f, e => Keep("rank", Fields(("faction", e.Faction), ("rank", (long)e.Rank)))),
     };
 
     // ---- Recording ----
@@ -200,7 +212,7 @@ internal static class Sessions
         };
         s_live = new Live(header);
         // The zone the character is in: its change came before the character appeared.
-        Keep("zone", Fields(("scene", GameState.Scene), ("kind", ZoneKind(GameState.Scene, GameState.Kind, false)), ("monolith", false)));
+        Keep("zone", Fields(("scene", GameState.Scene), ("kind", ZoneKind(GameState.Scene, GameState.Kind, false)), ("monolith", false), ("name", ZoneName(GameState.Scene))));
         Log.Info($"Sessions: recording ({ModeText()})");
     }
 
@@ -221,8 +233,12 @@ internal static class Sessions
             End("normal");
             return;
         }
-        Keep("zone", Fields(("scene", change.Scene), ("kind", ZoneKind(change.Scene, change.Kind, change.Monolith)), ("monolith", change.Monolith)));
+        Keep("zone", Fields(("scene", change.Scene), ("kind", ZoneKind(change.Scene, change.Kind, change.Monolith)), ("monolith", change.Monolith),
+            ("name", ZoneName(change.Scene))));
     }
+
+    // The zone's name as the game shows it ("Waste Pools"), kept with its record; absent when the game data can't say.
+    private static string? ZoneName(string scene) => GameData.SceneNamesOf(scene).Display;
 
     /// <summary>
     /// Zone kinds for totals (game facts GF-67): town for non-combat scenes (the End of Time, the monolith hub), echo
@@ -310,7 +326,9 @@ internal static class Sessions
         bool? online = Player.Online;
         header.Missing = GameEvents.Producers
             .Where(p => s_producerKinds.ContainsKey(p.Part) && (events == null || events.State != FeatureState.Running || !events.Has(p.Group) || (online is bool mode && !p.Supports(mode))))
-            .Select(p => s_producerKinds[p.Part]).ToArray();
+            .SelectMany(p => s_producerKinds[p.Part]).ToArray();
+        header.StartLevel ??= PlayerModel.Level;
+        if (s_live?.Header == header) s_live.Totals.StartLevel ??= header.StartLevel;
     }
 
     private static void End(string kind)
@@ -320,12 +338,28 @@ internal static class Sessions
         double t = Now(live);
         Flush(force: true);
         string endKind = live.Cut ? "cut" : kind;
-        var totals = live.Totals.At(t);
+        var totals = live.Totals.At(t, ended: true);
         SessionWriter.Append(live.Path!, SessionFiles.EndLine(new SessionEnd(endKind, t, totals)) + "\n");
         s_live = null;
         s_indexAt = float.MinValue;
         Log.Info($"Sessions: session ended ({endKind}), {FormatDuration(t)}, {live.Records.Count} records");
         RotateLater();
+    }
+
+    /// <summary>
+    /// Ends the session as split and starts the next one at the same moment, in the same zone (New session, `sessions
+    /// split`). False with the reason when history is off or no session runs.
+    /// </summary>
+    public static bool Split(out string? reason, out string? ended)
+    {
+        reason = ended = null;
+        if (!SessionSettings.History.Value) reason = "history is off";
+        else if (s_live == null) reason = "no session is running";
+        if (reason != null) return false;
+        ended = s_live!.Header.Id.Length > 0 ? Label(s_live.Header.Id) : "the session";
+        End("split");
+        Begin();
+        return true;
     }
 
 #if DEV
@@ -452,6 +486,7 @@ internal static class Sessions
         if (s_index != null && Clock.Now - s_indexAt < IndexSeconds) return WithCurrent(s_index);
         var index = new List<SessionIndexEntry>();
         var problems = new List<string>();
+        bool listed = false;
         try
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -467,12 +502,15 @@ internal static class Sessions
             }
             foreach (string gone in s_entries.Keys.Where(k => !seen.Contains(k)).ToList()) s_entries.Remove(gone);
             problems.AddRange(SessionFiles.OtherFiles().Select(name => $"{name}: not a session file"));
+            listed = true;
         }
         catch (Exception e)
         {
             Log.WarnThrottled("sessions:list", $"Sessions couldn't be listed: {e.Message}");
         }
         index.Sort((a, b) => string.CompareOrdinal(b.Id, a.Id));
+        // Only a full listing prunes left-out ids, so a folder that can't be read keeps them.
+        if (listed) SessionTrends.Prune(index.Select(e => e.Id).Append(s_live?.Header.Id ?? string.Empty));
         s_index = index;
         s_problemFiles = problems;
         s_indexAt = Clock.Now;
@@ -489,6 +527,44 @@ internal static class Sessions
         var list = new List<SessionIndexEntry>(past.Count + 1) { entry };
         list.AddRange(past);
         return list;
+    }
+
+    /// <summary>
+    /// Deletes one past session's file, on the writer (waited for, so lists don't show it again). Refuses the current
+    /// session, a name that isn't a session's, and while an export runs. Its left-out mark goes with it.
+    /// </summary>
+    public static bool Delete(string id, out string? reason)
+    {
+        reason = null;
+        string file = id + ".jsonl";
+        if (s_live != null && s_live.Header.Id == id) reason = "it is the current session";
+        else if (!SessionFiles.NamePattern.IsMatch(file)) reason = "that isn't a session's name";
+        else if (!File.Exists(SessionFiles.PathOf(id))) reason = "no such session";
+        else if (SessionExport.Running) reason = "an export is running; try again when it finishes";
+        if (reason != null) return false;
+        string path = SessionFiles.PathOf(id);
+        string? failed = null;
+        SessionWriter.Post(() =>
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception e)
+            {
+                failed = e.Message;
+            }
+        });
+        SessionWriter.Flush(wait: true);
+        s_indexAt = float.MinValue;
+        if (failed != null)
+        {
+            reason = Diagnostics.Scrub(failed);
+            return false;
+        }
+        SessionTrends.Set(id, false);
+        Log.Info($"Sessions: deleted {Label(id)}");
+        return true;
     }
 
     /// <summary>A session's records by id, read in full on demand (the current one from memory); null when unreadable.</summary>
@@ -509,7 +585,8 @@ internal static class Sessions
             totals = read.LastTotals ?? rebuilt.At(read.Records.Count > 0 ? read.Records.Max(r => r.T) : 0d);
         }
         string end = read.End != null ? SessionFiles.KnownEnd(read.End.Kind) : "open";
-        return new SessionView(read.Header, read.Records, () => totals, () => end);
+        bool cut = read.LastTotals != null || read.End?.Kind == "cut";
+        return new SessionView(read.Header, read.Records, () => totals, () => end, () => cut);
     }
 
     /// <summary>The page's, the command's and Diagnostics' line: mode and slot only, never a character's name.</summary>

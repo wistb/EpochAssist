@@ -56,6 +56,22 @@ internal static partial class GameEvents
         s_lastPick = key;
         var mod = island.mod;
         string? modifier = mod != null ? GameData.MonsterMod(mod).Name : null;
-        Bus.Raise(new MonolithPick(modifier, island.stabilityReward, island.hexIndex));
+        int? corruption = s_feature?.Has(Corruption) == true ? Il2CppLE.Gameplay.Monolith.MonolithGameplayManager.CurrentCorruption : null;
+        Bus.Raise(new MonolithPick(modifier, island.stabilityReward, island.hexIndex, s_feature?.Has(MonolithReward) == true ? RewardOf(island) : null, corruption));
+    }
+
+    // The island's echo reward as its tooltip names it: the web's entry for the same hex holds the rewards (game facts
+    // GF-28; the island's droppableRewardIndex points into a table of the whole web, not this list).
+    private static string? RewardOf(EchoWebIsland island)
+    {
+        if (!island.hasDroppableReward) return null;
+        var web = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.Of<MonolithEchoWebUI>(), true)?.TryCast<MonolithEchoWebUI>();
+        if (!Game.Alive(web) || web!.activeIslands == null) return null;
+        foreach (var entry in web.activeIslands)
+        {
+            if (entry == null || entry.island == null || entry.island.hexIndex != island.hexIndex) continue;
+            return entry.rewards is { Count: > 0 } rewards && rewards[0] is { } reward ? reward.title : null;
+        }
+        return null;
     }
 }
