@@ -108,6 +108,8 @@ internal static partial class Planner
         s_run = run;
         Library.Load();
         Marks.Sweep();
+        SweepIconHolder();
+        AddGuideSearch();
         SweepTooltip();
         Scheduler.Every(feature, "planner fetch", FetchPollSeconds, () => PollFetch());
         Scheduler.Every(feature, "planner panels", PanelSeconds, () => { if (s_run == run) Tick(run); }, startNow: true);
@@ -129,6 +131,10 @@ internal static partial class Planner
         }
         // A swapped item recolours its icon in the same frame.
         if (s_run is { } menuRun) MenuHover(menuRun);
+        long guideStart = s_costOn ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        PollIcons();
+        GuideFrame();
+        if (s_costOn) s_costTicks += System.Diagnostics.Stopwatch.GetTimestamp() - guideStart;
         // The icons follow at the tick (0.1 s): made again every frame they'd cost more than the rest together.
         if (s_run is { InventoryOpen: true } open)
         {
@@ -155,6 +161,8 @@ internal static partial class Planner
         Marks.Release();
         Panels.Forget();
         ForgetGear();
+        ForgetGuidePage();
+        RemoveGuideSearch();
         s_run = null;
     }
 
@@ -312,6 +320,11 @@ internal static partial class Planner
         s_pending = null;
         ForgetResolution(build.Id);
         var resolution = Resolve(build);
+        if (build.Source == LetFormat.Source && build.Name == LetFormat.DefaultName && LetSkillsName(build) is { } named)
+        {
+            build.Name = named;
+            if (build.Stages.Count == 1 && build.Stages[0].Name == LetFormat.DefaultName) build.Stages[0].Name = named;
+        }
         if (!Library.Add(build))
         {
             ForgetResolution(build.Id);
@@ -320,6 +333,30 @@ internal static partial class Planner
         View.Selected = build.Id;
         int unknown = resolution.UnknownNodes.Count + resolution.UnknownSkills.Count;
         return !resolution.Unread && unknown > 0 ? Words.Imported(build) + " " + Words.UnknownIds(resolution) : Words.Imported(build);
+    }
+
+    /// <summary>A Last Epoch Tools build's name from its mastery and first three specialised skills, by the game's own
+    /// names ("Lich · Marrow Shards, Flay, Reaper Form"); null until the game's data can be read.</summary>
+    private static string? LetSkillsName(Build build)
+    {
+        if (s_run?.Feature is not { } feature || !feature.Has(GameDataGroup) || build.Stages.Count == 0) return null;
+        var stage = build.Stages[0];
+        string mastery = MasteryName(feature, stage.ClassId, stage.Mastery);
+        if (mastery.StartsWith("mastery ", StringComparison.Ordinal)) return null;
+        var skills = stage.Skills.Where(s => s.AbilityId.Length > 0).Take(3).Select(s => AbilityName(feature, s.AbilityId, string.Empty)).Where(n => n.Length > 0).ToList();
+        return skills.Count > 0 ? $"{mastery} · {string.Join(", ", skills)}" : mastery;
+    }
+
+    // Builds imported before they were named keep the default; each gets its guide's name or its skills once the game's
+    // data can be read, and the library saves it.
+    private static void NameUntitledLetBuilds()
+    {
+        foreach (var build in Library.Builds.ToList())
+        {
+            if (build.Source != LetFormat.Source || build.Name != LetFormat.DefaultName) continue;
+            string? slug = MaxrollFormat.Parse(build.Raw) is System.Text.Json.Nodes.JsonObject raw ? Build.Str(raw["guide"]) : null;
+            if ((LetFormat.GuideTitle(slug) ?? LetSkillsName(build)) is { } name) Library.Rename(build.Id, name);
+        }
     }
 
     /// <summary>Replaces the library's build with the waiting import.</summary>
@@ -617,6 +654,8 @@ internal static partial class Planner
         if (!feature.Has(BlessingUiGroup)) kinds.Add("blessings");
         if (!feature.Has(WeaverUiGroup)) kinds.Add("weaver tree");
         if (!feature.Has(WeaverItemsGroup)) kinds.Add("weaver items");
+        if (!feature.Has(GuideIconsGroup)) kinds.Add("guide icons");
+        if (!feature.Has(GuideTipsGroup)) kinds.Add("guide tooltips");
         return kinds.Count > 0 ? string.Join(", ", kinds) : null;
     }
 

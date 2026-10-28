@@ -117,6 +117,8 @@ internal static partial class Planner
         Library.EnsureLoaded();
         string? bound = Library.Binding(Profiles.Key)?.Build;
         if (s_linesFor == (Library.Generation, bound)) return s_lines;
+        NameUntitledLetBuilds();
+        bound = Library.Binding(Profiles.Key)?.Build;
         s_linesFor = (Library.Generation, bound);
         s_lines.Clear();
         foreach (var build in Library.Builds)
@@ -146,15 +148,27 @@ internal static partial class Planner
         _ => $"From {SourceName(build)}",
     };
 
-    private static string? s_actionsFor;
+    private static (string? Id, bool Confirming) s_actionsFor;
     private static IReadOnlyList<ActionButton> s_actions = Array.Empty<ActionButton>();
+    // The build whose Delete was pressed: the library has no undo, so it asks once more.
+    private static string? s_confirmDelete;
 
     private static IReadOnlyList<ActionButton> BuildActions(LibraryLine? line)
     {
         if (line == null) return Array.Empty<ActionButton>();
-        if (s_actionsFor == line.Key) return s_actions;
+        bool confirming = s_confirmDelete == line.Key;
+        if (s_actionsFor == (line.Key, confirming)) return s_actions;
         string id = line.Key;
-        s_actionsFor = id;
+        s_actionsFor = (id, confirming);
+        if (confirming)
+        {
+            s_actions = new[]
+            {
+                TabButton("Delete", "delete.confirm", () => Delete(id), tip: "Removes the build from the library and from every character that used it", primary: true),
+                TabButton("Keep", "delete.keep", () => s_confirmDelete = null),
+            };
+            return s_actions;
+        }
         s_actions = new[]
         {
             TabButton("Open", "open", () => s_viewing = id),
@@ -162,13 +176,14 @@ internal static partial class Planner
             {
                 if (View.Line(id) is { } renamed) View.BeginRename(renamed);
             }),
-            TabButton("Delete", "delete", () => Delete(id), tip: "Removes the build from the library and from every character that used it"),
+            TabButton("Delete", "delete", () => s_confirmDelete = id, tip: "Asks before removing the build from the library and from every character that used it"),
         };
         return s_actions;
     }
 
     private static void Delete(string id)
     {
+        s_confirmDelete = null;
         if (!Library.Delete(id)) return;
         if (s_viewing == id) s_viewing = null;
     }
@@ -179,6 +194,8 @@ internal static partial class Planner
     private static string? BuildHint(LibraryLine? line)
     {
         if (line == null) return null;
+        if (s_confirmDelete != null && s_confirmDelete != line.Key) s_confirmDelete = null;
+        if (s_confirmDelete == line.Key) return $"Delete \"{line.Label}\"? It's also removed from every character that uses it.";
         if (s_hintFor == (line.Key, Library.Generation)) return s_hint;
         s_hintFor = (line.Key, Library.Generation);
         s_hint = Library.Find(line.Key) is { } build ? $"{Credit(build)} · {StageCount(build)}" : null;
@@ -223,7 +240,10 @@ internal static partial class Planner
                 VisibleWhen = () => Library.Binding(Profiles.Key)?.Build == id,
             },
             new HintRow(() => LevelHint(build) ?? string.Empty) { Key = "stage.levelhint", VisibleWhen = () => LevelHint(build) != null },
+            ViewSwitch(build),
         };
+        // The Guide keeps the rows down to its switch and shows the build's guide under them.
+        var head = new List<MenuRow>(rows);
         rows.Add(new HintRow(() => s_run?.MasteryWords ?? string.Empty)
         {
             Key = "mastery",
@@ -236,6 +256,11 @@ internal static partial class Planner
         rows.Add(new HeadingRow("Specialisations") { VisibleWhen = () => Specialisations(id) });
         rows.Add(new HintRow(() => s_specMissing ?? string.Empty) { Key = "spec.missing", VisibleWhen = () => Specialisations(id) && s_specMissing != null });
         rows.Add(new HintRow(() => s_specExtra ?? string.Empty) { Key = "spec.notinbuild", VisibleWhen = () => Specialisations(id) && s_specExtra != null });
+        // The checklist is the character's own: other builds say so instead of showing nothing.
+        rows.Add(new HintRow(() => "The checklist follows the build this character uses.")
+        {
+            Key = "checklist.notinuse", VisibleWhen = () => Library.Binding(Profiles.Key)?.Build != id,
+        });
         rows.Add(new HeadingRow("Skill bar") { VisibleWhen = () => BarShown(id) });
         for (int i = 0; i < Stage.BarSlots; i++)
         {
@@ -243,7 +268,7 @@ internal static partial class Planner
             rows.Add(new LiveText($"Slot {slot + 1}", () => (BarText(slot), null)) { Key = $"bar.{slot}", VisibleWhen = () => BarShown(id) });
         }
 
-        var editor = new LibraryEditor(id, () => build.Name, () => GuideRows(id, rows)) { Note = () => credit };
+        var editor = new LibraryEditor(id, () => build.Name, () => ShowingGuide(build) ? GuideRows(build, head) : ChecklistRows(id, rows)) { Note = () => credit };
         if (build.Url is { } url)
             editor.Buttons.Add(TabButton("Open planner page", "page", () => UnityEngine.Application.OpenURL(url), tip: "Opens the build's page in the browser"));
         editor.Buttons.Add(TabButton("Use for this character", "use", () =>
@@ -329,22 +354,22 @@ internal static partial class Planner
 
     // The build view's rows with the checklist and next steps after them, for the character's build; made again only
     // when the guidance changes, with every text made then.
-    private static (List<MenuRow>? Rows, Guidance? Guidance, GearGuidance? Gear) s_guideFor;
-    private static List<MenuRow> s_guideRows = new();
+    private static (List<MenuRow>? Rows, Guidance? Guidance, GearGuidance? Gear) s_checklistFor;
+    private static List<MenuRow> s_checklistRows = new();
 
-    private static IReadOnlyList<MenuRow> GuideRows(string id, List<MenuRow> rows)
+    private static IReadOnlyList<MenuRow> ChecklistRows(string id, List<MenuRow> rows)
     {
         var run = s_run;
         var guidance = run is { Guidance: { } g, Build: { } b } && b.Id == id ? g : null;
         var gear = guidance != null ? run!.Gear : null;
-        if (s_guideFor.Rows == rows && s_guideFor.Guidance == guidance && s_guideFor.Gear == gear) return s_guideRows;
-        s_guideFor = (rows, guidance, gear);
-        s_guideRows = new List<MenuRow>(rows);
-        if (guidance != null) AddGuide(s_guideRows, run!, guidance);
-        return s_guideRows;
+        if (s_checklistFor.Rows == rows && s_checklistFor.Guidance == guidance && s_checklistFor.Gear == gear) return s_checklistRows;
+        s_checklistFor = (rows, guidance, gear);
+        s_checklistRows = new List<MenuRow>(rows);
+        if (guidance != null) AddChecklist(s_checklistRows, run!, guidance);
+        return s_checklistRows;
     }
 
-    private static void AddGuide(List<MenuRow> rows, Run run, Guidance guidance)
+    private static void AddChecklist(List<MenuRow> rows, Run run, Guidance guidance)
     {
         var feature = run.Feature;
         var stage = run.Build!.Stages[run.Stage];

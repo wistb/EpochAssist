@@ -19,7 +19,8 @@ internal static class LetFormat
         if (root.ContainsKey("error") && root["data"] == null) return Parsed.Fail(root.ContainsKey("code") ? Parsed.NotFound : Parsed.NotABuild);
         if (root["data"] is not JsonObject data || !(data.ContainsKey("bio") || data.ContainsKey("charTree"))) return Parsed.Fail(Parsed.NotABuild);
 
-        string name = FirstText(root, "name", "title") ?? FirstText(data, "name", "title") ?? DefaultName;
+        // The build data has no title of its own; the guide's name stands in when there is one.
+        string name = FirstText(root, "name", "title") ?? FirstText(data, "name", "title") ?? GuideTitle(Build.Str(root["guide"])) ?? DefaultName;
         var bio = data["bio"] as JsonObject;
         var stage = new Stage
         {
@@ -88,6 +89,18 @@ internal static class LetFormat
             foreach (var (key, value) in selected)
                 if (byte.TryParse(key, out byte node) && Build.Int(value) is int points and > 0) tree.Points[node] = (byte)Math.Min(byte.MaxValue, points);
         return tree;
+    }
+
+    /// <summary>A guide's name from its address part: "physicalcold-ghostflame---marrow-shards-lich" → "Physicalcold
+    /// Ghostflame · Marrow Shards Lich" (a dash between words, three between parts); null for none.</summary>
+    public static string? GuideTitle(string? slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug)) return null;
+        var parts = slug.Split("---", StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => string.Join(" ", part.Split('-', StringSplitOptions.RemoveEmptyEntries).Select(w => char.ToUpperInvariant(w[0]) + w[1..])))
+            .Where(part => part.Length > 0);
+        string title = string.Join(" · ", parts);
+        return title.Length > 0 ? title : null;
     }
 
     private static string? FirstText(JsonObject o, params string[] keys)

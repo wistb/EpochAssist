@@ -155,6 +155,13 @@ internal static class PlannerSettings
     public static readonly PanelLook WeaverLook = new(Group.Section("weaver", "Weaver tree"), "Weaver",
         ("WeaverMarks", "Marks planned nodes on the weaver tree."), next: true);
 
+    // Reading, not marking: it follows its own switch, not the overlay's.
+    public static readonly Section Guide = Group.Section("guide", "Guide");
+    public static readonly Toggle GuideEnabled = new(Guide, "GuideEnabled", "Build guide", true)
+    {
+        Help = "Shows the planner's own guide for a build: its notes, strengths and weaknesses, with game icons for skills, passives and items.",
+    };
+
     public static readonly PanelLook[] Panels = { PassiveLook, SkillTreeLook, SkillChoiceLook, SkillsPageLook, WeaverLook };
 
     /// <summary>The interface pages with no look of their own: the inventory and the blessings panel.</summary>

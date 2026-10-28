@@ -151,6 +151,29 @@ internal sealed class PlannerFeature : Feature
         Need<ItemContainersManager.WeaverTreeContainer>(nameof(ItemContainersManager.WeaverTreeContainer.TryGetContainer), Planner.WeaverItemsGroup),
         Need<Il2CppLE.Factions.WeaverTreeItemContainerUI>(nameof(Il2CppLE.Factions.WeaverTreeItemContainerUI.LinkedNodeID), Planner.WeaverItemsGroup),
         Need<TooltipItemManager.SlotType>(nameof(TooltipItemManager.SlotType.WEAVER_TREE_NODE), Planner.WeaverItemsGroup),
+
+        // The guide's game icons: skill and item sprites, and node icons from the trees' prefabs, loaded as assets.
+        Need<Ability>(nameof(Ability.abilitySpriteSoftRef), Planner.GuideIconsGroup),
+        Need(typeof(ItemData), nameof(ItemData.GetItemSprite), Planner.GuideIconsGroup),
+        Need(typeof(Il2CppLE.AssetBundles.SoftRefExtensions), nameof(Il2CppLE.AssetBundles.SoftRefExtensions.CreateLoadRefTypeless), Planner.GuideIconsGroup),
+        Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.Status), Planner.GuideIconsGroup),
+        Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.TypelessAssetOrNull), Planner.GuideIconsGroup),
+        Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.ExplicitDisposeInternal), Planner.GuideIconsGroup),
+        Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.AddSceneLifetimeReferenceTo), Planner.GuideIconsGroup),
+        Need<PassivePanelManager>(nameof(PassivePanelManager.PassivePanelData), Planner.GuideIconsGroup),
+        Need<PassivePanelData.ClassResources>(nameof(PassivePanelData.ClassResources.passiveTree), Planner.GuideIconsGroup),
+        Need<SkillsTreesUIManager>(nameof(SkillsTreesUIManager.prefabSkillTreesHolder), Planner.GuideIconsGroup),
+        Need<SkillTreesHolder>(nameof(SkillTreesHolder.Find), Planner.GuideIconsGroup),
+        Need<SkillTreeNode>(nameof(SkillTreeNode.icon), Planner.GuideIconsGroup),
+
+        // The game's own skill and node tooltips, opened for a guide's names.
+        Need<UITooltipAbility>(nameof(UITooltipAbility.OpenTooltip), Planner.GuideTipsGroup),
+        Need<UITooltipAbility>(nameof(UITooltipAbility.CloseTooltip), Planner.GuideTipsGroup),
+        Need(typeof(NodeTooltipManager), nameof(NodeTooltipManager.instance), Planner.GuideTipsGroup),
+        Need<NodeTooltipManager>(nameof(NodeTooltipManager.openForNode), Planner.GuideTipsGroup),
+        Need<NodeTooltipManager>(nameof(NodeTooltipManager.close), Planner.GuideTipsGroup),
+        Need<NodeTooltipManager>(nameof(NodeTooltipManager.rectTransform), Planner.GuideTipsGroup),
+        Need<UITooltipAbility>(nameof(UITooltipAbility.rectTransform), Planner.GuideTipsGroup),
     };
 
     public override FeatureStatus Status => State == FeatureState.Running ? Planner.StatusOf(this) : base.Status;

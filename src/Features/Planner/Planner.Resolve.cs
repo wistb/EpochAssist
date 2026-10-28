@@ -110,7 +110,7 @@ internal static partial class Planner
 
     // Maxroll names skills by the ability's display name or its Unity object name; the class's own abilities first,
     // then every player ability.
-    private static string? FindAbility(string name, CharacterClass? cls)
+    internal static string? FindAbility(string name, CharacterClass? cls)
     {
         if (name.Length == 0) return null;
         if (Game.Alive(cls) && Match(cls!.getAllAbilities(), name) is { } own) return own;
