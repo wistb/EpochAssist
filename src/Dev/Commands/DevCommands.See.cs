@@ -35,13 +35,13 @@ internal static partial class DevCommands
         Rect clip = GUIClip.visibleRect;
         Rect shown = Rect.MinMaxRect(Mathf.Max(rect.xMin, clip.xMin), Mathf.Max(rect.yMin, clip.yMin), Mathf.Min(rect.xMax, clip.xMax), Mathf.Min(rect.yMax, clip.yMax));
         if (shown.width < 2f || shown.height < 2f) return;
-        // In the menu's window GUIToScreenPoint scales the point within the window but not the window's own position
-        // (measured at UI scale 1.25: off by a quarter of it), and GUIToScreenRect keeps the size as drawn; both
-        // corners, and the window's position scaled, give the box on screen.
+        // Under the menu's scale GUIToScreenPoint scales a point within its clip (window, scroll view) but not the clip's
+        // own origin (measured: a quarter of the window's position off at UI scale 1.25, the tree's rows 90 px off at 2),
+        // and GUIToScreenRect keeps the size as drawn: both corners, plus the origin's missing scale, give the box.
         Vector2 min = GUIUtility.GUIToScreenPoint(shown.min), max = GUIUtility.GUIToScreenPoint(shown.max);
-        float scale = GUI.matrix.m00;
-        if (Menu.Visible && scale > 0f) min += Menu.ScreenRect.position * (1f - 1f / scale);
-        if (Menu.Visible && scale > 0f) max += Menu.ScreenRect.position * (1f - 1f / scale);
+        Vector2 missing = GUIUtility.GUIToScreenPoint(Vector2.zero) * (GUI.matrix.m00 - 1f);
+        min += missing;
+        max += missing;
         s_ours[key] = new SeenControl(Rect.MinMaxRect(min.x, min.y, max.x, max.y), Time.frameCount);
     }
 
