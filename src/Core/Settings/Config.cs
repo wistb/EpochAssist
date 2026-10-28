@@ -13,7 +13,7 @@ internal static class Config
     public static readonly SettingsGroup Group = new("EpochAssist", "General", version: 2)
     {
         ActionKey = "general",
-        SectionOrder = new[] { "hud", "appearance", "keys", "sessions", "diagnostics" },
+        SectionOrder = new[] { "hud", "appearance", "keys", "sessions", "diagnostics", "modconflicts" },
     };
 
     // Also drawn as a card on the Diagnostics page.
@@ -22,6 +22,17 @@ internal static class Config
         (Log.ErrorLevel, "Error"), (Log.WarningLevel, "Warning"), (Log.InfoLevel, "Info"), (Log.DebugLevel, "Debug"))
     {
         Help = "How much the mod writes to the log. Debug is for bug reports.",
+    };
+
+    // Shown on the Diagnostics › Mods page, above its lists.
+    public static readonly Section ModConflicts = Group.Section("modconflicts", "Mod conflicts");
+    public static readonly Toggle ModConflictNotice = new(ModConflicts, "ModConflictNotice", "Start-up notice", true)
+    {
+        Help = "A notice at start when other mods overlap Epoch Assist.",
+    };
+    public static readonly Toggle ModConflictWarnings = new(ModConflicts, "ModConflictWarnings", "Conflict warnings", true)
+    {
+        Help = "Mod conflict tags in page headers and warning signs in the menu tree. The lists below stay either way.",
     };
 
     public static void Init()

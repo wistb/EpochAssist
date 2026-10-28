@@ -106,6 +106,9 @@ internal static class ModOverlap
                 list.Add((owner, $"Also patches {overlap.Method}."));
             }
         }
+        // Mods that also patch this feature's methods first (the surest conflicts), then the others as listed.
+        var patching = new HashSet<string>(report.Overlaps.Where(o => o.Feature == featureId).SelectMany(o => o.Others.Select(x => x.Owner)), StringComparer.OrdinalIgnoreCase);
+        list = list.OrderBy(c => patching.Contains(c.Mod) ? 0 : 1).ToList();
         return s_conflicts[featureId] = list;
     }
 
@@ -142,7 +145,7 @@ internal static class ModOverlap
             foreach (var known in report.Known) Log.Info($"Known overlap: {known.Line}");
             foreach (string problem in report.Problems) Log.Warn($"Mod overlap check: {problem}");
             if (!report.ToastWorthy) return;
-            Toasts.Show("host", $"{JoinNames(report.OverlappingNames())} overlap{(report.OverlappingNames().Count == 1 ? "s" : string.Empty)} {BuildInfo.Name}; see Config › General › Diagnostics › Mods.", ToastKind.Warning);
+            if (Config.ModConflictNotice.Value) Toasts.Show("host", $"{JoinNames(report.OverlappingNames())} overlap{(report.OverlappingNames().Count == 1 ? "s" : string.Empty)} {BuildInfo.Name}; see Config › General › Diagnostics › Mods.", ToastKind.Warning);
         }
         catch (Exception e)
         {

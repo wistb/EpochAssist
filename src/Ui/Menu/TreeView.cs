@@ -283,7 +283,7 @@ internal static class TreeView
             x += 14f;
         }
         Color text = selected ? Theme.Text : heading ? Theme.Text : row.Item is { State: StatusState.Off } ? Theme.Dim : Theme.Secondary;
-        bool conflict = row.Kind == Kind.Node && node.Feature is { } withConflicts && ModOverlap.ConflictsFor(withConflicts.Id).Count > 0;
+        bool conflict = row.Kind == Kind.Node && Config.ModConflictWarnings.Value && node.Feature is { } withConflicts && ModOverlap.ConflictsFor(withConflicts.Id).Count > 0;
         float dotRoom = conflict ? 34f : 18f;
         Widgets.Paint(new Rect(x, r.y, r.xMax - x - dotRoom, r.height), Controls.Fit(row.Label, style, r.xMax - x - dotRoom),
             Widgets.Themed && (selected || row.Item is { State: StatusState.Off }) ? Recoloured(style, text) : style);

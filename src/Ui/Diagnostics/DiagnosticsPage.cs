@@ -66,7 +66,15 @@ internal static class DiagnosticsPage
         MenuBlocks.Register("diagnostics.features", (rect, _) => Page(rect, Features), _ => Snapshot().Features.Select(f => $"feature {f.Id} {RowText.Quote(f.StateText)}"));
         MenuBlocks.Register("diagnostics.reports", (rect, _) => Page(rect, ReportsCard), _ => Reports.List().Select(r => $"report {RowText.Quote(r.File)}"));
         MenuBlocks.Register("diagnostics.mods", (rect, _) => Page(rect, ModsCard), _ => ModsLines(Overlap()).Where(l => !l.Note).Select(l => $"{l.Kind} {RowText.Quote(l.Text)}"));
+        // The Mods page's switches are drawn in its block, not as setting rows, so search is told about them here.
+        MenuSearch.AddSource("diagnostics.mods", () => 1, () => new[] { Config.ModConflictNotice, Config.ModConflictWarnings }
+            .Select(t => new SearchEntry("Config › Diagnostics › Mods", $"Mod conflicts: {t.Label}. {t.Help}", () =>
+            {
+                if (MenuRoutes.Resolve(ModsPage) is { } page) Menu.Open(page);
+            })).ToList());
     }
+
+    private const string ModsPage = "combat/diagnostics/mods";
 
     /// <summary>Opens the console's page.</summary>
     public static void ShowConsole() => Menu.Open(MenuRoutes.Console);
@@ -216,6 +224,10 @@ internal static class DiagnosticsPage
         var conflicting = new HashSet<string>(report.OverlappingNames(), StringComparer.OrdinalIgnoreCase);
         foreach (var known in report.Known) conflicting.Add(known.Name);
 
+        ProfilesPage.Heading("Warnings");
+        SwitchLine(Config.ModConflictNotice);
+        SwitchLine(Config.ModConflictWarnings);
+
         ProfilesPage.Heading("Loaded mods");
         foreach (var mod in report.Mods)
         {
@@ -259,6 +271,18 @@ internal static class DiagnosticsPage
         Note(Colored("Overlaps change nothing: every feature keeps running. They point at what to check when something acts twice or looks odd.", Theme.Dim));
     }
 
+    // A setting's switch on its own line in a laid-out block: the label, the switch and its help, as a setting row
+    // draws them.
+    private static void SwitchLine(Toggle toggle)
+    {
+        float width = PageView.BlockWidth;
+        Rect r = GUILayoutUtility.GetRect(width, RowLayout.Height(width, Controls.SwitchWidth, toggle.Help), GUILayout.ExpandWidth(true));
+        var parts = RowLayout.Lay(r, Controls.SwitchWidth, toggle.Help);
+        if (Event.current.type == EventType.Repaint) Widgets.Paint(parts.Label, toggle.Label, Style(() => Theme.Label, GUI.skin.label));
+        if (Controls.Switch(parts.Control, toggle.Value, "mods." + toggle.Id, toggle.Help) != toggle.Value) SettingRows.Flip(toggle, "mods page switch");
+        RowLayout.Hint(parts.Hint, toggle.Help);
+    }
+
     private static string Stem(string file) => file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? file[..^4] : file;
 
     // A feature's name as the menu shows it ("Macros"), else its id.
@@ -294,6 +318,8 @@ internal static class DiagnosticsPage
     // are drawn muted and left out of the bridge's lines.
     private static IEnumerable<(string Kind, string Text, bool Note)> ModsLines(OverlapReport report)
     {
+        foreach (var toggle in new[] { Config.ModConflictNotice, Config.ModConflictWarnings })
+            yield return ("switch", $"{toggle.Label} value={(toggle.Value ? "on" : "off")}", false);
         foreach (string line in report.ModLines) yield return ("mod", line, false);
         if (!report.Mods.Any(m => !m.Ours)) yield return ("mod", "No other mods.", false);
         if (report.Overlaps.Count == 0) yield return ("overlap", "None.", false);

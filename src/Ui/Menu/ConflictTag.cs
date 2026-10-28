@@ -3,8 +3,9 @@ using UnityEngine;
 
 namespace EpochAssist.Ui;
 
-// The orange "Mod conflict: <mods>" pill in the header of a page whose feature another mod conflicts with (by the mod
-// overlap check: known mods that may affect it, and other patches on methods it patches). Clicking opens the Mods page.
+// The orange "Mod conflict: <mod> +n" pill in the header of a page whose feature another mod conflicts with (by the mod
+// overlap check: known mods that may affect it, and other patches on methods it patches): the main one by name and a
+// count of the rest, so the pill stays short; its tip lists every mod and why. Clicking opens the Mods page.
 internal static class ConflictTag
 {
     private const string ModsPage = "combat/diagnostics/mods";
@@ -27,12 +28,13 @@ internal static class ConflictTag
     // The pill's text and tip, made once per conflict list.
     private static (string Text, string Tip)? Words(Feature? feature)
     {
+        if (!Config.ModConflictWarnings.Value) return null;
         var conflicts = ModOverlap.ConflictsFor(feature?.Id);
         if (conflicts.Count == 0) return null;
         if (!ReferenceEquals(conflicts, s_for))
         {
             s_for = conflicts;
-            s_text = "Mod conflict: " + string.Join(", ", conflicts.Select(c => c.Mod));
+            s_text = "Mod conflict: " + conflicts[0].Mod + (conflicts.Count > 1 ? $" +{conflicts.Count - 1}" : string.Empty);
             s_tip = string.Join("\n", conflicts.Select(c => $"{c.Mod}: {c.Why}")) + "\nClick for the Mods page.";
         }
         return (s_text, s_tip);
