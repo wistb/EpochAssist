@@ -50,6 +50,8 @@ A [MelonLoader](https://github.com/LavaGang/MelonLoader) mod suite for Last Epoc
 
   ![Weaver tree with Planner marks on nodes and item sockets](nexus/media/planner-weaver.png)
 
+  ![Active blessings with Planner rings, one slot selected](nexus/media/planner-blessings.png)
+
   ![Planner tab: stage, skill bar and checklist](nexus/media/planner-tab.png)
 
   </details>
