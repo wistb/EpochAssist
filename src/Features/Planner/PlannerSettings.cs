@@ -203,7 +203,7 @@ internal static class PlannerSettings
             LabelSize = new(section, id + "NextLabelSize", "Label size", 16f, 10f, 28f) { Step = 1f };
             LabelFormat = new(section, id + "NextLabelFormat", "Label format", "slash", ("compare", "1 < 5"), ("slash", "1/5"))
             {
-                Help = "1 < 5: points now, then after the next point. 1/5: after the next point, out of the plan.",
+                Help = "1 < 5: points now, then after the next point. 1/5: points now, out of the plan.",
             };
             LabelSide = new(section, id + "NextLabelPosition", "Label position", "bottom",
                 ("top", "Top"), ("bottom", "Bottom"), ("left", "Left"), ("right", "Right"));

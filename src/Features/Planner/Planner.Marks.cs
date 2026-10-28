@@ -1312,13 +1312,12 @@ internal static partial class Planner
     }
 
     // Only the node the next point goes into is labelled, for that one point: its points now against after it ("2 < 3"),
-    // or as the counters write it, after it out of the plan ("3/4"). Every other mark is the outline alone; its colour
-    // gives the state.
+    // or as the counters write it, now out of the plan ("2/4"). Every other mark is the outline alone; its colour gives
+    // the state.
     private static string? Label(NodeGuide guide, bool show, bool slash)
     {
         if (!show || guide.NextStep != 1) return null;
-        int after = guide.Allocated + 1;
-        return slash ? $"{after}/{guide.Planned}" : $"{guide.Allocated} < {after}";
+        return slash ? $"{guide.Allocated}/{guide.Planned}" : $"{guide.Allocated} < {guide.Allocated + 1}";
     }
 
 
