@@ -181,6 +181,8 @@ internal static partial class Planner
     /// <summary>Destroys the menu's tooltip anchor (the feature stopping).</summary>
     private static void ForgetMenuAnchor()
     {
+        // A tooltip the menu opened closes with it, or nothing would close it again.
+        if (s_menuShown != null) CloseGearTip();
         if (Game.Alive(s_menuAnchor)) UnityEngine.Object.Destroy(s_menuAnchor);
         s_menuAnchor = null;
         s_menuShown = null;
