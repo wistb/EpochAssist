@@ -5,7 +5,8 @@
 #   tools/shot.sh "menu open macros" "shot menu macros" "menu close" "hud panel open" "shot hud"
 # Commands: menu open [feature id]|settings [tab], menu close, menu search [text], hud panel open|close,
 #           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
-#           probe [type] [filter], find [text], fonts, wait [frames|<n>ms], shot full|menu|hud [name],
+#           probe [type] [filter], find [text], fonts, wait [frames|<n>ms], shot full|menu|hud [name] [matte] [jpg[quality]],
+#           shot ui tooltip|hovered|<name or path end, quoted when it has spaces>[#n] [name] [matte] [jpg[quality]],
 #           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off,
 #           map [icons [n]|volumes|step radius|maxdist|patch on|off],
 #           planner [trees|nodes [id]|skills|selector open|close|open passive|skills|tree|picker|inventory|close|tab <n>|mastery|gear|idols|blessings|weaver|watch on|off|import [file]|check|resolve|show [stage]|paste [text]|host [url]|off],

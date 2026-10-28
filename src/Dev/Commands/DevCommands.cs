@@ -57,8 +57,8 @@ internal static partial class DevCommands
             }
             return CommandResult.Ok(call.Line) with { Settle = int.TryParse(call.Lower(1), out int frames) ? frames : 30 };
         });
-        Add("shot", "shot full|menu|hud [name] [matte]", "Saves a screenshot of the screen, the menu or the HUD to shots/; matte gives the menu or HUD a transparent background, trimmed to what is drawn.",
-            call => StartCapture(call.Lower(1), call.Args.Length > 1 ? call.Args[1] : call.Lower(1), call.Lower(3) == "matte"));
+        Add("shot", "shot full|menu|hud|ui <target> [name] [matte] [jpg[quality]]", "Saves a screenshot of the screen, the menu, the HUD or one piece of game UI to shots/; matte gives a transparent background, trimmed to what is drawn; jpg saves a JPG.",
+            ShotCommand);
         Add("draw", "draw test|minimap|arrows|bars|roles on|off", "Draws a test pattern around the player, markers on the minimap, edge arrows for the 10 nearest rares, bars over enemies, or the colour role swatch.", DrawCommand);
         Add("focus", "focus [key]", "Shows the menu control that has keyboard focus, or moves it to a control by its full key.", call =>
         {

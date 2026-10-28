@@ -18,10 +18,40 @@ internal static partial class DevCommands
         public bool Matte;
         // Matte shots: the first capture (over black) waits here while the second (over white) is taken.
         public string? BlackPath;
+        // Null saves a PNG; otherwise a JPG at this quality (1-100).
+        public int? Jpg;
+        // Matte shots: puts the backdrop colour under what is captured; null takes it away.
+        public Action<Color?> Backdrop = SetHudBackdrop;
+        // Added to the reply, e.g. that our HUD covers part of the shot.
+        public string Note = string.Empty;
+    }
+
+    // What follows the target in a shot command: [name] [matte] [jpg|jpg<quality>], the flags in any order.
+    private sealed record ShotOptions(string? Name, bool Matte, int? Jpg);
+
+    private const int JpgQuality = 90;
+
+    private static ShotOptions ParseShotOptions(string[] args)
+    {
+        string? name = null;
+        bool matte = false;
+        int? jpg = null;
+        foreach (string arg in args)
+        {
+            string lower = arg.ToLowerInvariant();
+            if (lower == "matte") matte = true;
+            else if (lower.StartsWith("jpg", StringComparison.Ordinal))
+                jpg = lower.Length == 3 ? JpgQuality : int.TryParse(lower[3..], out int q) && q is >= 1 and <= 100 ? q : throw new ArgumentException("jpg quality is 1 to 100, e.g. jpg85");
+            else name ??= arg;
+        }
+        if (matte && jpg != null) throw new ArgumentException("matte needs a PNG; a JPG has no transparency");
+        return new ShotOptions(name, matte, jpg);
     }
 
     // Matte shots fill the screen under our HUD and menu with this colour; null draws nothing.
     private static Color? s_backdrop;
+
+    private static void SetHudBackdrop(Color? color) => s_backdrop = color;
 
     /// <summary>The dev bridge's HUD layer hook: drawn before the HUD layer's features.</summary>
     public static void DrawBackdrop()
@@ -36,23 +66,31 @@ internal static partial class DevCommands
         GUI.matrix = matrix;
     }
 
-    private static CommandResult StartCapture(string target, string name, bool matte)
+    // shot full|menu|hud [name] [matte] [jpg]
+    private static CommandResult ShotCommand(CommandCall call)
     {
-        if (matte && target == "full") throw new ArgumentException("matte needs the menu or the HUD");
+        string target = call.Lower(1);
+        if (target == "ui") return UiShot(call);
+        var options = ParseShotOptions(call.Args.Skip(1).ToArray());
+        if (options.Matte && target == "full") throw new ArgumentException("matte needs the menu, the HUD or game UI");
         Rect? crop = target switch
         {
             "menu" => Menu.Visible ? Menu.ScreenRect : throw new InvalidOperationException("the menu is closed"),
             "hud" => Hud.ScreenRect is { width: > 0 } r ? r : throw new InvalidOperationException("the HUD is not shown"),
             "full" => null,
-            _ => throw new ArgumentException("shot target is full, menu or hud"),
+            _ => throw new ArgumentException("shot target is full, menu, hud or ui"),
         };
+        return StartCapture(new Capture { Name = SafeName(options.Name ?? target), Crop = crop, Matte = options.Matte, Jpg = options.Jpg });
+    }
 
+    private static CommandResult StartCapture(Capture capture)
+    {
         Directory.CreateDirectory(ShotDir);
-        string full = Path.Combine(ShotDir, "_screen.png");
-        if (File.Exists(full)) File.Delete(full);
-        if (matte) s_backdrop = Color.black;
-        ScreenCapture.CaptureScreenshot(full, 1);
-        var capture = new Capture { Name = SafeName(name), FullPath = full, Crop = crop, Deadline = Time.unscaledTime + ShotTimeoutSeconds, Matte = matte };
+        capture.FullPath = Path.Combine(ShotDir, "_screen.png");
+        capture.Deadline = Time.unscaledTime + ShotTimeoutSeconds;
+        if (File.Exists(capture.FullPath)) File.Delete(capture.FullPath);
+        if (capture.Matte) capture.Backdrop(Color.black);
+        ScreenCapture.CaptureScreenshot(capture.FullPath, 1);
         return new CommandResult(string.Empty) { Pending = () => ContinueCapture(capture) };
     }
 
@@ -61,7 +99,7 @@ internal static partial class DevCommands
     {
         if (Time.unscaledTime > capture.Deadline)
         {
-            s_backdrop = null;
+            capture.Backdrop(null);
             return $"error shot {capture.Name}: the screenshot was not written";
         }
         if (!File.Exists(capture.FullPath)) return null;
@@ -78,18 +116,19 @@ internal static partial class DevCommands
             File.Copy(capture.FullPath, capture.BlackPath, overwrite: true);
             File.Delete(capture.FullPath);
             capture.LastSize = -1;
-            s_backdrop = Color.white;
+            capture.Backdrop(Color.white);
             ScreenCapture.CaptureScreenshot(capture.FullPath, 1);
             return null;
         }
 
         try
         {
-            string output = Path.Combine(ShotDir, capture.Name + ".png");
+            string file = capture.Name + (capture.Jpg != null ? ".jpg" : ".png");
+            string output = Path.Combine(ShotDir, file);
             Vector2Int dims = capture.BlackPath != null && capture.Crop is Rect matteCrop
                 ? MatteTo(capture.BlackPath, capture.FullPath, matteCrop, output)
-                : capture.Crop is Rect crop ? CropTo(capture.FullPath, crop, output) : CopyFull(capture.FullPath, output);
-            return $"shot {capture.Name}.png {dims.x}x{dims.y}";
+                : capture.Crop is Rect crop ? CropTo(capture.FullPath, crop, output, capture.Jpg) : CopyFull(capture.FullPath, output, capture.Jpg);
+            return $"shot {file} {dims.x}x{dims.y}{capture.Note}";
         }
         catch (Exception e)
         {
@@ -97,22 +136,26 @@ internal static partial class DevCommands
         }
         finally
         {
-            s_backdrop = null;
+            capture.Backdrop(null);
             if (capture.BlackPath != null) File.Delete(capture.BlackPath);
         }
     }
 
-    private static Vector2Int CopyFull(string full, string output)
+    private static void Save(Texture2D texture, string output, int? jpg) =>
+        File.WriteAllBytes(output, (jpg is int quality ? ImageConversion.EncodeToJPG(texture, quality) : ImageConversion.EncodeToPNG(texture)).ToArray());
+
+    private static Vector2Int CopyFull(string full, string output, int? jpg)
     {
-        File.Copy(full, output, overwrite: true);
         var probe = LoadTexture(full);
         var dims = new Vector2Int(probe.width, probe.height);
+        if (jpg != null) Save(probe, output, jpg);
+        else File.Copy(full, output, overwrite: true);
         UnityEngine.Object.Destroy(probe);
         return dims;
     }
 
     // crop is in screen pixels with a top-left origin; textures count rows from the bottom.
-    private static Vector2Int CropTo(string full, Rect crop, string output)
+    private static Vector2Int CropTo(string full, Rect crop, string output, int? jpg)
     {
         Texture2D screen = LoadTexture(full);
         try
@@ -127,7 +170,7 @@ internal static partial class DevCommands
             var cut = new Texture2D(w, h, TextureFormat.RGBA32, false);
             cut.SetPixels(screen.GetPixels(x, y, w, h));
             cut.Apply();
-            File.WriteAllBytes(output, ImageConversion.EncodeToPNG(cut).ToArray());
+            Save(cut, output, jpg);
             UnityEngine.Object.Destroy(cut);
             return new Vector2Int(w, h);
         }
