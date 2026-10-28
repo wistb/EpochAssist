@@ -5,8 +5,13 @@
 #   tools/shot.sh "menu open macros" "shot menu macros" "menu close" "hud panel open" "shot hud"
 # Commands: menu open [feature id]|settings [tab], menu close, menu search [text], hud panel open|close,
 #           set [setting id] [value], state, status, hotkeys, actions, run [action], facts, compat, move [x] [y] [held], stopmove,
-#           probe [type] [filter], find [text], fonts, wait [frames|<n>ms], shot full|menu|hud [name] [matte] [jpg[quality]],
-#           shot ui tooltip|hovered|<name or path end, quoted when it has spaces>[#n] [name] [matte] [jpg[quality]],
+#           probe [type] [filter], find [text], fonts, wait [frames|<n>ms],
+#           see [game|ours|text|all] [filter] (numbered list of what is on screen: game windows, game controls and what covers
+#           them, our menu, HUD and menu controls; text adds game text; game-window pixels),
+#           shot view [name] (whole screen, numbered marks, 1600 px JPG; the marks become the see list),
+#           shot full|menu|hud [name], shot rect <x> <y> <w> <h> [name], shot #n [name] (item n of the see list),
+#           shot ui tooltip|hovered|<name or path end, quoted when it has spaces>[#n] [name];
+#           shot options in any order: matte, jpg[quality], marks, fit<long edge>, x2..x8 (enlarge, square pixels),
 #           theme list|set [name]|reload|problems|check, resources, toast [text], toasts, travel [scene], focus, draw test on|off,
 #           map [icons [n]|volumes|step radius|maxdist|patch on|off],
 #           planner [trees|nodes [id]|skills|selector open|close|open passive|skills|tree|picker|inventory|close|tab <n>|mastery|gear|idols|blessings|weaver|watch on|off|import [file]|check|resolve|show [stage]|paste [text]|host [url]|off],
@@ -14,6 +19,7 @@
 # Input (offline, game may stay unfocused; x y are game-window pixels from the top left): reaches the mod's menu and HUD,
 #           the game's panels and the game's key actions (movement, map, skills; aimed skills need a cursor step first).
 #           key <Key> [ms], down <Key>, up <Key>, click <x> <y> [left|right|middle], press <x> <y> <button> <ms>,
+#           (click, press, cursor, button and wheel take #n, item n of the last see list or shot marks, for x y),
 #           button down|up <button> [x y], cursor <x> <y>, wheel <x> <y> <notches> (game panels only; the mod's menu
 #           takes no wheel), type <text>, input, inputblock, wait <n>ms. move walks the character, it never moves the
 #           pointer. A batch's end lets go of every key and button. Use tools/devloader/input.ps1 only to prove real OS input reaches the game.

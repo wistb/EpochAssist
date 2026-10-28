@@ -13,6 +13,8 @@ internal static partial class DevCommands
         public string Name = string.Empty;
         public string FullPath = string.Empty;
         public Rect? Crop;
+        // Pixels kept around the crop on each side.
+        public float Pad = CropPad;
         public float Deadline;
         public long LastSize = -1;
         public bool Matte;
@@ -20,32 +22,59 @@ internal static partial class DevCommands
         public string? BlackPath;
         // Null saves a PNG; otherwise a JPG at this quality (1-100).
         public int? Jpg;
+        // Shrinks the image so its long edge is at most this; null keeps its size.
+        public int? Fit;
+        // Enlarges the image this many times, pixels kept square; 1 keeps its size.
+        public int Zoom = 1;
+        // The see list drawn on the image as numbered boxes; null draws none.
+        public List<SeenItem>? Marks;
         // Matte shots: puts the backdrop colour under what is captured; null takes it away.
         public Action<Color?> Backdrop = SetHudBackdrop;
         // Added to the reply, e.g. that our HUD covers part of the shot.
         public string Note = string.Empty;
+        // Lines after the reply, e.g. the marks' list.
+        public List<string> Legend = new();
+
+        public Capture With(ShotOptions options)
+        {
+            Matte = options.Matte;
+            Jpg = options.Jpg;
+            Fit = options.Fit;
+            Zoom = options.Zoom;
+            if (options.Marks) Marks = new();
+            return this;
+        }
     }
 
-    // What follows the target in a shot command: [name] [matte] [jpg|jpg<quality>], the flags in any order.
-    private sealed record ShotOptions(string? Name, bool Matte, int? Jpg);
+    // What follows the target in a shot command, the flags in any order: [name] [matte] [jpg|jpg<quality>] [marks]
+    // [fit<long edge>] [x2|x3|x4].
+    private sealed record ShotOptions(string? Name, bool Matte, int? Jpg, bool Marks, int? Fit, int Zoom);
 
-    private const int JpgQuality = 90;
+    private const int JpgQuality = 90, ViewFit = 1600, ViewJpg = 85, MaxZoom = 8;
+    private const float CropPad = 4f, ItemPad = 8f;
 
     private static ShotOptions ParseShotOptions(string[] args)
     {
         string? name = null;
-        bool matte = false;
-        int? jpg = null;
+        bool matte = false, marks = false;
+        int? jpg = null, fit = null;
+        int zoom = 1;
         foreach (string arg in args)
         {
             string lower = arg.ToLowerInvariant();
             if (lower == "matte") matte = true;
+            else if (lower == "marks") marks = true;
             else if (lower.StartsWith("jpg", StringComparison.Ordinal))
                 jpg = lower.Length == 3 ? JpgQuality : int.TryParse(lower[3..], out int q) && q is >= 1 and <= 100 ? q : throw new ArgumentException("jpg quality is 1 to 100, e.g. jpg85");
+            else if (lower.StartsWith("fit", StringComparison.Ordinal))
+                fit = int.TryParse(lower[3..], out int f) && f >= 16 ? f : throw new ArgumentException("fit takes the long edge in pixels, e.g. fit1600");
+            else if (lower.Length > 1 && lower[0] == 'x' && int.TryParse(lower[1..], out int z))
+                zoom = z is >= 1 and <= MaxZoom ? z : throw new ArgumentException($"zoom is x1 to x{MaxZoom}");
             else name ??= arg;
         }
         if (matte && jpg != null) throw new ArgumentException("matte needs a PNG; a JPG has no transparency");
-        return new ShotOptions(name, matte, jpg);
+        if (matte && marks) throw new ArgumentException("marks go on a plain shot, not a matte one");
+        return new ShotOptions(name, matte, jpg, marks, fit, zoom);
     }
 
     // Matte shots fill the screen under our HUD and menu with this colour; null draws nothing.
@@ -66,11 +95,35 @@ internal static partial class DevCommands
         GUI.matrix = matrix;
     }
 
-    // shot full|menu|hud [name] [matte] [jpg]
+    // shot full|menu|hud [options]; shot view [name]: the whole screen with marks, fitted, as a JPG; shot rect <x> <y>
+    // <w> <h> [options]: an exact area; shot #n [options]: item n of the last see list; shot ui: DevCommands.UiShots.
     private static CommandResult ShotCommand(CommandCall call)
     {
         string target = call.Lower(1);
         if (target == "ui") return UiShot(call);
+        if (target == "view")
+        {
+            var view = ParseShotOptions(call.Args.Skip(1).ToArray());
+            return StartCapture(new Capture { Name = SafeName(view.Name ?? "view"), Jpg = view.Jpg ?? ViewJpg, Fit = view.Fit ?? ViewFit, Zoom = view.Zoom, Marks = new() });
+        }
+        if (target == "rect")
+        {
+            if (call.Args.Length < 5 || !float.TryParse(call.Args[1], out float x) || !float.TryParse(call.Args[2], out float y)
+                || !float.TryParse(call.Args[3], out float w) || !float.TryParse(call.Args[4], out float h) || w < 1f || h < 1f)
+                throw new ArgumentException("usage: shot rect <x> <y> <w> <h> [options], game-window pixels from the top left");
+            var area = ParseShotOptions(call.Args.Skip(5).ToArray());
+            if (area.Matte) throw new ArgumentException("matte needs the menu, the HUD or game UI");
+            return StartCapture(new Capture { Name = SafeName(area.Name ?? "rect"), Crop = new Rect(x, y, w, h), Pad = 0f }.With(area));
+        }
+        if (target.StartsWith('#'))
+        {
+            if (!int.TryParse(target[1..], out int n) || n < 1 || n > s_seen.Count)
+                throw new ArgumentException(s_seen.Count == 0 ? "shot #n needs a see list first" : $"{target} is not in the last list ({s_seenWhat}: #1 to #{s_seen.Count})");
+            var item = ParseShotOptions(call.Args.Skip(1).ToArray());
+            if (item.Matte) throw new ArgumentException("matte needs the menu, the HUD or game UI; use shot ui with the item's name");
+            return StartCapture(new Capture { Name = SafeName(item.Name ?? $"item{n}"), Crop = s_seen[n - 1].Rect, Pad = ItemPad }.With(item));
+        }
+
         var options = ParseShotOptions(call.Args.Skip(1).ToArray());
         if (options.Matte && target == "full") throw new ArgumentException("matte needs the menu, the HUD or game UI");
         Rect? crop = target switch
@@ -78,13 +131,19 @@ internal static partial class DevCommands
             "menu" => Menu.Visible ? Menu.ScreenRect : throw new InvalidOperationException("the menu is closed"),
             "hud" => Hud.ScreenRect is { width: > 0 } r ? r : throw new InvalidOperationException("the HUD is not shown"),
             "full" => null,
-            _ => throw new ArgumentException("shot target is full, menu, hud or ui"),
+            _ => throw new ArgumentException("shot target is full, view, menu, hud, ui, rect or #n"),
         };
-        return StartCapture(new Capture { Name = SafeName(options.Name ?? target), Crop = crop, Matte = options.Matte, Jpg = options.Jpg });
+        return StartCapture(new Capture { Name = SafeName(options.Name ?? target), Crop = crop }.With(options));
     }
 
     private static CommandResult StartCapture(Capture capture)
     {
+        // The marks are what is on screen as the capture is taken; they become the see list, so #n matches the image.
+        if (capture.Marks != null)
+        {
+            capture.Marks = Look(string.Empty);
+            capture.Legend = Remember(capture.Marks, "shot marks");
+        }
         Directory.CreateDirectory(ShotDir);
         capture.FullPath = Path.Combine(ShotDir, "_screen.png");
         capture.Deadline = Time.unscaledTime + ShotTimeoutSeconds;
@@ -125,10 +184,10 @@ internal static partial class DevCommands
         {
             string file = capture.Name + (capture.Jpg != null ? ".jpg" : ".png");
             string output = Path.Combine(ShotDir, file);
-            Vector2Int dims = capture.BlackPath != null && capture.Crop is Rect matteCrop
-                ? MatteTo(capture.BlackPath, capture.FullPath, matteCrop, output)
-                : capture.Crop is Rect crop ? CropTo(capture.FullPath, crop, output, capture.Jpg) : CopyFull(capture.FullPath, output, capture.Jpg);
-            return $"shot {file} {dims.x}x{dims.y}{capture.Note}";
+            Vector2Int dims = Develop(capture, output);
+            var lines = new List<string> { $"shot {file} {dims.x}x{dims.y}{capture.Note}" };
+            lines.AddRange(capture.Legend);
+            return DevOutput.Reply("shot", lines);
         }
         catch (Exception e)
         {
@@ -141,58 +200,80 @@ internal static partial class DevCommands
         }
     }
 
-    private static void Save(Texture2D texture, string output, int? jpg) =>
-        File.WriteAllBytes(output, (jpg is int quality ? ImageConversion.EncodeToJPG(texture, quality) : ImageConversion.EncodeToPNG(texture)).ToArray());
-
-    private static Vector2Int CopyFull(string full, string output, int? jpg)
+    // The captured screen to the saved image: cut (or matte), marks, size, encode.
+    private static Vector2Int Develop(Capture capture, string output)
     {
-        var probe = LoadTexture(full);
-        var dims = new Vector2Int(probe.width, probe.height);
-        if (jpg != null) Save(probe, output, jpg);
-        else File.Copy(full, output, overwrite: true);
-        UnityEngine.Object.Destroy(probe);
-        return dims;
-    }
-
-    // crop is in screen pixels with a top-left origin; textures count rows from the bottom.
-    private static Vector2Int CropTo(string full, Rect crop, string output, int? jpg)
-    {
-        Texture2D screen = LoadTexture(full);
+        bool plain = capture.Crop == null && capture.Marks == null && capture.Fit == null && capture.Zoom == 1 && capture.Jpg == null;
+        Texture2D image;
+        if (capture.BlackPath != null && capture.Crop is Rect matteCrop)
+        {
+            image = Matte(LoadTexture(capture.BlackPath), LoadTexture(capture.FullPath), matteCrop, capture.Pad);
+        }
+        else
+        {
+            image = Cut(LoadTexture(capture.FullPath), capture.Crop, capture.Pad, out Rect area);
+            if (capture.Marks != null) DrawMarks(image, area, capture.Marks);
+        }
         try
         {
-            float sx = screen.width / (float)Screen.width, sy = screen.height / (float)Screen.height;
-            int x = Mathf.Clamp(Mathf.FloorToInt((crop.x - 4f) * sx), 0, screen.width - 1);
-            int w = Mathf.Clamp(Mathf.CeilToInt((crop.width + 8f) * sx), 1, screen.width - x);
-            int top = Mathf.Clamp(Mathf.FloorToInt((crop.y - 4f) * sy), 0, screen.height - 1);
-            int h = Mathf.Clamp(Mathf.CeilToInt((crop.height + 8f) * sy), 1, screen.height - top);
-            int y = screen.height - top - h;
-
-            var cut = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            cut.SetPixels(screen.GetPixels(x, y, w, h));
-            cut.Apply();
-            Save(cut, output, jpg);
-            UnityEngine.Object.Destroy(cut);
-            return new Vector2Int(w, h);
+            if (capture.Fit is int fit && Mathf.Max(image.width, image.height) > fit)
+            {
+                float k = fit / (float)Mathf.Max(image.width, image.height);
+                image = Resized(image, Mathf.RoundToInt(image.width * k), Mathf.RoundToInt(image.height * k), FilterMode.Bilinear);
+            }
+            if (capture.Zoom > 1) image = Resized(image, image.width * capture.Zoom, image.height * capture.Zoom, FilterMode.Point);
+            if (plain) File.Copy(capture.FullPath, output, overwrite: true);
+            else Save(image, output, capture.Jpg);
+            return new Vector2Int(image.width, image.height);
         }
         finally
         {
-            UnityEngine.Object.Destroy(screen);
+            UnityEngine.Object.Destroy(image);
         }
     }
 
-    // Over black a pixel reads a·c, over white a·c + (1 − a): the difference gives alpha, the black capture the colour.
-    // The result is trimmed to the pixels that were drawn.
-    private static Vector2Int MatteTo(string blackPath, string whitePath, Rect crop, string output)
+    private static void Save(Texture2D texture, string output, int? jpg) =>
+        File.WriteAllBytes(output, (jpg is int quality ? ImageConversion.EncodeToJPG(texture, quality) : ImageConversion.EncodeToPNG(texture)).ToArray());
+
+    // The crop's pixels, padded, as a new texture (the screen texture is let go); no crop gives the screen itself. area is
+    // the part of the screen the result covers, in screen pixels from the top left.
+    private static Texture2D Cut(Texture2D screen, Rect? crop, float pad, out Rect area)
     {
-        Texture2D black = LoadTexture(blackPath), white = LoadTexture(whitePath);
+        float sx = screen.width / (float)Screen.width, sy = screen.height / (float)Screen.height;
+        if (crop is not Rect c)
+        {
+            area = new Rect(0f, 0f, Screen.width, Screen.height);
+            return screen;
+        }
+        var (x, top, w, h) = PixelArea(screen, c, pad);
+        int y = screen.height - top - h;
+        var cut = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        cut.SetPixels(screen.GetPixels(x, y, w, h));
+        cut.Apply();
+        UnityEngine.Object.Destroy(screen);
+        area = new Rect(x / sx, top / sy, w / sx, h / sy);
+        return cut;
+    }
+
+    // crop is in screen pixels with a top-left origin; the result is in the texture's pixels, still from the top.
+    private static (int X, int Top, int W, int H) PixelArea(Texture2D texture, Rect crop, float pad)
+    {
+        float sx = texture.width / (float)Screen.width, sy = texture.height / (float)Screen.height;
+        int x = Mathf.Clamp(Mathf.FloorToInt((crop.x - pad) * sx), 0, texture.width - 1);
+        int w = Mathf.Clamp(Mathf.CeilToInt((crop.xMax + pad) * sx) - x, 1, texture.width - x);
+        int top = Mathf.Clamp(Mathf.FloorToInt((crop.y - pad) * sy), 0, texture.height - 1);
+        int h = Mathf.Clamp(Mathf.CeilToInt((crop.yMax + pad) * sy) - top, 1, texture.height - top);
+        return (x, top, w, h);
+    }
+
+    // Over black a pixel reads a·c, over white a·c + (1 − a): the difference gives alpha, the black capture the colour.
+    // The result is trimmed to the pixels that were drawn; both captures are let go.
+    private static Texture2D Matte(Texture2D black, Texture2D white, Rect crop, float pad)
+    {
         try
         {
             if (black.width != white.width || black.height != white.height) throw new IOException("the two captures differ in size");
-            float sx = black.width / (float)Screen.width, sy = black.height / (float)Screen.height;
-            int x = Mathf.Clamp(Mathf.FloorToInt((crop.x - 4f) * sx), 0, black.width - 1);
-            int w = Mathf.Clamp(Mathf.CeilToInt((crop.width + 8f) * sx), 1, black.width - x);
-            int top = Mathf.Clamp(Mathf.FloorToInt((crop.y - 4f) * sy), 0, black.height - 1);
-            int h = Mathf.Clamp(Mathf.CeilToInt((crop.height + 8f) * sy), 1, black.height - top);
+            var (x, top, w, h) = PixelArea(black, crop, pad);
             int y = black.height - top - h;
 
             var overBlack = black.GetPixels(x, y, w, h);
@@ -218,14 +299,37 @@ internal static partial class DevCommands
             var cut = new Texture2D(tw, th, TextureFormat.RGBA32, false);
             cut.SetPixels(trimmed);
             cut.Apply();
-            File.WriteAllBytes(output, ImageConversion.EncodeToPNG(cut).ToArray());
-            UnityEngine.Object.Destroy(cut);
-            return new Vector2Int(tw, th);
+            return cut;
         }
         finally
         {
             UnityEngine.Object.Destroy(black);
             UnityEngine.Object.Destroy(white);
+        }
+    }
+
+    // A resized copy drawn on the GPU (the source is let go): Bilinear to shrink, Point to enlarge with square pixels.
+    private static Texture2D Resized(Texture2D source, int w, int h, FilterMode filter)
+    {
+        w = Mathf.Max(1, w);
+        h = Mathf.Max(1, h);
+        var before = RenderTexture.active;
+        var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        try
+        {
+            source.filterMode = filter;
+            Graphics.Blit(source, rt);
+            RenderTexture.active = rt;
+            var result = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            result.ReadPixels(new Rect(0f, 0f, w, h), 0, 0, false);
+            result.Apply();
+            return result;
+        }
+        finally
+        {
+            RenderTexture.active = before;
+            RenderTexture.ReleaseTemporary(rt);
+            UnityEngine.Object.Destroy(source);
         }
     }
 

@@ -35,7 +35,7 @@ internal static partial class DevCommands
         Rect crop = Rect.MinMaxRect(Mathf.Max(r.xMin, 0f), Mathf.Max(r.yMin, 0f), Mathf.Min(r.xMax, Screen.width), Mathf.Min(r.yMax, Screen.height));
 
         string name = options.Name ?? (spec is "tooltip" or "hovered" ? spec : roots[0].name);
-        var capture = new Capture { Name = SafeName(name), Crop = crop, Matte = options.Matte, Jpg = options.Jpg, Note = OverlapNote(crop) };
+        var capture = new Capture { Name = SafeName(name), Crop = crop, Note = OverlapNote(crop) }.With(options);
         if (options.Matte) capture.Backdrop = UiBackdrop(roots);
         return StartCapture(capture);
     }
