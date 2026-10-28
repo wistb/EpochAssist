@@ -620,8 +620,9 @@ internal static partial class Planner
         {
             if (UITooltipItem.instance?._itemTooltipPrompts is { } prompts && Game.Alive(prompts) && !prompts.gameObject.activeSelf)
                 prompts.gameObject.SetActive(true);
-            // Whichever manager shows it: the scene can hold more than one.
-            TooltipItemManager.ForceClose();
+            // Whichever manager shows it (the scene can hold more than one); only while one shows an item: before the
+            // game's UI is up (a load at character select) ForceClose has no manager to close and throws.
+            if (Tooltips() is { ActiveItem: not null }) TooltipItemManager.ForceClose();
         }
         catch (Exception e)
         {
