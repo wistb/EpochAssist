@@ -71,6 +71,9 @@ internal static class SessionsPage
     /// <summary>The Current session page shows the sample instead of the session (dev builds, not kept).</summary>
     public static bool ShowSample { get; set; }
 
+    /// <summary>Dev builds: the sample shows without its switch and banner (page images, `sessions sample quiet`).</summary>
+    public static bool SampleQuiet { get; set; }
+
     /// <summary>Every figure that can be in focus, in the order the tiles and chips show them.</summary>
     public static readonly SessionMetric[] Metrics =
     {
@@ -119,8 +122,8 @@ internal static class SessionsPage
         {
             ShowSample = on;
             Current.Reset();
-        }) { VisibleWhen = () => SampleStats != null, Key = "toggle.sample" };
-        yield return new BannerRow(() => ShowSample && SampleStats != null ? "Sample figures, generated to show every part of the page; not your session." : null);
+        }) { VisibleWhen = () => SampleStats != null && !SampleQuiet, Key = "toggle.sample" };
+        yield return new BannerRow(() => ShowSample && SampleStats != null && !SampleQuiet ? "Sample figures, generated to show every part of the page; not your session." : null);
         yield return new HintRow(() => SessionSettings.History.Value ? "No session yet. One starts when a character enters a zone." : "Session history is off.")
         {
             VisibleWhen = () => Sessions.Current == null && !(ShowSample && SampleStats != null),
@@ -647,13 +650,13 @@ internal static class SessionsPage
         new(EchoesBlock, "No echoes yet.",
             new Column[]
             {
-                new("Echo", 1.1f), new("Clear", 0.8f, true), new("Total", 0.8f, true), new("Favour", 0.8f, true), new("Reputation", 1f, true), new("Amber", 0.8f, true),
-                new("Drops", 0.7f, true), new("Modifier", 1f), new("Stability", 0.8f, true), new("Reward", 1.3f), new("Corruption", 1f, true),
+                new("Echo", 1.7f), new("Clear", 0.7f, true), new("Total", 0.7f, true), new("Favour", 0.85f, true), new("Reputation", 1.05f, true), new("Amber", 0.7f, true),
+                new("Drops", 0.6f, true), new("Modifier", 1.65f), new("Stability", 0.75f, true), new("Reward", 1.3f), new("Corruption", 0.9f, true),
             },
             s => s.Runs.Count, (s, i) => EchoRow(s, s.Runs[s.Runs.Count - 1 - i]), d => d.AllEchoes, (d, v) => d.AllEchoes = v),
-        new(DeathsBlock, "No deaths.", new Column[] { new("Time", 0.7f), new("Zone", 1f), new("Killer", 1.4f), new("Damage", 1f) },
+        new(DeathsBlock, "No deaths.", new Column[] { new("Time", 0.65f), new("Zone", 1.3f), new("Killer", 1.3f), new("Damage", 0.9f) },
             s => s.Deaths.Count, (s, i) => DeathRow(s.Deaths[s.Deaths.Count - 1 - i]), d => d.AllDeaths, (d, v) => d.AllDeaths = v),
-        new(PicksBlock, "No picks yet.", new Column[] { new("Time", 0.7f), new("Modifier", 1f), new("Stability", 0.8f, true), new("Reward", 1.3f), new("Corruption", 0.9f, true) },
+        new(PicksBlock, "No picks yet.", new Column[] { new("Time", 0.65f), new("Modifier", 1.7f), new("Stability", 0.75f, true), new("Reward", 1.2f), new("Corruption", 0.85f, true) },
             s => s.Picks.Count, (s, i) => PickRow(s.Picks[s.Picks.Count - 1 - i]), d => d.AllPicks, (d, v) => d.AllPicks = v),
         new(FilteredBlock, string.Empty, new Column[] { new("Time", 0.6f), new("Item", 2f), new("Base", 1.6f), new("Rarity", 0.8f) },
             s => s.ShownDrops.Count, (s, i) => DropRow(s.ShownDrops[s.ShownDrops.Count - 1 - i]), d => d.AllDrops, (d, v) => d.AllDrops = v),
