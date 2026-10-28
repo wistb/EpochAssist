@@ -2,6 +2,13 @@ using EpochAssist.Core;
 
 namespace EpochAssist.Features;
 
+/// <summary>Which side of its node the next point's label sits on.</summary>
+internal enum LabelSide { Top, Bottom, Left, Right }
+
+/// <summary>What the next point's label sits on: the game's own point-counter box, a dark plate, or nothing (an outline
+/// round the text).</summary>
+internal enum LabelBack { Game, Plate, None }
+
 internal static class PlannerSettings
 {
     // Stored ids are a contract. Renaming or retyping one raises the version and adds a migration for it. The library
@@ -14,25 +21,6 @@ internal static class PlannerSettings
     {
         Help = "Marks the active build on the passive tree, skill trees and skill screens.",
     };
-
-    public static readonly Section Marks = Group.Section("marks", "Marks");
-    public static readonly Toggle PassiveMarks = new(Marks, "PassiveMarks", "Passive tree", true)
-    {
-        Help = "Marks planned nodes on the class and mastery trees.",
-    };
-    public static readonly Toggle SkillTreeMarks = new(Marks, "SkillTreeMarks", "Skill trees", true)
-    {
-        Help = "Marks planned nodes on each specialised skill's tree.",
-    };
-    public static readonly Toggle SkillChoiceMarks = new(Marks, "SkillChoiceMarks", "Skill choice", true)
-    {
-        Help = "Marks skills in the skill selection panel and on the Skills & Specializations page.",
-    };
-    public static readonly Toggle NextSteps = new(Marks, "NextSteps", "Next steps", true)
-    {
-        Help = "Pulses the node the next point goes into.",
-    };
-    public static readonly Number NextCount = new(Marks, "NextCount", "Next steps shown", 5f, 1f, 20f) { Step = 1f };
 
     public static readonly Section Colours = Group.Section("colours", "Colours");
     public static readonly ColorSetting MatchColour = new(Colours, "MatchColour", "Matches", "#3FBF5F");
@@ -48,66 +36,121 @@ internal static class PlannerSettings
     {
         Step = 0.05f, Slider = true, Percent = true,
     };
-    public static readonly Number OutlineSize = new(Overlay, "OutlineSize", "Outline size", 1f, 0.8f, 1.4f)
-    {
-        Step = 0.05f, Slider = true, Percent = true,
-    };
-    public static readonly Toggle FillTint = new(Overlay, "FillTint", "Fill tint", false)
-    {
-        Help = "Also tints the node's inside faintly in its state colour.",
-    };
-    public static readonly Number FillOpacity = new(Overlay, "FillOpacity", "Fill opacity", 0.2f, 0.05f, 0.6f)
-    {
-        Step = 0.05f, Slider = true, Percent = true,
-    };
     public static readonly Toggle ShowMatches = new(Overlay, "ShowMatches", "Show matches", true);
     public static readonly Toggle ShowPartial = new(Overlay, "ShowPartial", "Show partial", true);
     public static readonly Toggle ShowToPlace = new(Overlay, "ShowToPlace", "Show to place", true);
     public static readonly Toggle ShowOffPlan = new(Overlay, "ShowOffPlan", "Show not in build", true);
+    public static readonly Toggle HoverHints = new(Overlay, "HoverHints", "Hover hints", true)
+    {
+        Help = "Hold the pointer on a marked node, slot or skill and the mini HUD says what the build wants there.",
+    };
+    public static readonly Number HoverDelay = new(Overlay, "HoverDelay", "Hover delay", 0.8f, 0.2f, 3f)
+    {
+        Step = 0.1f, Slider = true, Unit = " s",
+    };
+    public static readonly Choice<string> HintPosition = new(Overlay, "HintPosition", "Hint position", "cursor", ("cursor", "At cursor"), ("hud", "Mini HUD"))
+    {
+        Help = "At cursor sits beside the game's own tooltip when one shows, so neither covers the other.",
+    };
 
-    public static readonly Section NextPoint = Group.Section("next", "Next point");
-    public static readonly Toggle NextLabel = new(NextPoint, "NextLabel", "Next point label", true);
-    public static readonly Number NextLabelSize = new(NextPoint, "NextLabelSize", "Label size", 14f, 10f, 28f) { Step = 1f };
-    public static readonly Toggle HighlightNext = new(NextPoint, "HighlightNext", "Highlight next steps", false)
-    {
-        Help = "Gives the next steps after the pulsing node a brighter, thicker outline, up to 'Next steps shown'.",
-    };
-    public static readonly Toggle NextOwnColour = new(NextPoint, "NextOwnColour", "Own colour for the next point", false);
-    public static readonly ColorSetting NextColour = new(NextPoint, "NextColour", "Next point colour", "#FFD84A");
-
-    public static readonly Section Panels = Group.Section("panels", "Panels");
-    public static readonly Number PassiveOpacity = new(Panels, "PassiveOpacity", "Passive tree opacity", 1f, 0.1f, 1f)
-    {
-        Step = 0.05f, Slider = true, Percent = true,
-    };
-    public static readonly Number SkillTreeOpacity = new(Panels, "SkillTreeOpacity", "Skill tree opacity", 1f, 0.1f, 1f)
-    {
-        Step = 0.05f, Slider = true, Percent = true,
-    };
-    public static readonly Number SkillChoiceOpacity = new(Panels, "SkillChoiceOpacity", "Skill choice opacity", 1f, 0.1f, 1f)
-    {
-        Step = 0.05f, Slider = true, Percent = true,
-    };
-    public static readonly Toggle SkillOffPlanNodes = new(Panels, "SkillOffPlanNodes", "Mark nodes of skills not in the build", false)
+    // The look every interface uses: its marks' opacity, outline size and fill, and on the trees the next point. Each
+    // interface has its own page under it with its marks switch and, when "Own look" is on, its own copy of the look
+    // (bolder marks on small icons than on tree nodes, say). Only the trees have a next point.
+    public static readonly PanelLook Interfaces = new(Group.Section("interfaces", "Interfaces"), "Interfaces", next: true);
+    public static readonly PanelLook PassiveLook = new(Group.Section("passive", "Passive tree"), "Passive",
+        ("PassiveMarks", "Marks planned nodes on the class and mastery trees."), next: true);
+    public static readonly PanelLook SkillTreeLook = new(Group.Section("skilltree", "Skill trees"), "SkillTree",
+        ("SkillTreeMarks", "Marks planned nodes on each specialised skill's tree."), next: true);
+    public static readonly Toggle SkillOffPlanNodes = new(SkillTreeLook.Section, "SkillOffPlanNodes", "Mark nodes of skills not in the build", false)
     {
         Help = "Marks every allocated node of a specialised skill the build doesn't use; otherwise its tree shows only the note.",
     };
+    public static readonly PanelLook SkillChoiceLook = new(Group.Section("skillchoice", "Skill selection"), "SkillChoice",
+        ("SkillChoiceMarks", "Marks the bar's slots and the planned skill while the skill selection opened from a bar slot is open."));
+    public static readonly PanelLook SkillsPageLook = new(Group.Section("skillspage", "Skills & Specializations"), "SkillsPage",
+        ("SkillsPageMarks", "Marks each skill and specialisation slot on the Skills & Specializations page."));
 
-    // A site's row exists only where its link import is offered, so a release build shows no switch for a site that
-    // hasn't agreed.
-    public static readonly Section? Sites = PlannerSites.Shown(PlannerSite.Maxroll) || PlannerSites.Shown(PlannerSite.LastEpochTools)
-        ? Group.Section("sites", "Sites")
-        : null;
-    public static readonly Toggle? MaxrollLinks = PlannerSites.Shown(PlannerSite.Maxroll)
-        ? new(Sites!, "MaxrollLinks", "Maxroll links", true) { Help = "Pasting a Maxroll link fetches that one build from Maxroll." }
-        : null;
-    public static readonly Toggle? LetLinks = PlannerSites.Shown(PlannerSite.LastEpochTools)
-        ? new(Sites!, "LetLinks", "Last Epoch Tools links", true) { Help = "Pasting a Last Epoch Tools link fetches that one build from Last Epoch Tools." }
-        : null;
+    public static readonly PanelLook[] Panels = { PassiveLook, SkillTreeLook, SkillChoiceLook, SkillsPageLook };
 
-    /// <summary>A site's links fetch: offered in this build and switched on.</summary>
-    public static bool SiteOn(PlannerSite site) =>
-        PlannerSites.Shown(site) && ((site == PlannerSite.Maxroll ? MaxrollLinks : LetLinks)?.Value ?? false);
+    /// <summary>The look a panel draws with: its own while "Own look" is on, else Interfaces'.</summary>
+    public static PanelLook InUse(PanelLook panel) => panel.Own?.Value == true ? panel : Interfaces;
+
+    internal sealed class PanelLook
+    {
+        public readonly Section Section;
+        /// <summary>The panel's marks switch and its "Own look" switch; null on Interfaces.</summary>
+        public readonly Toggle? Marks, Own;
+        public readonly Number Opacity, Size, FillOpacity;
+        public readonly Toggle Fill;
+        /// <summary>The next point's settings; null where the interface has none.</summary>
+        public readonly NextPointLook? Next;
+
+        public PanelLook(Section section, string id, (string Id, string Help)? marks = null, bool next = false)
+        {
+            Section = section;
+            if (marks is { } m)
+            {
+                Marks = new(section, m.Id, "Show marks", true) { Help = m.Help };
+                Own = new(section, id + "OwnLook", "Own look", false) { Help = "Uses the settings below instead of Interfaces'." };
+            }
+            Opacity = new(section, id + "Opacity", "Opacity", 1f, 0.1f, 1f) { Step = 0.05f, Slider = true, Percent = true };
+            Size = new(section, id + "OutlineSize", "Outline size", 1f, 0.8f, 1.4f) { Step = 0.05f, Slider = true, Percent = true };
+            Fill = new(section, id + "FillTint", "Fill tint", false) { Help = "Also tints the inside faintly in its state colour." };
+            FillOpacity = new(section, id + "FillOpacity", "Fill opacity", 0.2f, 0.05f, 0.6f) { Step = 0.05f, Slider = true, Percent = true };
+            // The shared ones keep the ids they had on their own page.
+            if (next) Next = new NextPointLook(section, marks == null ? string.Empty : id);
+        }
+    }
+
+    internal sealed class NextPointLook
+    {
+        public readonly Toggle Steps, Label, OwnColour;
+        public readonly Number LabelSize, LabelX, LabelY;
+        public readonly Choice<string> LabelSide, LabelBackground, LabelFormat;
+        public readonly ColorSetting Colour;
+
+        public NextPointLook(Section section, string id)
+        {
+            Steps = new(section, id + "NextSteps", "Next steps", true) { Help = "Pulses the node the next point goes into." };
+            Label = new(section, id + "NextLabel", "Next point label", true);
+            LabelSize = new(section, id + "NextLabelSize", "Label size", 16f, 10f, 28f) { Step = 1f };
+            LabelFormat = new(section, id + "NextLabelFormat", "Label format", "slash", ("compare", "1 < 5"), ("slash", "1/5"))
+            {
+                Help = "1 < 5: points now, then after the next point. 1/5: after the next point, out of the plan.",
+            };
+            LabelSide = new(section, id + "NextLabelPosition", "Label position", "bottom",
+                ("top", "Top"), ("bottom", "Bottom"), ("left", "Left"), ("right", "Right"));
+            LabelBackground = new(section, id + "NextLabelBackground", "Label background", "game",
+                ("game", "Game box"), ("plate", "Dark plate"), ("none", "None"))
+            {
+                Help = "Game box looks like the nodes' own point counters; None outlines the text instead.",
+                Sample = Planner.LabelSample,
+            };
+            LabelX = new(section, id + "NextLabelX", "Label offset X", 0f, -60f, 60f) { Step = 1f, Slider = true };
+            LabelY = new(section, id + "NextLabelY", "Label offset Y", 20f, -60f, 60f) { Step = 1f, Slider = true };
+            OwnColour = new(section, id + "NextOwnColour", "Own colour for the next point", false);
+            Colour = new(section, id + "NextColour", "Next point colour", "#FFD84A");
+        }
+
+        public LabelSide Side => LabelSide.Value switch
+        {
+            "bottom" => Features.LabelSide.Bottom,
+            "left" => Features.LabelSide.Left,
+            "right" => Features.LabelSide.Right,
+            _ => Features.LabelSide.Top,
+        };
+
+        public LabelBack Back => LabelBackground.Value switch
+        {
+            "plate" => LabelBack.Plate,
+            "none" => LabelBack.None,
+            _ => LabelBack.Game,
+        };
+
+        public bool Slash => LabelFormat.Value == "slash";
+
+        public IEnumerable<Setting> All => new Setting[] { Steps, Label, LabelSize, LabelFormat, LabelSide, LabelBackground, LabelX, LabelY, OwnColour, Colour };
+    }
 
     /// <summary>A state's colour; an emptied colour falls back to its default.</summary>
     public static UnityEngine.Color Colour(ColorSetting setting) =>

@@ -24,6 +24,7 @@ internal static partial class Planner
     public const string SkillChoiceGroup = "skill choice";
     public const string SkillsPageGroup = "skills page";
     public const string GameDataGroup = "game data";
+    public const string OpenUiGroup = "open ui";
 
     private const float FetchPollSeconds = 0.1f;
     private const float PanelSeconds = 0.1f;
@@ -46,7 +47,6 @@ internal static partial class Planner
         public ulong GuidedSignature;
         public Build? GuidedBuild;
         public int GuidedStage = -1;
-        public int GuidedCount;
         // The passive tree's marks and what they were made from; any change makes them again.
         public readonly List<PlannerMark> PassiveMarks = new();
         public IntPtr MarkedTree;
@@ -62,6 +62,12 @@ internal static partial class Planner
         public Guidance? SkillMarkedGuidance;
         public MarkLook SkillMarkedLook;
         public string? SkillWords;
+        // The skill choice marks (selection panel or Skills page) and what they were made from.
+        public readonly List<PlannerMark> ChoiceMarks = new();
+        public GuidedPanel ChoicePanel;
+        public int ChoiceKey = int.MinValue;
+        public Guidance? ChoiceMarkedGuidance;
+        public MarkLook ChoiceMarkedLook;
         public (int Class, int Mastery) MasteryWordsFor = (-1, -1);
         public string? MasteryWords;
         public string StatusDetail = "Off";
@@ -106,6 +112,8 @@ internal static partial class Planner
             ImportChanged();
         }
         Fetch.Drop();
+        if (s_run is { } stopping) ClearHint(stopping);
+        s_hovered = null;
         Marks.Release();
         Panels.Forget();
         s_run = null;
@@ -114,6 +122,8 @@ internal static partial class Planner
     /// <summary>A new scene destroys the game's panels with the marks under them.</summary>
     public static void OnSceneChanged()
     {
+        if (s_run is { } run0) ClearHint(run0);
+        s_hovered = null;
         Marks.ClearAll();
         Panels.Forget();
         if (s_run is { } run)
@@ -121,6 +131,7 @@ internal static partial class Planner
             run.Open = GuidedPanel.None;
             ClearPassiveMarks(run);
             ClearSkillMarks(run);
+            ClearChoiceMarks(run);
         }
     }
 
@@ -176,7 +187,6 @@ internal static partial class Planner
         {
             // A site whose link import isn't offered treats its links as any other text.
             if (!PlannerSites.Shown(site)) return new PasteResult(Words.NotABuild);
-            if (!S.SiteOn(site)) return new PasteResult(Words.SiteOff(site));
             if (!Fetch.Start(site, paste)) return new PasteResult(Words.Busy);
             s_failedLetLink = null;
             s_fetching = paste;
@@ -298,6 +308,7 @@ internal static partial class Planner
                 Marks.ClearAll();
                 ClearPassiveMarks(run);
                 ClearSkillMarks(run);
+                ClearChoiceMarks(run);
             }
             if (run.LibraryGeneration != Library.Generation)
             {
@@ -315,6 +326,8 @@ internal static partial class Planner
             // Here too, for a page or tree change, a switch turned off or the panel closing.
             MarkPassive(run);
             MarkSkillTree(run);
+            MarkSkillChoice(run);
+            Hover(run);
         }
         catch (Exception e)
         {
@@ -333,6 +346,7 @@ internal static partial class Planner
             // A spent point recolours the marks in the same frame.
             if (run.Open == GuidedPanel.Passive && run.Guidance != run.MarkedGuidance) MarkPassive(run);
             else if (run.Open == GuidedPanel.SkillTree && run.Guidance != run.SkillMarkedGuidance) MarkSkillTree(run);
+            else if (run.Open is GuidedPanel.SkillChoice or GuidedPanel.SkillsPage && run.Guidance != run.ChoiceMarkedGuidance) MarkSkillChoice(run);
         }
         catch (Exception e)
         {
@@ -417,8 +431,15 @@ internal static partial class Planner
             allocation.Skills[skill.treeID] = have;
         }
         var bar = PlayerModel.Slots;
-        for (int i = 0; i < allocation.Bar.Length; i++) allocation.Bar[i] = bar != null && i < bar.Count ? bar[i]?.AbilityId : null;
+        for (int i = 0; i < allocation.Bar.Length; i++)
+        {
+            string? id = bar != null && i < bar.Count ? bar[i]?.AbilityId : null;
+            allocation.Bar[i] = id == EmptySlotId ? null : id;
+        }
     }
+
+    // The ability the game puts in a slot the player emptied.
+    private const string EmptySlotId = "na28";
 
     // Entries at 0 points (left by a respec or a refused click) aren't allocated.
     private static void FillNodes(Dictionary<byte, byte> into, Il2CppSystem.Collections.Generic.List<LocalTreeData.NodeData>? nodes)
@@ -432,19 +453,19 @@ internal static partial class Planner
         }
     }
 
+    // How many of each tree's next steps are worked out, for the tab's list; the marks label and pulse only the first.
+    private const int NextStepCount = 5;
+
     private static void CompareIfChanged(Run run)
     {
-        int count = (int)S.NextCount.Value;
-        if (run.Guidance != null && run.GuidedSignature == run.Allocation.Signature && run.GuidedBuild == run.Build && run.GuidedStage == run.Stage
-            && run.GuidedCount == count) return;
+        if (run.Guidance != null && run.GuidedSignature == run.Allocation.Signature && run.GuidedBuild == run.Build && run.GuidedStage == run.Stage) return;
         var build = run.Build!;
         var stage = build.Stages[run.Stage];
         var resolution = Resolve(build);
-        run.Guidance = Compare(stage, resolution, run.Allocation, RequiredMastery(run.Feature, stage.Passive.TreeId), count);
+        run.Guidance = Compare(stage, resolution, run.Allocation, RequiredMastery(run.Feature, stage.Passive.TreeId), NextStepCount);
         run.GuidedSignature = run.Allocation.Signature;
         run.GuidedBuild = build;
         run.GuidedStage = run.Stage;
-        run.GuidedCount = count;
     }
 
     // Null when the game data can't be read: then no node is left out for a different mastery.

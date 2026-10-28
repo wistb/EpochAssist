@@ -1,5 +1,7 @@
 using EpochAssist.Core;
 using EpochAssist.Features.PlannerFormats;
+using Il2Cpp;
+using UnityEngine;
 using S = EpochAssist.Features.PlannerSettings;
 
 namespace EpochAssist.Features;
@@ -226,6 +228,12 @@ internal static partial class Planner
         rows.Add(new HeadingRow("Specialisations") { VisibleWhen = () => Specialisations(id) });
         rows.Add(new HintRow(() => s_specMissing ?? string.Empty) { Key = "spec.missing", VisibleWhen = () => Specialisations(id) && s_specMissing != null });
         rows.Add(new HintRow(() => s_specExtra ?? string.Empty) { Key = "spec.notinbuild", VisibleWhen = () => Specialisations(id) && s_specExtra != null });
+        rows.Add(new HeadingRow("Skill bar") { VisibleWhen = () => BarShown(id) });
+        for (int i = 0; i < Stage.BarSlots; i++)
+        {
+            int slot = i;
+            rows.Add(new LiveText($"Slot {slot + 1}", () => (BarText(slot), null)) { Key = $"bar.{slot}", VisibleWhen = () => BarShown(id) });
+        }
 
         var editor = new LibraryEditor(id, () => build.Name, () => rows) { Note = () => credit };
         if (build.Url is { } url)
@@ -281,6 +289,41 @@ internal static partial class Planner
         return names != null ? lead + string.Join(", ", names) + "." : null;
     }
 
+    // The planned bar beside the current one, slot by slot in its state's colour, for the character's build; made again
+    // only when the guidance or a colour changes.
+    private static Guidance? s_barFor;
+    private static (Color, Color, Color, Color) s_barColours;
+    private static readonly string[] s_barText = new string[Stage.BarSlots];
+
+    private static bool BarShown(string id)
+    {
+        if (s_run is not { Guidance: { } guidance, Build: { } build } run || build.Id != id) return false;
+        var colours = (S.Colour(S.MatchColour), S.Colour(S.PartialColour), S.Colour(S.ToPlaceColour), S.Colour(S.OffPlanColour));
+        if (s_barFor == guidance && s_barColours == colours) return true;
+        s_barFor = guidance;
+        s_barColours = colours;
+        var stage = build.Stages[run.Stage];
+        var have = run.Allocation.Bar;
+        for (int i = 0; i < Stage.BarSlots; i++)
+        {
+            string planned = stage.Bar[i] is { } p ? AbilityName(run.Feature, p, p) : "nothing planned";
+            string now = have[i] is { } h ? AbilityName(run.Feature, h, h) : "empty";
+            string text = $"{planned} · now {now}";
+            s_barText[i] = guidance.Bar[i] is { } state ? $"<color=#{ColorUtility.ToHtmlStringRGB(StateColour(state))}>{text}</color>" : text;
+        }
+        return true;
+    }
+
+    private static string BarText(int slot) => s_barText[slot] ?? string.Empty;
+
+    private static Color StateColour(GuidanceState state) => state switch
+    {
+        GuidanceState.Matches => S.Colour(S.MatchColour),
+        GuidanceState.Partial => S.Colour(S.PartialColour),
+        GuidanceState.ToPlace => S.Colour(S.ToPlaceColour),
+        _ => S.Colour(S.OffPlanColour),
+    };
+
     private static string UnknownList(BuildResolution resolution)
     {
         var parts = new List<string>();
@@ -297,27 +340,154 @@ internal static partial class Planner
     {
         // No status row: the page title's tag already shows the state and why.
         var entry = new MenuEntry(MenuCategory.Combat, order: 35) { Title = "Planner" };
-        // The master switch and the outline settings share the first sub-tab, Overlay; every other section has its own.
+        // The master switch and the outline settings share the first sub-tab, Overlay, the colours closing it under their
+        // heading; every other section has its own. Each interface's page sits under Interfaces in the tree, and the next
+        // point's settings close Interfaces' page and each tree's under their heading.
         var overlay = new MenuPage(S.Overlay.Title);
         entry.Pages.Add(overlay);
+        MenuPage? interfaces = null;
         foreach (var section in S.Group.Sections)
         {
+            if (section == S.Colours) continue;
             bool first = section == S.Main || section == S.Overlay;
-            var page = first ? overlay : new MenuPage(section.Title);
+            bool panel = Array.Exists(S.Panels, p => p.Section == section);
+            var page = first ? overlay : new MenuPage(section.Title) { InTree = !panel };
+            var next = Array.Find(S.Panels.Append(S.Interfaces).ToArray(), p => p.Section == section)?.Next;
             foreach (var setting in section.Settings)
-                page.Rows.Add(new SettingRow(setting) { EnabledWhen = EnabledWhen(setting) });
-            if (!first) entry.Pages.Add(page);
+                if (next == null || !next.All.Contains(setting)) page.Rows.Add(new SettingRow(setting) { EnabledWhen = EnabledWhen(setting) });
+            if (next != null)
+            {
+                page.Rows.Add(new HeadingRow("Next point"));
+                foreach (var setting in next.All) page.Rows.Add(new SettingRow(setting) { EnabledWhen = EnabledWhen(setting) });
+            }
+            if (first) continue;
+            entry.Pages.Add(page);
+            if (section == S.Interfaces.Section) interfaces = page;
+            else if (panel)
+            {
+                interfaces?.Children.Add(page);
+                var look = Array.Find(S.Panels, p => p.Section == section)!;
+                page.Actions.Add(new ActionButton("Open", $"planner.open.{section.Id}")
+                {
+                    OnClick = () => OpenInGame(look),
+                    EnabledWhen = CanOpenInGame,
+                    Tip = OpenTip(look),
+                });
+            }
         }
+        overlay.Rows.Add(new HeadingRow(S.Colours.Title));
+        foreach (var setting in S.Colours.Settings) overlay.Rows.Add(new SettingRow(setting));
         return entry;
     }
 
-    // A row that only shapes another setting's output is greyed while that setting is off.
+    private static GUIStyle? s_sampleText;
+    private static readonly (float X, float Y)[] s_outline = { (-1f, -1f), (1f, -1f), (-1f, 1f), (1f, 1f) };
+
+    /// <summary>The label background choice's example: a next point label on that background, as a tree draws it.</summary>
+    internal static void LabelSample(string back, Rect r)
+    {
+        if (back == "game" && Marks.CounterSprite() is { } sprite && sprite.texture != null)
+        {
+            var area = sprite.textureRect;
+            var texture = sprite.texture;
+            GUI.color = Marks.CounterTint;
+            GUI.DrawTextureWithTexCoords(r, texture, new Rect(area.x / texture.width, area.y / texture.height, area.width / texture.width, area.height / texture.height));
+        }
+        else if (back != "none" && Marks.PlateTexture is { } plate)
+        {
+            GUI.color = Marks.Plate;
+            Sliced(r, plate, Mathf.Min(r.height / 2f, 6f));
+        }
+        GUI.color = Color.white;
+        s_sampleText ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 12, padding = new RectOffset() };
+        string text = S.Interfaces.Next!.Slash ? "1/5" : "1 < 5";
+        if (back == "none")
+        {
+            s_sampleText.normal.textColor = Color.black;
+            foreach (var (x, y) in s_outline) GUI.Label(new Rect(r.x + x, r.y + y, r.width, r.height), text, s_sampleText);
+        }
+        s_sampleText.normal.textColor = S.Colour(S.PartialColour);
+        GUI.Label(r, text, s_sampleText);
+    }
+
+    // A rounded square texture stretched with its corners kept round: nine parts, the corners at `corner` pixels and the
+    // texture's outer third as their source.
+    private static void Sliced(Rect r, Texture texture, float corner)
+    {
+        const float edge = 1f / 3f;
+        float[] xs = { r.x, r.x + corner, r.xMax - corner, r.xMax }, ys = { r.y, r.y + corner, r.yMax - corner, r.yMax };
+        float[] us = { 0f, edge, 1f - edge, 1f };
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                GUI.DrawTextureWithTexCoords(new Rect(xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j]), texture,
+                    new Rect(us[i], 1f - us[j + 1], us[i + 1] - us[i], us[j + 1] - us[j]));
+    }
+
+    // The game's own way into each interface, as its keys and buttons open them; the menu stays open over it. Opening a
+    // panel only shows it: nothing is spent or chosen.
+    private static string OpenTip(S.PanelLook look) => (look == S.PassiveLook ? "Opens the passive tree"
+        : look == S.SkillTreeLook ? "Opens the tree of your first specialised skill"
+        : look == S.SkillsPageLook ? "Opens the Skills & Specializations page"
+        : "Opens the skill selection for bar slot 1") + " in the game, behind this menu. Nothing is spent or chosen.";
+
+    private static bool CanOpenInGame() => s_run is { Character: not null } run && run.Feature.Has(OpenUiGroup) && Game.Alive(UIBase.instance);
+
+    private static void OpenInGame(S.PanelLook look)
+    {
+        var ui = UIBase.instance;
+        if (!CanOpenInGame() || !Game.Alive(ui)) return;
+        try
+        {
+            // Whatever else is open would sit over the interface, or it over them.
+            ui!.CloseAllPanels();
+            if (look != S.SkillChoiceLook && AbilityBarSelectorManager.instance is { IsMenuOpened: true } open && Game.Alive(open)) open.CloseMenu(false);
+            if (look == S.PassiveLook) ui!.OpenPassivePanel(false);
+            else if (look == S.SkillTreeLook) ui!.openSkills(false, FirstSpecialised());
+            else if (look == S.SkillsPageLook) ui!.openSkills(false, null);
+            else if (AbilityBarSelectorManager.instance is { } selector && Game.Alive(selector))
+            {
+                // The selection belongs to a bar slot; the first one.
+                selector.abilityClicked = 1;
+                selector.OpenMenu();
+            }
+        }
+        catch (Exception e)
+        {
+            Log.ErrorThrottled("planner:open", $"Planner: the game's interface couldn't be opened: {e.Message}", 30);
+        }
+    }
+
+    // The specialised skill in the lowest slot, for its tree; null opens the Skills page without one.
+    private static Ability? FirstSpecialised()
+    {
+        var skills = Game.LocalTree?.specialisedSkillTrees;
+        Ability? first = null;
+        int lowest = int.MaxValue;
+        for (int i = 0; skills != null && i < skills.Count; i++)
+        {
+            var skill = skills[i];
+            if (skill == null || !Game.Alive(skill.ability) || skill.slot >= lowest) continue;
+            lowest = skill.slot;
+            first = skill.ability;
+        }
+        return first;
+    }
+
+    // A row that only shapes another setting's output is greyed while that setting is off; an interface's look and next
+    // point while it uses Interfaces'.
     private static Func<bool>? EnabledWhen(Setting setting)
     {
-        if (setting == S.NextCount) return () => S.NextSteps.Value || S.HighlightNext.Value;
-        if (setting == S.FillOpacity) return () => S.FillTint.Value;
-        if (setting == S.NextLabelSize) return () => S.NextLabel.Value;
-        if (setting == S.NextColour) return () => S.NextOwnColour.Value;
+        if (setting == S.HoverDelay || setting == S.HintPosition) return () => S.HoverHints.Value;
+        foreach (var look in S.Panels.Append(S.Interfaces))
+        {
+            Func<bool> own = look.Own is { } switchOn ? () => switchOn.Value : () => true;
+            if (setting == look.FillOpacity) return () => own() && look.Fill.Value;
+            if (setting == look.Opacity || setting == look.Size || setting == look.Fill) return look.Own != null ? own : null;
+            if (look.Next is not { } next) continue;
+            if (setting == next.LabelSize || setting == next.LabelFormat || setting == next.LabelSide || setting == next.LabelBackground || setting == next.LabelX || setting == next.LabelY) return () => own() && next.Label.Value;
+            if (setting == next.Colour) return () => own() && next.OwnColour.Value;
+            if (setting == next.Steps || setting == next.Label || setting == next.OwnColour) return look.Own != null ? own : null;
+        }
         return null;
     }
 }

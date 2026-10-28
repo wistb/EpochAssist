@@ -67,7 +67,8 @@ internal sealed class PlannerFeature : Feature
         Need<SkillsPanelManager>(nameof(SkillsPanelManager.masteryAbilityPanelIcon2), Planner.SkillsPageGroup),
         Need<SkillsPanelManager>(nameof(SkillsPanelManager.masteryAbilityPanelIcon3), Planner.SkillsPageGroup),
         Need<AbilityPanelIcon>(nameof(AbilityPanelIcon.ability), Planner.SkillsPageGroup),
-        Need<SpecializedSkillIcon>(nameof(SpecializedSkillIcon.Ability), Planner.SkillsPageGroup),
+        Need<SpecialisedAbilityIcon>(nameof(SpecialisedAbilityIcon.ability), Planner.SkillsPageGroup),
+        Need<SpecialisedAbilityIcon>(nameof(SpecialisedAbilityIcon.abilityNumber), Planner.SkillsPageGroup),
 
         Need(typeof(GlobalTreeData), nameof(GlobalTreeData.get), Planner.GameDataGroup),
         Need<GlobalTreeData>(nameof(GlobalTreeData.getTreeData), Planner.GameDataGroup),
@@ -75,6 +76,13 @@ internal sealed class PlannerFeature : Feature
         Need<GlobalTreeData.NodeData>(nameof(GlobalTreeData.NodeData.requiredMastery), Planner.GameDataGroup),
         Need<GlobalTreeData.NodeData>(nameof(GlobalTreeData.NodeData.maxPoints), Planner.GameDataGroup),
         Need(typeof(AbilityManager), nameof(AbilityManager.getPlayerAbility), Planner.GameDataGroup),
+        Need(typeof(UIBase), nameof(UIBase.instance), Planner.OpenUiGroup),
+        Need<UIBase>(nameof(UIBase.OpenPassivePanel), Planner.OpenUiGroup),
+        Need<UIBase>(nameof(UIBase.openSkills), Planner.OpenUiGroup),
+        Need<AbilityBarSelectorManager>(nameof(AbilityBarSelectorManager.OpenMenu), Planner.OpenUiGroup),
+        Need<AbilityBarSelectorManager>(nameof(AbilityBarSelectorManager.CloseMenu), Planner.OpenUiGroup),
+        Need<UIBase>(nameof(UIBase.CloseAllPanels), Planner.OpenUiGroup),
+        Need<LocalTreeData.SkillTreeData>(nameof(LocalTreeData.SkillTreeData.ability), Planner.OpenUiGroup),
         Need(typeof(CharacterClassList), nameof(CharacterClassList.getClass), Planner.GameDataGroup),
         Need(typeof(CharacterClassList), nameof(CharacterClassList.getClassName), Planner.GameDataGroup),
     };

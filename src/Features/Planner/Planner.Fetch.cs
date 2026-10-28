@@ -96,7 +96,6 @@ internal static partial class Planner
 
         public static string Imported(Build build) => $"Imported \"{build.Name}\" ({build.Stages.Count} {(build.Stages.Count == 1 ? "stage" : "stages")}).";
 
-        public static string SiteOff(PlannerSite site) => $"{PlannerSites.Name(site)} links are switched off in Settings.";
 
         public static string Fallback(PlannerSite site) => site == PlannerSite.Maxroll
             ? "use Maxroll's Export and paste it here"
