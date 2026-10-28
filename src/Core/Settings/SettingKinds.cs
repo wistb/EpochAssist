@@ -103,6 +103,10 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
     public (string Label, int First)[]? Groups { get; init; }
     /// <summary>An image shown before an option in the dropdown (a texture and its part of it); null for none. Code only.</summary>
     public Func<T, (Texture Texture, Rect Uv)?>? Preview { get; init; }
+    /// <summary>An example of an option, drawn by the owner (IMGUI) before its label in the dropdown and its list, in a rect
+    /// SampleWidth wide; null for none. Code only.</summary>
+    public Action<T, Rect>? Sample { get; init; }
+    public float SampleWidth { get; init; } = 56f;
 
     public int Index
     {

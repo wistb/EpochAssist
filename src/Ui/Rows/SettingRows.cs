@@ -79,6 +79,8 @@ internal static class SettingRows
         Toggle => Controls.SwitchWidth,
         Number { Slider: true } => Slider.Width,
         Number => NumberField.Width,
+        // Room for an option's example as well as its label.
+        Choice<string> { Sample: not null } sampled => Dropdown.WidthFor(OptionLabels(setting)) + sampled.SampleWidth + 8f,
         Choice<int> or Choice<KeyCode> or Choice<string> or Pick => Dropdown.WidthFor(OptionLabels(setting)),
         ColorSetting color => ColorPicker.WidthFor(color),
         Key or Hotkey => KeyWidth(setting),
@@ -161,7 +163,11 @@ internal static class SettingRows
                 break;
             case Choice<string> choice:
                 Dropdown.Draw(r, key, ChoiceLabels(choice), choice.Index, i => choice.Index = i, choice.Groups, tip: tip,
-                    previews: choice.Preview is { } preview ? i => i >= 0 && i < choice.Options.Length ? preview(choice.Options[i].Value) : null : null);
+                    previews: choice.Preview is { } preview ? i => i >= 0 && i < choice.Options.Length ? preview(choice.Options[i].Value) : null : null,
+                    samples: choice.Sample is { } sample ? (choice.SampleWidth, (i, rect) =>
+                    {
+                        if (i >= 0 && i < choice.Options.Length) sample(choice.Options[i].Value, rect);
+                    }) : null);
                 break;
             case Pick pick:
                 var (options, index) = PickOptions(pick);
