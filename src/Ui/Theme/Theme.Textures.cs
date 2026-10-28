@@ -40,6 +40,23 @@ internal static partial class Theme
         });
     }
 
+    /// <summary>How wide a card's accent stripe is.</summary>
+    public const int AccentStripeWidth = 3;
+
+    // A card's accent stripe in white, to tint: the card's left edge filled AccentStripeWidth deep, its ends following the
+    // card's rounded corners. Sliced top and bottom only, so drawn at the stripe's width at any height.
+    private static Texture2D AccentStripe(int radius)
+    {
+        int r = Slice(radius);
+        int w = AccentStripeWidth, h = r * 2 + 2;
+        return Paint(w, h, (x, y) =>
+        {
+            // Inside the card's shape, its right side far beyond the texture.
+            float d = BoxDistance(x + 0.5f, y + 0.5f, w * 40f, h, radius);
+            return Shade(Color.white, Coverage(d));
+        });
+    }
+
     private static Texture2D Circle(int size, Color color) =>
         Paint(size, size, (x, y) => Shade(color, Coverage(CircleDistance(x + 0.5f, y + 0.5f, size / 2f, size / 2f, size / 2f - 0.5f))));
 

@@ -63,7 +63,9 @@ internal static partial class Theme
     public static GUIStyle Card = null!, CardTitle = null!, RowLabel = null!, Hint = null!, Value = null!;
     public static GUIStyle Placeholder = null!, SmallButton = null!;
     public static GUIStyle ChipNumber = null!, ChipName = null!;
-    public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, ToastText = null!;
+    public static GUIStyle Pill = null!, PillLabel = null!, Pip = null!, Panel = null!, HintCard = null!, ToastText = null!;
+    /// <summary>A hint card's accent stripe, white, to tint; see AccentStripe.</summary>
+    public static GUIStyle HintStripe = null!;
     public static Texture2D SwitchOff = null!, SwitchOffHover = null!, SwitchOn = null!, SwitchOnHover = null!;
     public static Texture2D Chevron = null!, ChevronRight = null!, ChevronUp = null!;
     public static Texture2D IconDot = null!, IconRing = null!, IconSquare = null!, IconBars = null!, IconDash = null!, IconWarning = null!;
@@ -261,7 +263,8 @@ internal static partial class Theme
 
         int rPill = PillRadius;
         Pill = new GUIStyle { border = Offset(Slice(rPill)) };
-        Pill.normal.background = Rounded(rPill, rPill, v.Window, v.WindowEdge, 1f);
+        // The mini HUD and its panel share the menu's darkest surface.
+        Pill.normal.background = Rounded(rPill, rPill, v.Sidebar, v.WindowEdge, 1f);
         Pill.hover.background = Rounded(rPill, rPill, v.Card, v.InputEdge, 1f);
         PillLabel = new GUIStyle(skin.label) { fontSize = v.FontSmall, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
         Pip = new GUIStyle(skin.label) { fontSize = v.FontCaption, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, padding = Offset(0) };
@@ -270,7 +273,13 @@ internal static partial class Theme
         PipOff = Rounded(rPip, rPip, Color.clear, v.PipEdge, 1f);
         PipPaused = Rounded(rPip, rPip, v.ChipPaused, v.StatePaused, 1f);
         Panel = new GUIStyle { border = Offset(Slice(rPanel)), padding = new RectOffset(12, 12, 10, 12) };
-        Panel.normal.background = Rounded(rPanel, rPanel, v.Window, v.WindowEdge, 1f);
+        Panel.normal.background = Rounded(rPanel, rPanel, v.Sidebar, v.WindowEdge, 1f);
+        // A hover hint's card: the panel with a thin edge in the next surface up (Carbonfox #161616), so it stands off dark
+        // backgrounds.
+        HintCard = new GUIStyle(Panel);
+        HintCard.normal.background = Rounded(rPanel, rPanel, v.Sidebar, v.Window, 1f);
+        HintStripe = new GUIStyle { border = new RectOffset(0, 0, Slice(rPanel), Slice(rPanel)) };
+        HintStripe.normal.background = AccentStripe(rPanel);
         ToastText = new GUIStyle(skin.label) { wordWrap = true, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(28, 14, 9, 10) };
         // World labels: white text tinted by the caller's colour, so the theme gives the font and size.
         var worldLabel = new GUIStyle(skin.label) { fontSize = v.FontSmall, alignment = TextAnchor.MiddleCenter, font = skin.font };

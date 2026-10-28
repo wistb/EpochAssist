@@ -16,7 +16,7 @@ internal sealed record Toast(string Source, string Text, ToastKind Kind, float S
 internal static class Toasts
 {
     public const float RepeatSeconds = 10f;
-    public const float DefaultShowSeconds = 4f;
+    public const float DefaultShowSeconds = 6f;
     public const float FadeSeconds = 0.3f;
     public const int DefaultMaxShown = 3;
 

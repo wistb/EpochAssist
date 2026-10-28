@@ -48,8 +48,8 @@ internal static class Hud
     private static IEnumerable<Feature> StatusFeatures => FeatureHost.All.Where(f => f.StatusName != null && HudSettings.ShowsSection(f.Id));
 
     // A feature that isn't running keeps its section, greyed; with no section at all (or all switched off) there is no pill.
-    // While the menu is open only as a preview, on General › Mini HUD.
-    private static bool Shown => HudSettings.HudEnabled.Value && (!Menu.Visible || Menu.PreviewingHud) && Player.Exists && StatusFeatures.Any();
+    // It stays up while the menu is open, as a preview that takes no clicks, so a hint can show beside it while settings change.
+    private static bool Shown => HudSettings.HudEnabled.Value && Player.Exists && StatusFeatures.Any();
 
     public static void OnUpdate()
     {
@@ -118,6 +118,7 @@ internal static class Hud
             DrawPill(pill, sections);
             if (!preview && GUI.Button(pill, GUIContent.none, GUIStyle.none)) Actions.Run("hud.togglePanel", "HUD pill");
             if (s_panelOpen) DrawPanel(panel, reasons);
+            else if (HudHint.Text is { } hint) DrawHint(pill, spot, HudHint.Title, hint, HudHint.Accent);
         }
         finally
         {
@@ -207,6 +208,75 @@ internal static class Hud
             Actions.Run(first != null ? $"menu.page.{first}" : "menu.page.settings", "HUD open full menu");
         }
         GUILayout.EndArea();
+    }
+
+    private const float HintWidth = 300f;
+
+    // A feature's hover note, where the quick panel would open: beside the pill, away from the screen edge. An accent
+    // colours its left edge and its title.
+    private static void DrawHint(Rect pill, ScreenSpot spot, string? title, string text, Color? accent)
+    {
+        float inner = HintWidth - Theme.Panel.padding.horizontal;
+        string heading = title?.ToUpperInvariant() ?? string.Empty;
+        var titleContent = new GUIContent(accent is { } tint ? Colored(heading, tint) : heading);
+        var textContent = new GUIContent(text);
+        float height = Theme.Panel.padding.vertical + (title != null ? Theme.CardTitle.CalcHeight(titleContent, inner) : 0f)
+            + Theme.Hint.CalcHeight(textContent, inner) + 4f;
+        float x = spot.Horizontal < 0 ? pill.x : spot.Horizontal > 0 ? pill.xMax - HintWidth : pill.center.x - HintWidth / 2f;
+        var card = new Rect(x, spot.Vertical > 0 ? pill.y - 8f - height : pill.yMax + 8f, HintWidth, height);
+        if (HudHint.AtCursor) card = ByCursor(card.size);
+        // The menu draws over the HUD: with it open, the card moves to its side, the one with room.
+        else if (Menu.Visible && Menu.ScreenRect is { width: > 0f } screen)
+        {
+            float scale = GUI.matrix.m00 > 0f ? GUI.matrix.m00 : 1f;
+            var menu = new Rect(screen.x / scale, screen.y / scale, screen.width / scale, screen.height / scale);
+            if (card.Overlaps(menu))
+                card.x = menu.xMax + 8f + HintWidth <= Screen.width / scale ? menu.xMax + 8f : Mathf.Max(0f, menu.x - 8f - HintWidth);
+        }
+        // Read over the game's panels, so at full opacity whatever the pill's.
+        Color previous = GUI.color;
+        GUI.color = Color.white;
+        GUILayout.BeginArea(card, Theme.HintCard);
+        if (title != null) GUILayout.Label(titleContent, Theme.CardTitle);
+        GUILayout.Label(textContent, Theme.Hint);
+        GUILayout.EndArea();
+        // The accent: a stripe down the card's left edge, its full height, its ends rounded with the card's corners.
+        if (accent is { } stripe && Event.current.type == EventType.Repaint)
+        {
+            GUI.color = stripe;
+            Theme.HintStripe.Draw(new Rect(card.x, card.y, Theme.AccentStripeWidth, card.height), false, false, false, false);
+        }
+        GUI.color = previous;
+    }
+
+    private const float CursorGap = 20f, TooltipGap = 8f;
+
+    // A card by the pointer: beside the game's own tooltip when one shows (right, left, below, then above it: the first
+    // side with room), else just below and right of the pointer, flipped at the screen's edges. In GUI units.
+    private static Rect ByCursor(Vector2 size)
+    {
+        float scale = GUI.matrix.m00 > 0f ? GUI.matrix.m00 : 1f;
+        float w = Screen.width / scale, h = Screen.height / scale;
+        var bounds = new Rect(0f, 0f, w, h);
+        bool Fits(Rect r) => r.xMin >= 0f && r.yMin >= 0f && r.xMax <= w && r.yMax <= h;
+        if (GameTooltips.Shown() is { } shown)
+        {
+            var tip = new Rect(shown.x / scale, shown.y / scale, shown.width / scale, shown.height / scale);
+            Rect[] sides =
+            {
+                new(tip.xMax + TooltipGap, tip.y, size.x, size.y),
+                new(tip.x - TooltipGap - size.x, tip.y, size.x, size.y),
+                new(tip.x, tip.yMax + TooltipGap, size.x, size.y),
+                new(tip.x, tip.y - TooltipGap - size.y, size.x, size.y),
+            };
+            foreach (var side in sides)
+                if (Fits(side)) return side;
+        }
+        var pointer = InputState.Pointer;
+        float px = pointer.x / scale, py = (Screen.height - pointer.y) / scale;
+        float cx = px + CursorGap + size.x <= w ? px + CursorGap : px - CursorGap - size.x;
+        float cy = py + CursorGap + size.y <= h ? py + CursorGap : py - CursorGap - size.y;
+        return new Rect(Mathf.Clamp(cx, bounds.x, Mathf.Max(0f, w - size.x)), Mathf.Clamp(cy, bounds.y, Mathf.Max(0f, h - size.y)), size.x, size.y);
     }
 
     /// <summary>A rect moved by the player's offsets, then kept on screen.</summary>

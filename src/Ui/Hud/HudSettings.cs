@@ -36,7 +36,7 @@ internal static class HudSettings
     {
         Unit = " px", Help = "Moves the mini HUD down from its position; below zero, up.",
     };
-    public static readonly Number HudOpacity = new(Hud, "HudOpacity", "Opacity", 0.85f, 0.2f, 1f)
+    public static readonly Number HudOpacity = new(Hud, "HudOpacity", "Opacity", 1f, 0.2f, 1f)
     {
         Step = 0.01f, Percent = true, Help = "Full opacity while the cursor is over it.",
     };
