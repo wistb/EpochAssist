@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace EpochAssist.Dev;
 
-// The colour role distance check behind `theme check`: within each group (item rarity, enemy rarity, danger) the
+// The colour role distance check behind `theme check`: within each group (item rarity, enemy rarity, danger, zone kind) the
 // smallest CIEDE2000 difference between two roles, after simulating a colour vision type with the Machado, Oliveira
 // and Fernandes (2009) matrices at full severity, applied in linear RGB.
 internal static class ColourChecks
@@ -13,6 +13,7 @@ internal static class ColourChecks
     private static readonly (string Name, int First, int Count)[] s_groups =
     {
         ("item", ColourRoles.ItemFirst, 7), ("enemy", ColourRoles.EnemyFirst, 4), ("danger", ColourRoles.DangerFirst, 3),
+        ("zone", ColourRoles.ZoneFirst, 4),
     };
 
     private static readonly Dictionary<string, double[,]> s_simulations = new()
