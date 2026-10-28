@@ -262,10 +262,22 @@ internal static class Hud
         if (GameTooltips.Shown() is { } shown)
         {
             var tip = new Rect(shown.x / scale, shown.y / scale, shown.width / scale, shown.height / scale);
+            // Beside an item and its comparison, the card is a third panel in their row: level with their tops, spaced as
+            // they are, on the comparison's side first.
+            float gap = TooltipGap;
+            bool leftFirst = false;
+            if (GameTooltips.Panels is { } panels)
+            {
+                gap = panels.Gap / scale;
+                leftFirst = panels.CompareLeft;
+            }
+            // Kept on screen: a tooltip the game fits to the full height reports its top a hair above it.
+            float top = Mathf.Clamp(GameTooltips.Top is { } level ? level / scale : tip.y, 0f, Mathf.Max(0f, h - size.y));
+            Rect right = new(tip.xMax + gap, top, size.x, size.y), left = new(tip.x - gap - size.x, top, size.x, size.y);
             Rect[] sides =
             {
-                new(tip.xMax + TooltipGap, tip.y, size.x, size.y),
-                new(tip.x - TooltipGap - size.x, tip.y, size.x, size.y),
+                leftFirst ? left : right,
+                leftFirst ? right : left,
                 new(tip.x, tip.yMax + TooltipGap, size.x, size.y),
                 new(tip.x, tip.y - TooltipGap - size.y, size.x, size.y),
             };
