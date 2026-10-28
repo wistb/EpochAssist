@@ -233,6 +233,8 @@ internal static partial class Planner
     {
         if (embed.Kind is EmbedKind.Skill or EmbedKind.Node)
         {
+            // An item name hovered just before lets go now, so its tooltip doesn't stay up beside this one.
+            CloseMenuItemTip();
             s_tipHover = embed;
             s_tipHoverSeen = Clock.Now;
             // The game shows its skill tooltip only beside the element under the pointer: the name's own rect.
@@ -284,6 +286,7 @@ internal static partial class Planner
         if (hovered == s_tipShown) return;
         CloseGuideTip();
         if (hovered == null || !run.Feature.Has(GuideTipsGroup) || TipAnchor() is not { } anchor) return;
+        CloseMenuItemTip();
         var rect = anchor.GetComponent<RectTransform>();
         bool right = MenuSide();
         var at = s_tipHeld != null ? new Rect(Screen.width / 2f, Screen.height / 2f, 40f, 20f) : s_tipRect;

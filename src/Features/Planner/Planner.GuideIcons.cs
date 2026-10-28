@@ -300,7 +300,12 @@ internal static partial class Planner
         if (tree.Failed) { Missing(icon, "no tree prefab"); return; }
         if (tree.ClassId != null)
         {
-            if (tree.Built != null && tree.Built.TryGetValue(icon.Node, out var built)) Ready(icon, built);
+            if (tree.Built != null && tree.Built.TryGetValue(icon.Node, out var built))
+            {
+                Ready(icon, built);
+                // Names laid out without room for this icon get it now.
+                if (icon.State == IconState.Ready) s_guideStamp++;
+            }
             else icon.Why = "until the game's passive panel shows its page";
             return;
         }

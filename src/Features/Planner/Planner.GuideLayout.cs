@@ -173,7 +173,10 @@ internal static partial class Planner
             var style = StyleOf(block, run);
             var embed = run.Embed != null && block.Doc.Guide is { } guide && guide.Embeds.TryGetValue(run.Embed, out var e) ? e : null;
             var colour = embed != null ? EmbedColour(embed, run.Colour) : GuideColourOf(run.Colour);
-            bool icon = embed is { Resolved: true, Kind: not EmbedKind.Affix } && icons && !OtherClassPassive(embed);
+            // A passive's icon comes from the game's passive panel once it has shown that page; until then the name keeps
+            // no room for it (a gap reads as a broken icon), and the layout is made again when the icon arrives.
+            bool icon = embed is { Resolved: true, Kind: not EmbedKind.Affix } && icons && !OtherClassPassive(embed)
+                && (embed.Kind != EmbedKind.Node || Icon(embed) != null);
             if (run.Text == "\n")
             {
                 words.Add(new Word(string.Empty, 0, style, colour, null, null, false, true));

@@ -702,14 +702,16 @@ internal static partial class Planner
         }
     }
 
-    /// <summary>Closes the planned item's tooltip if it's still the one shown, and gives the game back its prompts.</summary>
-    private static void CloseGearTip()
+    /// <summary>Closes the planned item's tooltip if it's still the one shown, and gives the game back its prompts. One the
+    /// menu opened closes whatever item the game now calls active (opening a skill tooltip can change it): the pointer is
+    /// on the menu, so no tooltip of the game's own can be open.</summary>
+    private static void CloseGearTip(bool fromMenu = false)
     {
         if (s_tipItem == null) return;
         var tooltips = Tooltips();
         try
         {
-            if (tooltips != null && tooltips.ActiveItem?.Pointer == s_tipItem.Pointer) tooltips.CloseTooltip();
+            if (tooltips != null && (fromMenu || tooltips.ActiveItem?.Pointer == s_tipItem.Pointer)) tooltips.CloseTooltip();
         }
         catch (Exception e)
         {
