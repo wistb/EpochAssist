@@ -142,7 +142,6 @@ internal sealed class PlannerFeature : Feature
         Need<LocalTreeData>(nameof(LocalTreeData.weaverTree), Planner.WeaverUiGroup),
         Need<Il2CppLE.Factions.WeaverTree>(nameof(Il2CppLE.Factions.WeaverTree.nodeList), Planner.WeaverUiGroup),
         Need<UIBase>(nameof(UIBase.OpenWeaverRankPanel), Planner.WeaverUiGroup),
-        Need<UIBase>(nameof(UIBase.IsFactionsPanelOpen), Planner.WeaverUiGroup),
         Need<Il2CppLE.Factions.FactionRankUIWeaver>(nameof(Il2CppLE.Factions.FactionRankUIWeaver.IsWeaverTreeOpened), Planner.WeaverUiGroup),
     };
 

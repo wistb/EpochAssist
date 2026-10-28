@@ -1333,10 +1333,7 @@ internal static partial class Planner
     private static void MarkWeaver(Run run)
     {
         var guide = run.Gear?.Weaver;
-        // The weaver panels are looked for only while the game says its factions panel is open: an object search for
-        // one that isn't there scans the whole scene.
-        if (guide == null || !S.Enabled.Value || !S.WeaverLook.Marks!.Value || !run.Feature.Has(WeaverUiGroup)
-            || UIBase.instance is not { } ui || !Game.Alive(ui) || !ui.IsFactionsPanelOpen())
+        if (guide == null || !S.Enabled.Value || !S.WeaverLook.Marks!.Value || !run.Feature.Has(WeaverUiGroup))
         {
             ClearWeaverMarks(run);
             return;
@@ -1344,8 +1341,8 @@ internal static partial class Planner
         try
         {
             // The rank page says whether its tree shows: the tree itself is looked for only then.
-            var page = Panels.Find<Il2CppLE.Factions.FactionRankUIWeaver>();
-            var tree = Panels.Open(page) && page!.IsWeaverTreeOpened ? Panels.Find<Il2CppLE.Factions.WeaverTree>() : null;
+            var page = WeaverPage();
+            var tree = page != null && page.IsWeaverTreeOpened ? Panels.Find<Il2CppLE.Factions.WeaverTree>() : null;
             if (!Panels.Open(tree))
             {
                 ClearWeaverMarks(run);
@@ -1353,6 +1350,7 @@ internal static partial class Planner
             }
             var nodes = tree!.nodeList;
             int count = nodes?.Count ?? 0;
+            guide = PanelWeaverGuide(run, guide, nodes);
             var look = MarkLook.Now(GuidedPanel.Weaver);
             if (run.WeaverMarkedTree == tree.Pointer && run.WeaverMarkedNodes == count && run.WeaverMarkedGuide == guide && run.WeaverMarkedLook.Same(look)) return;
             run.WeaverMarkedTree = tree.Pointer;
@@ -1389,6 +1387,63 @@ internal static partial class Planner
     }
 
     private static int s_weaverRetries;
+
+    // The weaver tree takes points unconfirmed until its Confirm button: the character's tree data has only confirmed
+    // ones. While the tree is open its marks follow the panel's own counts, as the player sees them, and remember which
+    // nodes differ from the confirmed points for the hint card.
+    private static readonly Dictionary<byte, byte> s_panelPoints = new();
+
+    private static TreeGuide PanelWeaverGuide(Run run, TreeGuide saved, Il2CppSystem.Collections.Generic.List<SkillTreeNode>? nodes)
+    {
+        ulong h = 14695981039346656037UL;
+        s_panelPoints.Clear();
+        for (int i = 0; nodes != null && i < nodes.Count; i++)
+        {
+            var node = nodes[i];
+            if (!Game.Alive(node) || node!.pointsAllocated == 0) continue;
+            s_panelPoints[node.id] = (byte)node.pointsAllocated;
+            h = (h ^ (uint)(node.id << 8 | node.pointsAllocated)) * 1099511628211UL;
+        }
+        if (run.WeaverPanelGuide != null && run.WeaverPanelSignature == h && run.WeaverPanelBase == saved) return run.WeaverPanelGuide;
+        run.WeaverPanelSignature = h;
+        run.WeaverPanelBase = saved;
+        run.WeaverUnconfirmed.Clear();
+        foreach (var (node, points) in s_panelPoints)
+            if (!run.Equipped.Weaver.TryGetValue(node, out byte had) || had != points) run.WeaverUnconfirmed.Add(node);
+        foreach (var node in run.Equipped.Weaver.Keys)
+            if (!s_panelPoints.ContainsKey(node)) run.WeaverUnconfirmed.Add(node);
+        if (run.WeaverUnconfirmed.Count == 0 || run.Build is not { } build || GearOf(build, run.Stage).Weaver is not { } planned)
+            return run.WeaverPanelGuide = saved;
+        var guide = new TreeGuide();
+        CompareTree(guide, WeaverTreeId, planned, s_panelPoints, s_noUnknown, s_noCaps, null, NextStepCount);
+        return run.WeaverPanelGuide = guide;
+    }
+
+    // The weaver rank page is one of the game's full-screen panels, a child of its "Full Screen Panel Stack" while
+    // open. The stack is found once (by name) and its few children checked each tick; an object search for the page
+    // would scan the whole scene, about 25 ms, whenever it isn't there.
+    private const string PanelStackName = "Full Screen Panel Stack", WeaverPagePrefix = "FactionRankPanelWeaver";
+    private static Transform? s_panelStack;
+    private static float s_panelStackSearch;
+
+    private static Il2CppLE.Factions.FactionRankUIWeaver? WeaverPage()
+    {
+        if (!Game.Alive(s_panelStack))
+        {
+            if (Clock.Now < s_panelStackSearch) return null;
+            s_panelStackSearch = Clock.Now + 5f;
+            s_panelStack = GameObject.Find(PanelStackName)?.transform;
+            if (!Game.Alive(s_panelStack)) return null;
+        }
+        for (int i = 0; i < s_panelStack!.childCount; i++)
+        {
+            var child = s_panelStack.GetChild(i);
+            if (!child.gameObject.activeInHierarchy || !child.name.StartsWith(WeaverPagePrefix, StringComparison.Ordinal)) continue;
+            var page = child.GetComponentInChildren<Il2CppLE.Factions.FactionRankUIWeaver>(false);
+            if (Game.Alive(page)) return page;
+        }
+        return null;
+    }
 
     // The weaver nodes' names as the panel shows them; the game data holds only internal ids ("Node_EchoWeb…").
     private static readonly Dictionary<byte, string> s_weaverNames = new();

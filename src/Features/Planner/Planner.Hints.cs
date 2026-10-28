@@ -73,7 +73,9 @@ internal static partial class Planner
             {
                 var node = Game.Alive(mark.Node) ? mark.Node.GetComponent<SkillTreeNode>() : null;
                 string title = Game.Alive(node) && !string.IsNullOrWhiteSpace(node!.nodeName) ? node.nodeName : "Node";
-                return (title, Said(hint.Guide.State, NodeWords(hint.Guide)), hint.Guide.State);
+                string words = NodeWords(hint.Guide);
+                if (Game.Alive(node) && run.WeaverMarks.Contains(mark) && run.WeaverUnconfirmed.Contains(node!.id)) words += " Not confirmed yet.";
+                return (title, Said(hint.Guide.State, words), hint.Guide.State);
             }
             case HintKind.BarSlot when hint.Slot >= 0 && hint.Slot < Stage.BarSlots && guidance.Bar[hint.Slot] is { } state:
             {

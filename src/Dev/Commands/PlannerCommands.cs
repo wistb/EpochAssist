@@ -574,6 +574,7 @@ internal static class PlannerCommands
         var lines = new List<string> { $"ok planner weaver: tree {tree?.treeID ?? "none"}: {Nodes(tree?.nodes)}" };
         var panel = Panel<Il2CppLE.Factions.FactionRankUIWeaver>();
         lines.Add($"weaver panel: {(Open(panel) ? $"open, tree {(panel!.IsWeaverTreeOpened ? "shown" : "hidden")}" : "closed")}");
+        lines.Add($"gate: factions panel open {UIBase.instance?.IsFactionsPanelOpen()}, weaver guide {(Planner.CurrentGear?.Weaver != null ? "yes" : "no")}");
         if (PlannedGear()?.Weaver is { } planned)
         {
             lines.Add($"planned: {planned.Total} points: {string.Join(" ", planned.Points.Select(p => $"{p.Key}:{p.Value}"))}");

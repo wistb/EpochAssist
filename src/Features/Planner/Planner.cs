@@ -87,6 +87,10 @@ internal static partial class Planner
         public IntPtr WeaverMarkedTree;
         public int WeaverMarkedNodes = -1;
         public TreeGuide? WeaverMarkedGuide;
+        // The open weaver panel's own counts compared with the plan, and the nodes whose points aren't confirmed yet.
+        public TreeGuide? WeaverPanelGuide, WeaverPanelBase;
+        public ulong WeaverPanelSignature;
+        public readonly HashSet<byte> WeaverUnconfirmed = new();
         public MarkLook WeaverMarkedLook;
         public string StatusDetail = "Off";
         public StatusState StatusState = StatusState.Off;
