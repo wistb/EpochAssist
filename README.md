@@ -88,7 +88,7 @@ Config tab at top of menu; search box above tree finds any setting.
 - **Profiles**: one setup per character; export and import to share.
   <details><summary>Screenshot</summary>
 
-  ![Settings: Profiles](nexus/media/profiles.png)
+  ![Config: Profiles](nexus/media/profiles.png)
 
   </details>
 - **Mini HUD**: macro state and slots while menu is closed; click for quick toggles. Notifications: own position,
@@ -97,21 +97,21 @@ Config tab at top of menu; search box above tree finds any setting.
 
   ![The mini HUD with its quick toggles](nexus/media/hud.png)
 
-  ![Settings: Mini HUD](nexus/media/settings-hud.png)
+  ![Config: Mini HUD](nexus/media/settings-hud.png)
 
   </details>
 - **Appearance**: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts, animations. **Colour vision**: rarity and
   danger colours kept apart for deuteranopia, protanopia, tritanopia in mod overlays.
   <details><summary>Screenshot</summary>
 
-  ![Settings: Appearance](nexus/media/appearance.png)
+  ![Config: Appearance](nexus/media/appearance.png)
 
   </details>
 - **Diagnostics**: **Copy diagnostics** copies mod state for bug reports, without names or paths. **Mods** lists
   other loaded mods and shared patch targets. Nothing sent anywhere.
   <details><summary>Screenshot</summary>
 
-  ![Settings: Diagnostics](nexus/media/diagnostics.png)
+  ![Config: Diagnostics](nexus/media/diagnostics.png)
 
   </details>
 
