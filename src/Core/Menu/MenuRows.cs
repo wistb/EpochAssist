@@ -94,6 +94,8 @@ internal sealed class ActionButton : MenuRow
     /// <summary>Runs instead of the named action (a list entry's own button); Action is then only its key.</summary>
     public Action? OnClick { get; init; }
     public string? Tip { get; init; }
+    /// <summary>A tip that changes while the menu is open; used instead of Tip when set.</summary>
+    public Func<string>? TipText { get; init; }
     protected override string DefaultKey => "button." + Action;
 }
 

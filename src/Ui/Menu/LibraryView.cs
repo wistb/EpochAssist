@@ -99,7 +99,7 @@ internal static class LibraryLayout
             float w = Controls.ButtonWidth(button.Label);
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(x, r.y, w, r.height), button.Label, button.Key, button.Primary, button.Tip)) Run(button);
+            if (Controls.Button(new Rect(x, r.y, w, r.height), button.Label, button.Key, button.Primary, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             x += w + 6f;
         }
@@ -332,7 +332,7 @@ internal static class LibraryLayout
         {
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(r.x, y, r.width, 24f), button.Label, "action." + button.Key, button.Primary, button.Tip)) Run(button);
+            if (Controls.Button(new Rect(r.x, y, r.width, 24f), button.Label, "action." + button.Key, button.Primary, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             y += 30f;
         }
@@ -381,7 +381,7 @@ internal static class LibraryLayout
             right -= w;
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(right, header.center.y - 12f, w, 24f), button.Label, "editor." + button.Key, button.Primary, button.Tip)) Run(button);
+            if (Controls.Button(new Rect(right, header.center.y - 12f, w, 24f), button.Label, "editor." + button.Key, button.Primary, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             right -= 6f;
         }
@@ -444,7 +444,7 @@ internal static class LibraryLayout
             right -= w;
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(right, cy - 1f, w, 24f), button.Label, "foot." + button.Key, button.Primary, button.Tip)) Run(button);
+            if (Controls.Button(new Rect(right, cy - 1f, w, 24f), button.Label, "foot." + button.Key, button.Primary, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             right -= 6f;
         }

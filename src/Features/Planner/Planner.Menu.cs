@@ -216,12 +216,13 @@ internal static partial class Planner
             // The banner says it too, unless an import outcome holds it.
             new HintRow(() => Words.NoCharacter) { Key = "nocharacter", VisibleWhen = () => Profiles.Key == null && s_outcome != null },
             new HintRow(() => "This character uses this build.") { Key = "inuse", VisibleWhen = () => Library.Binding(Profiles.Key)?.Build == id },
-            new TextButtonRow("Stage", () => StageText(build), TabButton("▶", "stage.next", () => StepStage(id, 1), () => CanStep(build, 1), "Next stage"))
+            new TextButtonRow("Stage", () => StageText(build), StageButton("▶", "stage.next", build, 1))
             {
                 Key = "stage",
-                Before = TabButton("◀", "stage.previous", () => StepStage(id, -1), () => CanStep(build, -1), "Previous stage"),
+                Before = StageButton("◀", "stage.previous", build, -1),
                 VisibleWhen = () => Library.Binding(Profiles.Key)?.Build == id,
             },
+            new HintRow(() => LevelHint(build) ?? string.Empty) { Key = "stage.levelhint", VisibleWhen = () => LevelHint(build) != null },
         };
         rows.Add(new HintRow(() => s_run?.MasteryWords ?? string.Empty)
         {
@@ -259,14 +260,61 @@ internal static partial class Planner
     private static (Build? Build, int Stage, int Generation) s_stageFor = (null, -1, -1);
     private static string s_stageText = string.Empty;
 
+    private static string s_previousTip = string.Empty, s_nextTip = string.Empty;
+    private static (Build? Build, int Stage, int Level, int Generation) s_levelHintFor = (null, -1, -1, -1);
+    private static string? s_levelHint;
+
     private static string StageText(Build build)
     {
-        int stage = Library.Binding(Profiles.Key)?.Stage ?? 0;
-        if (s_stageFor == (build, stage, Library.Generation)) return s_stageText;
-        s_stageFor = (build, stage, Library.Generation);
-        string name = build.Stages[Math.Clamp(stage, 0, build.Stages.Count - 1)].Name.Trim();
-        s_stageText = $"{stage + 1} of {build.Stages.Count}" + (name.Length > 0 ? $" · {name}" : string.Empty);
+        Cache(build);
         return s_stageText;
+    }
+
+    private static ActionButton StageButton(string label, string key, Build build, int by) =>
+        new(label, "planner." + key)
+        {
+            OnClick = () => StepStage(build.Id, by),
+            EnabledWhen = () => CanStep(build, by),
+            TipText = () =>
+            {
+                Cache(build);
+                return by < 0 ? s_previousTip : s_nextTip;
+            },
+        };
+
+    // The stage line and the ◀ ▶ tips, made again only when the stage or the library changes.
+    private static void Cache(Build build)
+    {
+        int stage = Math.Clamp(Library.Binding(Profiles.Key)?.Stage ?? 0, 0, build.Stages.Count - 1);
+        if (s_stageFor == (build, stage, Library.Generation)) return;
+        s_stageFor = (build, stage, Library.Generation);
+        var s = build.Stages[stage];
+        s_stageText = $"{stage + 1} of {build.Stages.Count}" + StageParts(s);
+        s_previousTip = stage > 0 ? "Previous stage: " + StageWords(build, stage - 1) : "Previous stage";
+        s_nextTip = stage + 1 < build.Stages.Count ? "Next stage: " + StageWords(build, stage + 1) : "Next stage";
+    }
+
+    /// <summary>A stage as "n · name · level l", parts left out when empty.</summary>
+    private static string StageWords(Build build, int index) => $"{index + 1}" + StageParts(build.Stages[index]);
+
+    private static string StageParts(Stage stage)
+    {
+        string name = stage.Name.Trim();
+        return (name.Length > 0 ? $" · {name}" : string.Empty) + (stage.Level > 0 ? $" · level {stage.Level}" : string.Empty);
+    }
+
+    // A hint only: the stage still changes by the buttons alone.
+    private static string? LevelHint(Build build)
+    {
+        if (Library.Binding(Profiles.Key) is not { } binding || binding.Build != build.Id) return null;
+        int level = CurrentAllocation?.Level ?? 0;
+        if (s_levelHintFor == (build, binding.Stage, level, Library.Generation)) return s_levelHint;
+        s_levelHintFor = (build, binding.Stage, level, Library.Generation);
+        int next = binding.Stage + 1;
+        s_levelHint = next < build.Stages.Count && build.Stages[next].Level is int planned and > 0 && level >= planned
+            ? $"Level {planned} reached: stage {next + 1} is next"
+            : null;
+        return s_levelHint;
     }
 
     private static bool CanStep(Build build, int by) =>

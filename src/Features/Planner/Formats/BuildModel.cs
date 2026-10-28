@@ -73,7 +73,34 @@ internal sealed class Build
             if (node is JsonObject s) build.Stages.Add(Stage.FromJson(s));
         if (build.Stages.Count == 0) return null;
         build.FirstStage = Math.Clamp(build.FirstStage, 0, build.Stages.Count - 1);
+        build.FillLevels(stages);
         return build;
+    }
+
+    // Builds stored before stages kept a level take it from the planner's data; nothing is written back, so the file
+    // stays as it is until the next save.
+    private void FillLevels(JsonArray stored)
+    {
+        bool missing = false;
+        foreach (var node in stored) missing |= node is JsonObject s && !s.ContainsKey("level");
+        if (!missing || MaxrollFormat.Parse(Raw) is not JsonObject root) return;
+        var levels = new List<int>();
+        if (Source == MaxrollFormat.Source)
+        {
+            if (Str(root["data"]) is string dataText && MaxrollFormat.Parse(dataText) is JsonObject data && data["profiles"] is JsonArray profiles)
+                foreach (var node in profiles)
+                    if (node is JsonObject profile) levels.Add(Stage.LevelOf(profile["level"]));
+        }
+        else if (Source == LetFormat.Source)
+        {
+            levels.Add(Stage.LevelOf(((root["data"] as JsonObject)?["bio"] as JsonObject)?["level"]));
+        }
+        for (int i = 0, s = 0; i < stored.Count && s < Stages.Count; i++)
+        {
+            if (stored[i] is not JsonObject o) continue;
+            if (!o.ContainsKey("level") && s < levels.Count) Stages[s].Level = levels[s];
+            s++;
+        }
     }
 
     internal static string? Str(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? s) ? s : null;
@@ -110,6 +137,11 @@ internal sealed class Stage
     public string?[] Bar = new string?[BarSlots];
     /// <summary>A Maxroll export has no specialisation list, so its skills are the trees with points.</summary>
     public bool SlotsInferred;
+    /// <summary>The character level the planner gives the stage; 0 = none.</summary>
+    public int Level;
+
+    /// <summary>A planner's level value, or 0 when it isn't a level from 1 to 255.</summary>
+    public static int LevelOf(JsonNode? node) => Build.Int(node) is int level and >= 1 and <= 255 ? level : 0;
 
     public JsonObject ToJson()
     {
@@ -130,6 +162,7 @@ internal sealed class Stage
             ["otherTrees"] = others,
             ["bar"] = bar,
             ["slotsInferred"] = SlotsInferred,
+            ["level"] = Level,
         };
     }
 
@@ -142,6 +175,7 @@ internal sealed class Stage
             Mastery = Build.Int(o["mastery"]) ?? 0,
             Passive = o["passive"] is JsonObject p ? PlannedTree.FromJson(p) : new PlannedTree(),
             SlotsInferred = o["slotsInferred"] is JsonValue v && v.TryGetValue(out bool b) && b,
+            Level = LevelOf(o["level"]),
         };
         if (o["skills"] is JsonArray skills)
         {

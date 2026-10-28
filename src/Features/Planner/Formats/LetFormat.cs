@@ -27,6 +27,7 @@ internal static class LetFormat
             ClassId = Build.Int(bio?["characterClass"]) ?? Build.Int(root["class"]) ?? 0,
             Mastery = Build.Int(bio?["chosenMastery"]) ?? Build.Int(root["mastery"]) ?? 0,
             Passive = ReadTree(string.Empty, (data["charTree"] as JsonObject)?["selected"] as JsonObject, data["charTreeProgression"] as JsonArray),
+            Level = Stage.LevelOf(bio?["level"]),
         };
 
         var progression = data["skillTreesProgression"] as JsonObject;

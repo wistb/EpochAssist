@@ -79,6 +79,7 @@ internal static class MaxrollFormat
             ClassId = Build.Int(profile["class"]) ?? 0,
             Mastery = Build.Int(profile["mastery"]) ?? 0,
             Passive = ReadTree(string.Empty, profile["passives"] as JsonObject),
+            Level = Stage.LevelOf(profile["level"]),
         };
 
         var trees = new List<PlannedTree>();

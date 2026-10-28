@@ -1487,7 +1487,8 @@ internal static class PlannerCommands
         Planner.Resolve(build);
         var stage = build.Stages[number - 1];
         var trees = GlobalTreeData.get();
-        var lines = new List<string> { $"ok planner show {build.Id} stage {number} \"{stage.Name}\": class {stage.ClassId} mastery {stage.Mastery}" };
+        var lines = new List<string> { $"ok planner show {build.Id} stage {number} \"{stage.Name}\": class {stage.ClassId} mastery {stage.Mastery} level {(stage.Level > 0 ? stage.Level.ToString(s_inv) : "-")}",
+            "levels: " + string.Join(", ", build.Stages.Select((st, i) => $"{i + 1} {(st.Level > 0 ? st.Level.ToString(s_inv) : "-")}")) };
 
         var passive = Game.Alive(trees) && stage.Passive.TreeId.Length > 0 ? trees!.getTreeData(stage.Passive.TreeId) : null;
         foreach (var group in stage.Passive.Points.GroupBy(p => passive?.getNode(p.Key)?.requiredMastery ?? 255).OrderBy(g => g.Key))

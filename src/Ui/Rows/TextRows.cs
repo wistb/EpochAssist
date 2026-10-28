@@ -24,6 +24,9 @@ internal static class TextRows
         else Actions.Run(button.Action, "menu");
     }
 
+    /// <summary>A button's tip: its live text when it has one.</summary>
+    public static string? Tip(ActionButton button) => button.TipText != null ? Safe.Call(button.TipText, null, button.Key + ".tip") : button.Tip;
+
     /// <summary>A flat banner with the accent bar at its left; the buttons, when given, at its right (the second at the
     /// far right). Returns its height.</summary>
     public static float BannerHeight(string text, float width, ActionButton? button, ActionButton? second = null) =>
@@ -114,7 +117,7 @@ internal static class TextRows
         protected override void Draw(ActionButton row, Rect rect, RowContext ctx)
         {
             var r = new Rect(rect.x, rect.y, Controls.ButtonWidth(row.Label), RowLayout.ControlHeight);
-            if (Controls.Button(r, row.Label, ctx.Prefix + row.Key, row.Primary, row.Tip)) Run(row);
+            if (Controls.Button(r, row.Label, ctx.Prefix + row.Key, row.Primary, Tip(row))) Run(row);
         }
 
         protected override IEnumerable<string> Search(ActionButton row) => new[] { row.Label };
@@ -155,7 +158,7 @@ internal static class TextRows
         {
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(r, button.Label, key, button.Primary, button.Tip)) Run(button);
+            if (Controls.Button(r, button.Label, key, button.Primary, Tip(button))) Run(button);
             GUI.enabled = enabled;
         }
 
