@@ -78,11 +78,22 @@ internal static partial class MapReveal
         if (Mathf.Abs(S.PanSpeed.Value - speed) > 1e-3f) S.PanSpeed.Value = speed;
     }
 
-    // The game's own overlay scale: its saved zoom setting (120 to 300).
+    // The game's own overlay scale: its saved zoom setting (120 to 300). The game's settings throw while they aren't set
+    // up (the title screen, a load); the last value read, else the game's default, stands in.
+    private static float s_gameOverlayScale = 120f;
+
     private static float GameOverlayScale()
     {
-        float saved = Il2CppLE.Settings.SettingsManager.Gameplay?.OverlayMapZoom?.GetValue() ?? 0f;
-        return saved > 0f ? saved : 120f;
+        try
+        {
+            float saved = Il2CppLE.Settings.SettingsManager.Gameplay?.OverlayMapZoom?.GetValue() ?? 0f;
+            if (saved > 0f) s_gameOverlayScale = saved;
+        }
+        catch (Exception)
+        {
+            // Not set up yet: the last value stands.
+        }
+        return s_gameOverlayScale;
     }
 
     // The game's own overlay pan, fed the way a held arrow key feeds it (the call scales by the frame's time): about 6
