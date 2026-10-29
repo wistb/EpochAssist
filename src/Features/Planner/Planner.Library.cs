@@ -148,6 +148,21 @@ internal static partial class Planner
             return true;
         }
 
+        /// <summary>Sets the Last Epoch Tools guide a build follows (null goes back to the one its data names).</summary>
+        public static bool SetGuide(string id, string? slug)
+        {
+            if (Find(id) is not { } build || build.GuideSlug == slug) return false;
+            string? old = build.GuideSlug;
+            build.GuideSlug = slug;
+            if (!WriteBuild(build))
+            {
+                build.GuideSlug = old;
+                return false;
+            }
+            Generation++;
+            return true;
+        }
+
         // ---- stages ----
 
         /// <summary>Appends stages to a build in one write. False when it can't be stored, and the build is as it was.</summary>

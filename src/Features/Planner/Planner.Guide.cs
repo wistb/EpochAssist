@@ -180,7 +180,7 @@ internal static partial class Planner
         if (build.Source == LetFormat.Source)
         {
             guide.Kind = GuideKind.LetLink;
-            guide.LetSlug = Build.Str(raw["guide"]) is { Length: > 0 } slug ? slug : null;
+            guide.LetSlug = build.GuideSlug ?? (Build.Str(raw["guide"]) is { Length: > 0 } slug ? slug : null);
             return guide;
         }
         if (Build.Str(raw["data"]) is not string dataText || MaxrollFormat.Parse(dataText) is not JsonObject data) return guide;

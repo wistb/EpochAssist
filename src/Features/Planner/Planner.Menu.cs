@@ -15,7 +15,7 @@ internal static partial class Planner
     private static readonly ActionButton s_pasteButton = TabButton("Import", "paste", PasteFieldOrClipboard,
         tip: "Imports the planner link or export in the field, or the one on the clipboard when the field is empty");
     private static readonly ActionButton s_dataLinkButton = TabButton("Open build data link", "datalink", OpenDataLink,
-        tip: "Opens this build's data in the browser; paste the page here");
+        tip: "Opens this build's data in the browser; paste the page here", external: true);
     private static readonly ActionButton s_replaceButton = TabButton("Replace", "replace", ReplacePending, tip: "Replaces the build in the library with this import");
     private static readonly ActionButton s_keepButton = TabButton("Keep", "keep", KeepPending, tip: "Keeps the build in the library and drops this import");
 
@@ -65,8 +65,8 @@ internal static partial class Planner
     public static readonly MenuEntry ConfigEntry = ConfigSettings();
 
     private static ActionButton TabButton(string label, string key, Action click, Func<bool>? enabled = null, string? tip = null, bool primary = false,
-        Func<bool>? visible = null) =>
-        new(label, "planner." + key, primary) { OnClick = click, EnabledWhen = enabled, VisibleWhen = visible, Tip = tip };
+        Func<bool>? visible = null, bool external = false) =>
+        new(label, "planner." + key, primary) { OnClick = click, EnabledWhen = enabled, VisibleWhen = visible, Tip = tip, External = external };
 
     private static bool s_toolbarChanged;
 
@@ -154,27 +154,15 @@ internal static partial class Planner
         _ => $"From {SourceName(build)}",
     };
 
-    private static (string? Id, bool Confirming) s_actionsFor;
+    private static string? s_actionsFor;
     private static IReadOnlyList<ActionButton> s_actions = Array.Empty<ActionButton>();
-    // The build whose Delete was pressed: the library has no undo, so it asks once more.
-    private static string? s_confirmDelete;
 
     private static IReadOnlyList<ActionButton> BuildActions(LibraryLine? line)
     {
         if (line == null) return Array.Empty<ActionButton>();
-        bool confirming = s_confirmDelete == line.Key;
-        if (s_actionsFor == (line.Key, confirming)) return s_actions;
+        if (s_actionsFor == line.Key) return s_actions;
         string id = line.Key;
-        s_actionsFor = (id, confirming);
-        if (confirming)
-        {
-            s_actions = new[]
-            {
-                TabButton("Delete", "delete.confirm", () => Delete(id), tip: "Removes the build from the library and from every character that used it", primary: true),
-                TabButton("Keep", "delete.keep", () => s_confirmDelete = null),
-            };
-            return s_actions;
-        }
+        s_actionsFor = id;
         s_actions = new[]
         {
             TabButton("Open", "open", () => s_viewing = id),
@@ -182,14 +170,22 @@ internal static partial class Planner
             {
                 if (View.Line(id) is { } renamed) View.BeginRename(renamed);
             }),
-            TabButton("Delete", "delete", () => s_confirmDelete = id, tip: "Asks before removing the build from the library and from every character that used it"),
+            // The library has no undo, so it asks once more, beside the button.
+            new ActionButton("Delete", "planner.delete")
+            {
+                Tip = "Asks before removing the build from the library and from every character that used it",
+                Prompt = new ButtonPrompt(() => $"Delete \"{Library.Find(id)?.Name ?? id}\"? It's also removed from every character that uses it.", "Delete", _ =>
+                {
+                    Delete(id);
+                    return null;
+                }),
+            },
         };
         return s_actions;
     }
 
     private static void Delete(string id)
     {
-        s_confirmDelete = null;
         if (!Library.Delete(id)) return;
         if (s_viewing == id) s_viewing = null;
     }
@@ -200,8 +196,6 @@ internal static partial class Planner
     private static string? BuildHint(LibraryLine? line)
     {
         if (line == null) return null;
-        if (s_confirmDelete != null && s_confirmDelete != line.Key) s_confirmDelete = null;
-        if (s_confirmDelete == line.Key) return $"Delete \"{line.Label}\"? It's also removed from every character that uses it.";
         if (s_hintFor == (line.Key, Library.Generation)) return s_hint;
         s_hintFor = (line.Key, Library.Generation);
         s_hint = Library.Find(line.Key) is { } build ? $"{Credit(build)} · {StageCount(build)}" : null;
@@ -256,7 +250,7 @@ internal static partial class Planner
             VisibleWhen = () => s_run is { Guidance.DifferentMastery: true, MasteryWords: not null } run && run.Build?.Id == id,
         });
         if (build.Stages.Exists(stage => stage.SlotsInferred)) rows.Add(new HintRow(() => Words.InferredSlots) { Key = "inferred" });
-        if (StageList(build) is { } stages) rows.Add(stages);
+        rows.AddRange(StageRows(build));
         rows.Add(new HeadingRow("Not in this game version") { VisibleWhen = () => Unknown(build) });
         rows.Add(new HintRow(() => s_unknownSummary ?? string.Empty) { Key = "unknown", VisibleWhen = () => Unknown(build) });
         rows.Add(new HintRow(() => s_unknownList ?? string.Empty) { Key = "unknown.list", VisibleWhen = () => Unknown(build) });
@@ -287,10 +281,13 @@ internal static partial class Planner
             editor.Buttons.Add(TabButton("Open planner page", "page", () =>
             {
                 if (StagePage(build) is { } page) UnityEngine.Application.OpenURL(page);
-            }, tip: "Opens the page of the stage in use in the browser"));
+            }, tip: "Opens the page of the stage in use in the browser", external: true));
         if (build.Source == LetFormat.Source && build.Url != null)
-            editor.Buttons.Add(TabButton("Add stage from link", "stage.addlink", () => AddStageFromLink(id),
-                tip: "Adds the LET link in the field, or on the clipboard, as this build's next stage"));
+            editor.Buttons.Add(new ActionButton("Add stage from link", "planner.stage.addlink")
+            {
+                Tip = "Asks for a LET planner link (the clipboard's, when it holds one) and adds that build as the next stage",
+                Prompt = StageLinkPrompt(id),
+            });
         editor.Buttons.Add(TabButton("Use for this character", "use", () =>
         {
             if (Profiles.Key is { } character) Library.Bind(character, id);

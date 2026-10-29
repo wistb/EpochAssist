@@ -20,15 +20,27 @@ internal static partial class Planner
     private static readonly ActionButton s_importNewButton = TabButton("Import as a new build", "stage.importnew", ImportPendingAsNew,
         tip: "Adds this link to the library as a build of its own");
 
-    /// <summary>Adds the Last Epoch Tools link in the field, or on the clipboard, as the build's next stage: one request.</summary>
-    public static void AddStageFromLink(string buildId)
+    /// <summary>Asks for the LET planner link of the build's next stage beside its button, filled with the clipboard's
+    /// when it holds one; one request once taken.</summary>
+    private static ButtonPrompt StageLinkPrompt(string buildId) =>
+        new(() => "Last Epoch Tools planner link of the next stage:", "Add stage", text =>
+        {
+            var paste = PasteKind.Recognise(text);
+            if (paste.Kind != PasteSource.LetLink) return "That isn't a Last Epoch Tools planner link.";
+            AddStageFrom(buildId, paste);
+            return null;
+        })
+        {
+            Input = true,
+            Initial = () => PasteKind.Recognise(Clipboard.Text).Kind == PasteSource.LetLink ? Clipboard.Text.Trim() : string.Empty,
+        };
+
+    private static void AddStageFrom(string buildId, Paste paste)
     {
-        string text = s_link.Trim().Length > 0 ? s_link : Clipboard.Text;
-        s_link = string.Empty;
         Library.EnsureLoaded();
         s_pending = null;
         s_stagePending = null;
-        s_outcome = StartStageFetch(buildId, PasteKind.Recognise(text));
+        s_outcome = StartStageFetch(buildId, paste);
         ImportChanged();
     }
 
@@ -123,30 +135,47 @@ internal static partial class Planner
     }
 
     /// <summary>
-    /// A LET build's stages in the build view: each named in place, moved up or down and removed (not the last), and
-    /// "Add stage from library" listing the saved LET builds of its class. Null for other builds, and while the build
-    /// has one stage and nothing to add.
+    /// A LET build's stages in the build view: each named in place, moved up or down and removed (not the last, and
+    /// only once asked), and "Add stage from library" listing the saved LET builds of its class. None for other builds,
+    /// and while the build has one stage and nothing to add.
     /// </summary>
-    private static MenuRow? StageList(Build build)
+    private static IEnumerable<MenuRow> StageRows(Build build)
     {
-        if (build.Source != LetFormat.Source) return null;
+        if (build.Source != LetFormat.Source) yield break;
         var candidates = Stages.MergeCandidates(build);
-        if (build.Stages.Count < 2 && candidates.Count == 0) return null;
+        if (build.Stages.Count < 2 && candidates.Count == 0) yield break;
         string id = build.Id;
         var names = candidates.Select(b => b.Name).ToList();
-        return new ListRow("Stages", () => build.Stages, item =>
+        yield return new ListRow("Stages", () => build.Stages, item =>
         {
-            int index = build.Stages.IndexOf((Stage)item);
+            var stage = (Stage)item;
+            int index = build.Stages.IndexOf(stage);
+            // Stages named alike (variants with the same skills) tell apart by their link.
+            string? plannerId = stage.PlannerId ?? (index == 0 ? build.PlannerId : null);
+            string? url = stage.Url ?? (index == 0 ? build.Url : null);
             return new MenuRow[]
             {
-                new ValueTextField("Name", () => ((Stage)item).Name, name => TypeStageName(id, index, name), 60) { Key = "name", InlineWidth = 420f },
-                new ValueText("Level", () => ((Stage)item).Level > 0 ? $"level {((Stage)item).Level}" : string.Empty) { Key = "level" },
+                new ValueTextField("Name", () => stage.Name, name => TypeStageName(id, index, name), 60) { Key = "name", InlineWidth = 340f },
+                new ValueText("Level", () => stage.Level > 0 ? $"level {stage.Level}" : string.Empty) { Key = "level", Width = 70f },
+                new ValueText("Link", () => plannerId ?? "no link") { Key = "link", Width = 90f },
+                TabButton("Open", $"stage.page.{index}", () =>
+                {
+                    if (url != null) UnityEngine.Application.OpenURL(url);
+                }, tip: "Opens this stage's page in the browser", visible: () => url != null, external: true),
             };
         }, "Add stage from library")
         {
             Key = "stages",
             Move = (from, to) => Library.MoveStage(id, from, to - from),
             Remove = index => Library.RemoveStage(id, index),
+            // A stage's data has no undo, so it asks once more, beside its button.
+            RemovePrompt = index => index < build.Stages.Count
+                ? new ButtonPrompt(() => $"Remove stage {index + 1} ({build.Stages[index].Name})? Its loot filter choices go with it.", "Remove", _ =>
+                {
+                    Library.RemoveStage(id, index);
+                    return null;
+                })
+                : null,
             RemoveBlocked = _ => build.Stages.Count < 2 ? "A build keeps at least one stage" : null,
             AddChoices = candidates.Count > 0 ? () => names : null,
             AddPicked = candidates.Count > 0 ? i =>
@@ -258,6 +287,8 @@ internal static partial class Planner
         /// guide's variants name none); else null.</summary>
         public static string? GuideTitleFor(Build build)
         {
+            // A guide the player gave counts over what the stages name.
+            if (build.GuideSlug != null) return LetFormat.GuideTitle(build.GuideSlug);
             string? slug = build.Stages.Count > 0 ? build.Stages[0].GuideSlug : null;
             if (slug == null) return null;
             foreach (var stage in build.Stages)

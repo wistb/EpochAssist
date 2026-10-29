@@ -24,6 +24,8 @@ internal sealed class Build
     public string Raw = string.Empty;
     /// <summary>The player named the build in the menu; automatic names never set it.</summary>
     public bool NamedByPlayer;
+    /// <summary>The Last Epoch Tools guide the player gave the build, used before the one its planner data names.</summary>
+    public string? GuideSlug;
 
     /// <summary>The stored form: the build's fields, the planner's data as received, and the parsed model.</summary>
     public JsonObject ToJson()
@@ -44,6 +46,7 @@ internal sealed class Build
             ["model"] = new JsonObject { ["firstStage"] = FirstStage, ["stages"] = stages },
         };
         if (NamedByPlayer) o["namedByPlayer"] = true;
+        if (GuideSlug != null) o["guide"] = GuideSlug;
         return o;
     }
 
@@ -79,6 +82,7 @@ internal sealed class Build
             FirstStage = Int(model["firstStage"]) ?? 0,
             Raw = RawText(o["raw"]),
             NamedByPlayer = o["namedByPlayer"] is JsonValue named && named.TryGetValue(out bool byPlayer) && byPlayer,
+            GuideSlug = Str(o["guide"]),
         };
         foreach (var node in stages)
             if (node is JsonObject s) build.Stages.Add(Stage.FromJson(s));

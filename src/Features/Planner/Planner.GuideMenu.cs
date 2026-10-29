@@ -116,19 +116,22 @@ internal static partial class Planner
                 return;
             case GuideKind.LetLink when guide.LetSlug is { } slug:
                 rows.Add(TabButton("Read guide on Last Epoch Tools", "guide.let",
-                    () => UnityEngine.Application.OpenURL(LetGuidePage + Uri.EscapeDataString(slug)), tip: "Opens the guide in the browser"));
+                    () => UnityEngine.Application.OpenURL(LetGuidePage + Uri.EscapeDataString(slug)), tip: "Opens the guide in the browser", external: true));
+                rows.Add(UseGuideButton(build, "Change guide"));
                 return;
             case GuideKind.LetLink:
-                rows.Add(new HintRow(() => "This build has no guide.") { Key = "guide.none" });
+                // A guide's variants don't name it, so the player can.
+                rows.Add(new HintRow(() => "This build names no guide. Copy the guide's link from Last Epoch Tools, then press Use guide link.") { Key = "guide.none" });
+                rows.Add(UseGuideButton(build, "Use guide link"));
                 return;
         }
 
         if (guide.ShowcaseId is { } video)
-            rows.Add(TabButton("Watch showcase", "guide.showcase", () => UnityEngine.Application.OpenURL("https://www.youtube.com/watch?v=" + video), tip: "Opens the video in the browser"));
+            rows.Add(TabButton("Watch showcase", "guide.showcase", () => UnityEngine.Application.OpenURL("https://www.youtube.com/watch?v=" + video), tip: "Opens the video in the browser", external: true));
         for (int i = 0; i < guide.Leveling.Count; i++)
         {
             var (label, url) = guide.Leveling[i];
-            rows.Add(TabButton(label, $"guide.leveling.{i}", () => UnityEngine.Application.OpenURL(url), tip: "Opens the guide in the browser"));
+            rows.Add(TabButton(label, $"guide.leveling.{i}", () => UnityEngine.Application.OpenURL(url), tip: "Opens the guide in the browser", external: true));
         }
 
         AddDoc(rows, guide.Strengths, "Strengths and weaknesses", folded: false);
@@ -142,6 +145,37 @@ internal static partial class Planner
         AddDoc(rows, notes?.Equipment, "Equipment" + suffix, folded: false);
         AddDoc(rows, guide.Faq, "FAQ", folded: true);
         AddDoc(rows, guide.Changelog, "Changelog", folded: true);
+    }
+
+    // Asks for the guide's link beside the button, filled with the clipboard's when it holds one; no request.
+    private static ActionButton UseGuideButton(Build build, string label) => new(label, "planner.guide.use")
+    {
+        Tip = "Asks for a Last Epoch Tools guide link (the clipboard's, when it holds one) and uses that guide for this build; no request",
+        Prompt = new ButtonPrompt(() => "Last Epoch Tools guide link:", "Use guide", text => SetGuideFrom(build.Id, text) ? null : "That isn't a Last Epoch Tools guide link.")
+        {
+            Input = true,
+            Initial = () => s_guideLink.IsMatch(Clipboard.Text ?? string.Empty) ? Clipboard.Text!.Trim() : string.Empty,
+        },
+    };
+
+    private static readonly System.Text.RegularExpressions.Regex s_guideLink =
+        new(@"lastepochtools\.com/build-guides/([a-z0-9]+(?:-[a-z0-9]+)*)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    // The guide link names the guide; nothing is fetched. False when the text isn't one.
+    private static bool SetGuideFrom(string id, string text)
+    {
+        var match = s_guideLink.Match(text);
+        if (!match.Success) return false;
+        if (Library.Find(id) is { } build)
+        {
+            string slug = match.Groups[1].Value.ToLowerInvariant();
+            Library.SetGuide(id, slug);
+            string title = LetFormat.GuideTitle(slug) ?? slug;
+            if (!build.NamedByPlayer) Library.Rename(id, title);
+            s_outcome = $"Guide set to {title}.";
+        }
+        ImportChanged();
+        return match.Success;
     }
 
     /// <summary>The Last Epoch Tools guide page, followed by the build's guide name.</summary>
