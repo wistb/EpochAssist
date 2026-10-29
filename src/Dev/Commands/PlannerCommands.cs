@@ -17,7 +17,7 @@ namespace EpochAssist.Dev;
 // save.
 internal static class PlannerCommands
 {
-    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings [timeline] | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n>|weaver <socket> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off | " + PlannerGuideCommands.Usage + " | " + PlannerFilterCommands.Usage;
+    public const string Usage = "planner | planner trees | planner nodes [id] | planner skills | planner icons | planner tooltips | planner selector open|close | planner open passive|skills|tree <slot>|picker <slot>|inventory|mastery|close | planner tab <0-3> | planner mastery | planner gear | planner idols | planner blessings [timeline] | planner weaver | planner tooltip <slot>|idol <x> <y>|blessing <n>|weaver <socket> [compare] [rarity <n>] [as <slot type>] [against hovered|carried [reverse]] [at <x> <y>]|close | planner carried | planner slots | planner itemcheck <build id> | planner slotart <slot> | planner sprite <name> | planner sprites <regex> [max px] | planner tooltipcheck <n> | planner watch on|off | planner import <file> | planner check | planner resolve | planner show [stage] | planner paste <text> | planner host <url>|off | " + PlannerGuideCommands.Usage + " | " + PlannerFilterCommands.Usage + " | " + PlannerStageCommands.Usage;
 
     // Fixtures sit in .reference/fixtures/planner/ (local only); ./build.sh dev mirrors them here so the game can read them.
     private static string FixtureDir => Path.Combine(DevBridge.Dir, "fixtures", "planner");
@@ -78,6 +78,8 @@ internal static class PlannerCommands
         "host" => Host(call),
         "guide" => PlannerGuideCommands.Run(call),
         "filter" => PlannerFilterCommands.Run(call),
+        "stage" => PlannerStageCommands.Run(call),
+        "fetch" => PlannerStageCommands.Fetch(call),
         _ => CommandResult.Error($"planner: usage {Usage}"),
     };
 
@@ -88,6 +90,7 @@ internal static class PlannerCommands
         s_watch = null;
         s_watchLast = string.Empty;
         Planner.Fetch.TestHost(null);
+        Planner.Fetch.NoStandIn();
         Planner.Panels.Forget();
     }
 

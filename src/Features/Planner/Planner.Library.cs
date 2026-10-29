@@ -131,20 +131,168 @@ internal static partial class Planner
             return true;
         }
 
-        public static bool Rename(string id, string name)
+        /// <summary>Renames a build; byPlayer marks a name the player gave, which automatic names then keep.</summary>
+        public static bool Rename(string id, string name, bool byPlayer = false)
         {
             name = name.Trim();
-            if (Find(id) is not { } build || name.Length == 0 || name == build.Name) return false;
-            string old = build.Name;
+            if (Find(id) is not { } build || name.Length == 0 || (name == build.Name && (!byPlayer || build.NamedByPlayer))) return false;
+            (string oldName, bool oldByPlayer) = (build.Name, build.NamedByPlayer);
             build.Name = name;
+            build.NamedByPlayer |= byPlayer;
             if (!WriteBuild(build))
             {
-                build.Name = old;
+                (build.Name, build.NamedByPlayer) = (oldName, oldByPlayer);
                 return false;
             }
             Generation++;
             return true;
         }
+
+        // ---- stages ----
+
+        /// <summary>Appends stages to a build in one write. False when it can't be stored, and the build is as it was.</summary>
+        public static bool AddStages(string buildId, IReadOnlyList<Stage> stages)
+        {
+            if (Find(buildId) is not { } build || stages.Count == 0) return false;
+            int before = build.Stages.Count;
+            build.Stages.AddRange(stages);
+            // Checked before it's written, so the file keeps the ids the check filled in.
+            ForgetResolution(buildId);
+            Resolve(build);
+            if (!WriteBuild(build))
+            {
+                build.Stages.RemoveRange(before, stages.Count);
+                ForgetResolution(buildId);
+                return false;
+            }
+            Generation++;
+            return true;
+        }
+
+        /// <summary>Swaps a stage's data for a new one in place, keeping its place and name.</summary>
+        public static bool ReplaceStage(string buildId, int index, Stage stage)
+        {
+            if (Find(buildId) is not { } build || index < 0 || index >= build.Stages.Count) return false;
+            var old = build.Stages[index];
+            stage.Name = old.Name;
+            build.Stages[index] = stage;
+            ForgetResolution(buildId);
+            Resolve(build);
+            if (!WriteBuild(build))
+            {
+                build.Stages[index] = old;
+                ForgetResolution(buildId);
+                return false;
+            }
+            LootFilterStore.StagesChanged(buildId, new Dictionary<int, int?> { [index] = index });
+            Generation++;
+            return true;
+        }
+
+        /// <summary>Swaps a stage with the one before (by -1) or after (by 1); characters on either follow it.</summary>
+        public static bool MoveStage(string buildId, int index, int by)
+        {
+            int to = index + by;
+            if (Find(buildId) is not { } build || index < 0 || index >= build.Stages.Count || to < 0 || to >= build.Stages.Count) return false;
+            KeepStageZeroLink(build);
+            int Map(int s) => s == index ? to : s == to ? index : s;
+            int first = build.FirstStage;
+            Swap(build.Stages, index, to);
+            build.FirstStage = Map(first);
+            if (!WriteBuild(build))
+            {
+                Swap(build.Stages, index, to);
+                build.FirstStage = first;
+                return false;
+            }
+            RemapBindings(buildId, Map);
+            LootFilterStore.StagesChanged(buildId, new Dictionary<int, int?> { [index] = to, [to] = index });
+            ForgetResolution(buildId);
+            Generation++;
+            return true;
+        }
+
+        /// <summary>Removes a stage, never the last one. Characters on it go to the stage before (else the new first);
+        /// those after it move down one.</summary>
+        public static bool RemoveStage(string buildId, int index)
+        {
+            if (Find(buildId) is not { } build || build.Stages.Count < 2 || index < 0 || index >= build.Stages.Count) return false;
+            KeepStageZeroLink(build);
+            int Shift(int s) => s < index ? s : s == index ? Math.Max(0, index - 1) : s - 1;
+            var removed = build.Stages[index];
+            int first = build.FirstStage;
+            build.Stages.RemoveAt(index);
+            build.FirstStage = Shift(first);
+            if (!WriteBuild(build))
+            {
+                build.Stages.Insert(index, removed);
+                build.FirstStage = first;
+                return false;
+            }
+            RemapBindings(buildId, Shift);
+            var map = new Dictionary<int, int?> { [index] = null };
+            for (int s = index + 1; s <= build.Stages.Count; s++) map[s] = s - 1;
+            LootFilterStore.StagesChanged(buildId, map);
+            ForgetResolution(buildId);
+            Generation++;
+            return true;
+        }
+
+        /// <summary>Names a stage. With write false the name changes in memory only, for a name still being typed;
+        /// <see cref="WriteNow"/> stores it.</summary>
+        public static bool RenameStage(string buildId, int index, string name, bool write = true)
+        {
+            name = name.Trim();
+            if (Find(buildId) is not { } build || index < 0 || index >= build.Stages.Count || name.Length == 0) return false;
+            if (name != build.Stages[index].Name)
+            {
+                build.Stages[index].Name = name;
+                Generation++;
+            }
+            return !write || WriteBuild(build);
+        }
+
+        /// <summary>Writes a build as it is in memory.</summary>
+        public static bool WriteNow(string buildId) => Find(buildId) is { } build && WriteBuild(build);
+
+        /// <summary>Every character on the source build goes to the target at its stage + offset (a build moved in as
+        /// stages).</summary>
+        public static void MoveBindings(string fromId, string toId, int offset)
+        {
+            bool changed = false;
+            foreach (var (character, binding) in s_bindings.ToList())
+            {
+                if (binding.Build != fromId) continue;
+                s_bindings[character] = (toId, binding.Stage + offset);
+                changed = true;
+            }
+            if (!changed) return;
+            SaveBindings();
+            Generation++;
+        }
+
+        private static void RemapBindings(string buildId, Func<int, int> map)
+        {
+            bool changed = false;
+            foreach (var (character, binding) in s_bindings.ToList())
+            {
+                if (binding.Build != buildId || map(binding.Stage) == binding.Stage) continue;
+                s_bindings[character] = (buildId, map(binding.Stage));
+                changed = true;
+            }
+            if (changed) SaveBindings();
+        }
+
+        // Stage 0 of a Last Epoch Tools build uses the build's link; once it can move it keeps it as its own.
+        private static void KeepStageZeroLink(Build build)
+        {
+            if (build.Source != LetFormat.Source) return;
+            var first = build.Stages[0];
+            first.PlannerId ??= build.PlannerId;
+            first.Url ??= build.Url;
+        }
+
+        private static void Swap(List<Stage> stages, int a, int b) => (stages[a], stages[b]) = (stages[b], stages[a]);
 
         /// <summary>Deletes a build's file and drops every character's binding to it.</summary>
         public static bool Delete(string id)

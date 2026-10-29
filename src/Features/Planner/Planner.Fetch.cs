@@ -138,6 +138,8 @@ internal static partial class Planner
         private static int s_taskGeneration;
 #if DEV
         private static string? s_testHost;
+        // The next request's answer without asking the site: a fixture's text, or a refusal or timeout.
+        private static (string? Body, FetchState Fail)? s_standIn;
 #endif
 
         public static bool Busy => s_task != null;
@@ -159,6 +161,12 @@ internal static partial class Planner
         /// request and on reload.</summary>
         public static void TestHost(string? url) => s_testHost = url;
         public static string? TestHostNow => s_testHost;
+
+        /// <summary>Answers the next request with this body, or with Refused or TimedOut when it's null, and makes no
+        /// request. Cleared after one request and on reload.</summary>
+        public static void StandIn(string? body, FetchState fail = FetchState.Refused) => s_standIn = (body, fail);
+        public static void NoStandIn() => s_standIn = null;
+        public static string StandInNow => s_standIn is { } s ? s.Body != null ? $"a {s.Body.Length}-character answer" : s.Fail.ToString() : "none";
 #endif
 
         /// <summary>Starts the one request for a recognised link, from the paste handler; false while one is running.</summary>
@@ -176,6 +184,15 @@ internal static partial class Planner
             Last = null;
             s_taskGeneration = s_generation;
             var attempt = new FetchAttempt { Site = site, Url = url, Paste = paste };
+#if DEV
+            if (s_standIn is { } standIn)
+            {
+                s_standIn = null;
+                s_task = Task.Run(() => Answer(attempt, standIn));
+                Log.Info($"Planner: answering one {PlannerSites.Name(site)} fetch with the stand-in; no request.");
+                return true;
+            }
+#endif
             s_task = Task.Run(() => Run(attempt));
             Log.Info($"Planner: fetching one build from {PlannerSites.Name(site)}.");
             return true;
@@ -204,8 +221,27 @@ internal static partial class Planner
             Last = null;
 #if DEV
             s_testHost = null;
+            s_standIn = null;
 #endif
         }
+
+#if DEV
+        // The stand-in's answer goes through the same checks as a site's.
+        private static FetchAttempt Answer(FetchAttempt attempt, (string? Body, FetchState Fail) standIn)
+        {
+            if (standIn.Body is not { } body)
+            {
+                attempt.State = standIn.Fail;
+                attempt.Status = standIn.Fail == FetchState.Refused ? (int)HttpStatusCode.Forbidden : 0;
+                return attempt;
+            }
+            using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+            attempt.Status = (int)response.StatusCode;
+            attempt.Bytes = body.Length;
+            Classify(attempt, response, body);
+            return attempt;
+        }
+#endif
 
         private static async Task<FetchAttempt> Run(FetchAttempt attempt)
         {

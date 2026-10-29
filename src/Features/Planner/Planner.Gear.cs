@@ -101,8 +101,11 @@ internal static partial class Planner
     private static PlannedGear ReadGear(Build build, int stage)
     {
         var gear = new PlannedGear();
-        if (MaxrollFormat.Parse(build.Raw) is not JsonObject raw) return gear;
-        if (build.Source == LetFormat.Source) ReadLetGear(raw, gear);
+        // A Last Epoch Tools stage holds its own planner data; Maxroll's profiles share the build's.
+        bool let = build.Source == LetFormat.Source;
+        string text = let && stage >= 0 && stage < build.Stages.Count ? build.Stages[stage].RawFor(build) : build.Raw;
+        if (MaxrollFormat.Parse(text) is not JsonObject raw) return gear;
+        if (let) ReadLetGear(raw, gear);
         else ReadMaxrollGear(raw, stage, gear);
         foreach (var item in gear.Slots.Values) Check(item);
         foreach (var item in gear.Idols) Check(item);

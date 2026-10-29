@@ -163,6 +163,7 @@ internal static partial class Planner
         Panels.Forget();
         ForgetGear();
         ForgetGuidePage();
+        WriteTypedStageName(now: true);
         // Made filters stay in the game's folder; only what the page holds is dropped.
         ForgetFilterPage();
         LootFilterStore.Forget();
@@ -237,6 +238,7 @@ internal static partial class Planner
     {
         Library.EnsureLoaded();
         s_pending = null;
+        s_stagePending = null;
         var result = Handle(PasteKind.Recognise(text));
         s_outcome = result.Message;
         ImportChanged();
@@ -252,6 +254,7 @@ internal static partial class Planner
             if (!Fetch.Start(site, paste)) return new PasteResult(Words.Busy);
             s_failedLetLink = null;
             s_fetching = paste;
+            s_addTo = null;
             return new PasteResult(Words.Fetching(site)) { Started = true };
         }
         if (paste.Kind is not (PasteSource.MaxrollExport or PasteSource.LetJson) || paste.Text.Length > MainThreadParseBytes)
@@ -285,9 +288,12 @@ internal static partial class Planner
             attempt.Site = site;
         }
         s_fetching = null;
+        var addTo = s_addTo;
+        s_addTo = null;
         if (attempt.Build is { } build)
         {
-            s_outcome = Take(build);
+            // A request from Add stage from link adds to its build; any other imports.
+            s_outcome = addTo is { } to ? AddFetched(to, build) : Take(build);
         }
         else
         {
@@ -317,7 +323,7 @@ internal static partial class Planner
             s_pending = build;
             return Words.AlreadyInLibrary(old);
         }
-        return Store(build);
+        return OfferStageReplace(build) ?? Store(build);
     }
 
     // Checked against the game data before it's written, so the file keeps the ids the check filled in.

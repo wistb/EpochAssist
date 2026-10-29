@@ -27,7 +27,7 @@ internal static partial class Planner
         Open = line => s_viewing = line.Key,
         Actions = BuildActions,
         ActionHint = BuildHint,
-        Rename = (line, name) => Library.Rename(line.Key, name),
+        Rename = (line, name) => Library.Rename(line.Key, name, byPlayer: true),
         Editor = BuildEditor,
         Back = () =>
         {
@@ -39,6 +39,7 @@ internal static partial class Planner
         Banner = () =>
         {
             PollFetch();
+            WriteTypedStageName();
             SyncToolbar();
             return s_outcome ?? (Profiles.Key == null ? Words.NoCharacter : null);
         },
@@ -85,6 +86,11 @@ internal static partial class Planner
         {
             bar.Add(s_replaceButton);
             bar.Add(s_keepButton);
+        }
+        if (s_stagePending is { } stage)
+        {
+            bar.Add(s_replaceStageButton);
+            bar.Add(stage.Fetched != null ? s_importNewButton : s_keepStageButton);
         }
     }
 
@@ -250,6 +256,7 @@ internal static partial class Planner
             VisibleWhen = () => s_run is { Guidance.DifferentMastery: true, MasteryWords: not null } run && run.Build?.Id == id,
         });
         if (build.Stages.Exists(stage => stage.SlotsInferred)) rows.Add(new HintRow(() => Words.InferredSlots) { Key = "inferred" });
+        if (StageList(build) is { } stages) rows.Add(stages);
         rows.Add(new HeadingRow("Not in this game version") { VisibleWhen = () => Unknown(build) });
         rows.Add(new HintRow(() => s_unknownSummary ?? string.Empty) { Key = "unknown", VisibleWhen = () => Unknown(build) });
         rows.Add(new HintRow(() => s_unknownList ?? string.Empty) { Key = "unknown.list", VisibleWhen = () => Unknown(build) });
@@ -271,8 +278,19 @@ internal static partial class Planner
         rows.Add(FilterChecklistRow(build));
         var editor = new LibraryEditor(id, () => build.Name,
             () => ShowingFilter(build) ? FilterRows(build, head) : ShowingGuide(build) ? GuideRows(build, head) : ChecklistRows(id, rows)) { Note = () => credit };
-        if (build.Url is { } url)
-            editor.Buttons.Add(TabButton("Open planner page", "page", () => UnityEngine.Application.OpenURL(url), tip: "Opens the build's page in the browser"));
+        // The question a link that is already one of this build's stages asks; the build view hides the toolbar.
+        editor.Buttons.Add(TabButton("Replace", "stage.replace.view", ReplacePendingStage, tip: "Replaces that stage with this link's build, keeping its place and name",
+            primary: true, visible: () => s_stagePending?.BuildId == id));
+        editor.Buttons.Add(TabButton("Keep", "stage.keep.view", KeepPendingStage, tip: "Keeps the stage as it is",
+            visible: () => s_stagePending is { Fetched: null } pending && pending.BuildId == id));
+        if (build.Url != null || build.Stages.Exists(s => s.Url != null))
+            editor.Buttons.Add(TabButton("Open planner page", "page", () =>
+            {
+                if (StagePage(build) is { } page) UnityEngine.Application.OpenURL(page);
+            }, tip: "Opens the page of the stage in use in the browser"));
+        if (build.Source == LetFormat.Source && build.Url != null)
+            editor.Buttons.Add(TabButton("Add stage from link", "stage.addlink", () => AddStageFromLink(id),
+                tip: "Adds the LET link in the field, or on the clipboard, as this build's next stage"));
         editor.Buttons.Add(TabButton("Use for this character", "use", () =>
         {
             if (Profiles.Key is { } character) Library.Bind(character, id);

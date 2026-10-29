@@ -22,22 +22,15 @@ internal sealed class Build
     public List<Stage> Stages = new();
     public int FirstStage;
     public string Raw = string.Empty;
+    /// <summary>The player named the build in the menu; automatic names never set it.</summary>
+    public bool NamedByPlayer;
 
     /// <summary>The stored form: the build's fields, the planner's data as received, and the parsed model.</summary>
     public JsonObject ToJson()
     {
-        JsonNode? raw;
-        try
-        {
-            raw = JsonNode.Parse(Raw);
-        }
-        catch (JsonException)
-        {
-            raw = Raw;
-        }
         var stages = new JsonArray();
         foreach (var stage in Stages) stages.Add(stage.ToJson());
-        return new JsonObject
+        var o = new JsonObject
         {
             ["version"] = FileVersion,
             ["source"] = Source,
@@ -47,10 +40,27 @@ internal sealed class Build
             ["author"] = Author,
             ["importedAt"] = ImportedAt.ToUniversalTime().ToString("o"),
             ["gameVersion"] = GameVersion,
-            ["raw"] = raw,
+            ["raw"] = RawNode(Raw),
             ["model"] = new JsonObject { ["firstStage"] = FirstStage, ["stages"] = stages },
         };
+        if (NamedByPlayer) o["namedByPlayer"] = true;
+        return o;
     }
+
+    // The planner's data stored as JSON when it parses, else as the text it came as.
+    internal static JsonNode? RawNode(string raw)
+    {
+        try
+        {
+            return JsonNode.Parse(raw);
+        }
+        catch (JsonException)
+        {
+            return raw;
+        }
+    }
+
+    internal static string RawText(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? text) ? text : node?.ToJsonString() ?? string.Empty;
 
     /// <summary>A build from its stored form, or null when the file isn't one this version reads.</summary>
     public static Build? FromJson(string id, JsonObject o)
@@ -67,14 +77,24 @@ internal sealed class Build
             ImportedAt = DateTime.TryParse(Str(o["importedAt"]), null, System.Globalization.DateTimeStyles.RoundtripKind, out var at) ? at : DateTime.MinValue,
             GameVersion = Str(o["gameVersion"]),
             FirstStage = Int(model["firstStage"]) ?? 0,
-            Raw = o["raw"] is JsonValue v && v.TryGetValue(out string? text) ? text : o["raw"]?.ToJsonString() ?? string.Empty,
+            Raw = RawText(o["raw"]),
+            NamedByPlayer = o["namedByPlayer"] is JsonValue named && named.TryGetValue(out bool byPlayer) && byPlayer,
         };
         foreach (var node in stages)
             if (node is JsonObject s) build.Stages.Add(Stage.FromJson(s));
         if (build.Stages.Count == 0) return null;
         build.FirstStage = Math.Clamp(build.FirstStage, 0, build.Stages.Count - 1);
         build.FillLevels(stages);
+        build.FillGuideSlugs();
         return build;
+    }
+
+    // Last Epoch Tools stages stored before they kept their guide take it from their planner data, as levels do.
+    private void FillGuideSlugs()
+    {
+        if (Source != LetFormat.Source) return;
+        foreach (var stage in Stages)
+            if (stage.GuideSlug == null && MaxrollFormat.Parse(stage.RawFor(this)) is JsonObject root) stage.GuideSlug = Str(root["guide"]);
     }
 
     // Builds stored before stages kept a level take it from the planner's data; nothing is written back, so the file
@@ -83,17 +103,20 @@ internal sealed class Build
     {
         bool missing = false;
         foreach (var node in stored) missing |= node is JsonObject s && !s.ContainsKey("level");
-        if (!missing || MaxrollFormat.Parse(Raw) is not JsonObject root) return;
+        if (!missing) return;
         var levels = new List<int>();
         if (Source == MaxrollFormat.Source)
         {
-            if (Str(root["data"]) is string dataText && MaxrollFormat.Parse(dataText) is JsonObject data && data["profiles"] is JsonArray profiles)
+            if (MaxrollFormat.Parse(Raw) is JsonObject root && Str(root["data"]) is string dataText && MaxrollFormat.Parse(dataText) is JsonObject data
+                && data["profiles"] is JsonArray profiles)
                 foreach (var node in profiles)
                     if (node is JsonObject profile) levels.Add(Stage.LevelOf(profile["level"]));
         }
         else if (Source == LetFormat.Source)
         {
-            levels.Add(Stage.LevelOf(((root["data"] as JsonObject)?["bio"] as JsonObject)?["level"]));
+            // Each stage's level is in its own planner data.
+            foreach (var stage in Stages)
+                levels.Add(MaxrollFormat.Parse(stage.RawFor(this)) is JsonObject root ? Stage.LevelOf(((root["data"] as JsonObject)?["bio"] as JsonObject)?["level"]) : 0);
         }
         for (int i = 0, s = 0; i < stored.Count && s < Stages.Count; i++)
         {
@@ -139,6 +162,17 @@ internal sealed class Stage
     public bool SlotsInferred;
     /// <summary>The character level the planner gives the stage; 0 = none.</summary>
     public int Level;
+    /// <summary>A Last Epoch Tools stage's own build data as received; null on stage 0 and on builds saved before stages
+    /// kept their own, which use the build's.</summary>
+    public string? Raw;
+    /// <summary>The stage's planner id and page; null uses the build's.</summary>
+    public string? PlannerId;
+    public string? Url;
+    /// <summary>The Last Epoch Tools guide the stage's build names, or null.</summary>
+    public string? GuideSlug;
+
+    /// <summary>The planner data the stage reads its gear and level from.</summary>
+    public string RawFor(Build build) => Raw ?? build.Raw;
 
     /// <summary>A planner's level value, or 0 when it isn't a level from 1 to 255.</summary>
     public static int LevelOf(JsonNode? node) => Build.Int(node) is int level and >= 1 and <= 255 ? level : 0;
@@ -152,7 +186,7 @@ internal sealed class Stage
         foreach (var tree in OtherTrees) others.Add(tree.ToJson());
         var bar = new JsonArray();
         foreach (string? id in Bar) bar.Add(id);
-        return new JsonObject
+        var o = new JsonObject
         {
             ["name"] = Name,
             ["classId"] = ClassId,
@@ -164,6 +198,11 @@ internal sealed class Stage
             ["slotsInferred"] = SlotsInferred,
             ["level"] = Level,
         };
+        if (Raw != null) o["raw"] = Build.RawNode(Raw);
+        if (PlannerId != null) o["plannerId"] = PlannerId;
+        if (Url != null) o["url"] = Url;
+        if (GuideSlug != null) o["guide"] = GuideSlug;
+        return o;
     }
 
     public static Stage FromJson(JsonObject o)
@@ -176,6 +215,10 @@ internal sealed class Stage
             Passive = o["passive"] is JsonObject p ? PlannedTree.FromJson(p) : new PlannedTree(),
             SlotsInferred = o["slotsInferred"] is JsonValue v && v.TryGetValue(out bool b) && b,
             Level = LevelOf(o["level"]),
+            Raw = o["raw"] != null ? Build.RawText(o["raw"]) : null,
+            PlannerId = Build.Str(o["plannerId"]),
+            Url = Build.Str(o["url"]),
+            GuideSlug = Build.Str(o["guide"]),
         };
         if (o["skills"] is JsonArray skills)
         {
