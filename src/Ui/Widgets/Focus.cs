@@ -214,7 +214,10 @@ internal static class Focus
             if (!Popups.HandleNav(nav)) return;
         }
         if (FieldKeepsArrows && GUIUtility.keyboardControl != 0 && !nav.Tab) nav = nav with { Move = 0 };
-        if (nav.Move != 0 || nav.Activate || nav.Adjust != 0) s_showRing = true;
+        // Enter and Space act only on a control reached by key (or a text field being typed in): a focus left by a click
+        // stays put, so a key meant for the game doesn't flip the last control clicked.
+        bool keyed = s_showRing || GUIUtility.keyboardControl != 0;
+        if (nav.Move != 0 || nav.Adjust != 0) s_showRing = true;
         // Moving on leaves a text field. Set here, in a GUI pass: set from Update it doesn't stick.
         if (nav.Move != 0) GUIUtility.keyboardControl = 0;
         if (nav.Move != 0 && s_order.Count > 0)
@@ -227,7 +230,7 @@ internal static class Focus
             FieldToFocus = s_focused;
         }
         if (s_focused == null) return;
-        if (nav.Activate) s_activate = s_focused;
+        if (nav.Activate && keyed) s_activate = s_focused;
         if (nav.Adjust != 0)
         {
             s_adjustKey = s_focused;
