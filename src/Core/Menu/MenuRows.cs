@@ -93,10 +93,25 @@ internal sealed class ActionButton : MenuRow
     public bool Primary { get; }
     /// <summary>Runs instead of the named action (a list entry's own button); Action is then only its key.</summary>
     public Action? OnClick { get; init; }
+    /// <summary>Opens a page outside the game (the browser): drawn with the external link mark.</summary>
+    public bool External { get; init; }
+    /// <summary>Asks first, in a popup beside the button; it acts through the prompt's Submit, not OnClick.</summary>
+    public ButtonPrompt? Prompt { get; init; }
     public string? Tip { get; init; }
     /// <summary>A tip that changes while the menu is open; used instead of Tip when set.</summary>
     public Func<string>? TipText { get; init; }
     protected override string DefaultKey => "button." + Action;
+}
+
+/// <summary>
+/// What a control asks before it acts, drawn by the UI in a popup beside it: a question, or a one-line field when Input
+/// (Initial fills it). Submit gets the field's text (empty for a question) and gives back why it can't be taken, or null
+/// once done.
+/// </summary>
+internal sealed record ButtonPrompt(Func<string> Question, string Ok, Func<string, string?> Submit)
+{
+    public bool Input { get; init; }
+    public Func<string>? Initial { get; init; }
 }
 
 /// <summary>A live readout: a label and a value in its state's colour. Shown only while the feature runs.</summary>
@@ -356,6 +371,8 @@ internal sealed class ListRow : MenuRow
     /// <summary>Why nothing can be added now (the add button greys with it as its tip), or null.</summary>
     public Func<string?>? AddBlocked { get; init; }
     public Action<int>? Remove { get; init; }
+    /// <summary>When it gives a prompt, an entry's remove asks first beside its button; the prompt then removes.</summary>
+    public Func<int, ButtonPrompt?>? RemovePrompt { get; init; }
     /// <summary>Why an entry can't be removed (its remove button greys with it as its tip), or null.</summary>
     public Func<int, string?>? RemoveBlocked { get; init; }
     public Action<int, int>? Move { get; init; }

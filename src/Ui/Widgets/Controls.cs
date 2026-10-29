@@ -28,28 +28,54 @@ internal static class Controls
         return next;
     }
 
-    public static float ButtonWidth(string label) =>
-        Mathf.Ceil(Widgets.Style(() => Theme.ButtonText, GUI.skin.button).CalcSize(new GUIContent(label)).x);
+    public static float ButtonWidth(string label, bool external = false) =>
+        Mathf.Ceil(Widgets.Style(() => Theme.ButtonText, GUI.skin.button).CalcSize(new GUIContent(label)).x) + (external ? ExternalRoom : 0f);
+
+    // The external link mark's room after the label: its 10 px and a gap.
+    private const float ExternalRoom = 14f;
+
+    /// <summary>A menu button as its row asks: its label, and the external link mark when it opens a page outside the game.
+    /// One that asks first opens its prompt beside it and reports no click; the prompt acts.</summary>
+    public static bool Button(Rect r, ActionButton button, string key, string? tip)
+    {
+        if (!Button(r, button.Label, key, button.Primary, tip, button.External)) return false;
+        if (button.Prompt is not { } prompt) return true;
+        Popups.Open(new PromptPopup(Popups.ToWindow(r), prompt));
+        return false;
+    }
 
     /// <summary>A button; true when clicked or activated by key.</summary>
-    public static bool Button(Rect r, string label, string key, bool primary = false, string? tip = null)
+    public static bool Button(Rect r, string label, string key, bool primary = false, string? tip = null, bool external = false)
     {
         bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
         if (Event.current.type == EventType.Repaint)
         {
+            // The label keeps its place; the mark sits after it in the room ButtonWidth added.
+            var text = external ? new Rect(r.x, r.y, r.width - ExternalRoom, r.height) : r;
             if (Widgets.Themed)
             {
                 bool hover = GUI.enabled && r.Contains(Event.current.mousePosition);
                 Theme.DrawSliced(r, primary ? (hover ? Theme.PrimaryHover : Theme.PrimaryBg) : (hover ? Theme.ButtonHover : Theme.ButtonBg), Theme.ControlRadius);
-                Widgets.Paint(r, label, primary ? Theme.PrimaryText : Theme.ButtonText);
+                var style = primary ? Theme.PrimaryText : Theme.ButtonText;
+                Widgets.Paint(text, label, style);
+                if (external) ExternalMark(text, label, style, hover ? style.hover.textColor : style.normal.textColor);
             }
             else
             {
-                Widgets.Paint(r, label, GUI.skin.button);
+                Widgets.Paint(text, label, GUI.skin.button);
+                if (external) ExternalMark(text, label, GUI.skin.button, GUI.skin.button.normal.textColor);
             }
         }
         Popups.Tip(r, tip, key);
         return Focus.Item(key, r) || clicked;
+    }
+
+    private static void ExternalMark(Rect text, string label, GUIStyle style, Color color)
+    {
+        float width = style.CalcSize(new GUIContent(label)).x - style.padding.horizontal;
+        float x = Mathf.Round(text.center.x + width / 2f + 4f);
+        if (!GUI.enabled) color.a *= 0.5f;
+        Theme.Tinted(new Rect(x, Mathf.Round(text.center.y - 5f), 10f, 10f), Theme.ExternalLink, color);
     }
 
     /// <summary>A conflict with another mod: orange, whatever the theme, so it reads as a warning next to the state colours.</summary>

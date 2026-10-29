@@ -32,6 +32,8 @@ internal static partial class Theme
     public static Texture2D ButtonBg = null!, ButtonHover = null!, PrimaryBg = null!, PrimaryHover = null!, HighlightBg = null!, SelectionBg = null!, HoverBg = null!;
     public static Texture2D SmallOff = null!, SmallOffHover = null!, SmallOn = null!, SmallOnHover = null!;
     public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, TreeCollapseAll = null!, TreeExpandAll = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!, CloseCross = null!;
+    /// <summary>The mark after a button that opens a page outside the game: a box with an arrow out of its corner.</summary>
+    public static Texture2D ExternalLink = null!;
     public static Texture2D TagBg = null!, SidebarFill = null!;
 
     private static void BuildMenu(GUISkin skin, ThemeValues v)
@@ -157,6 +159,15 @@ internal static partial class Theme
             float inside = px > 1.5f && px < 10.5f && py > 1.5f && py < 10.5f ? 1f : 0f;
             return Shade(Color.white, inside * Mathf.Clamp01(1.6f - Mathf.Min(a, b)));
         });
+        ExternalLink = Paint(10, 10, (x, y) =>
+        {
+            // Drawn top down; texture rows count from the bottom.
+            float px = x + 0.5f, py = 10f - (y + 0.5f);
+            float box = Mathf.Min(Mathf.Min(Segment(px, py, 1f, 2.5f, 1f, 9f), Segment(px, py, 1f, 9f, 7.5f, 9f)),
+                Mathf.Min(Segment(px, py, 1f, 2.5f, 4f, 2.5f), Segment(px, py, 7.5f, 6f, 7.5f, 9f)));
+            float arrow = Mathf.Min(Segment(px, py, 4.5f, 5.5f, 9f, 1f), Mathf.Min(Segment(px, py, 5.5f, 1f, 9f, 1f), Segment(px, py, 9f, 1f, 9f, 4.5f)));
+            return Shade(Color.white, Coverage(Mathf.Min(box, arrow) - 0.55f));
+        });
         Cross = Paint(10, 10, (x, y) =>
         {
             float px = x + 0.5f, py = y + 0.5f;
@@ -164,6 +175,15 @@ internal static partial class Theme
             float inside = px > 1.5f && px < 8.5f && py > 1.5f && py < 8.5f ? 1f : 0f;
             return Shade(Color.white, inside * Coverage(Mathf.Min(a, b) - 0.6f));
         });
+    }
+
+    // Distance from a point to the segment a–b.
+    private static float Segment(float px, float py, float ax, float ay, float bx, float by)
+    {
+        float dx = bx - ax, dy = by - ay;
+        float t = Mathf.Clamp01(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
+        float ex = px - (ax + t * dx), ey = py - (ay + t * dy);
+        return Mathf.Sqrt(ex * ex + ey * ey);
     }
 
     // A tick inside a 12 px box: two strokes.

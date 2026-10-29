@@ -36,8 +36,8 @@ internal static class TextRows
     private static float ButtonsWidth(ActionButton? button, ActionButton? second)
     {
         float w = 0f;
-        if (button != null) w += Controls.ButtonWidth(button.Label) + 6f;
-        if (second != null) w += Controls.ButtonWidth(second.Label) + 6f;
+        if (button != null) w += Controls.ButtonWidth(button.Label, button.External) + 6f;
+        if (second != null) w += Controls.ButtonWidth(second.Label, second.External) + 6f;
         return w > 0f ? w + 6f : 0f;
     }
 
@@ -53,9 +53,9 @@ internal static class TextRows
         foreach (var (b, k) in new[] { (second, key + ".second"), (button, key) })
         {
             if (b == null) continue;
-            float w = Controls.ButtonWidth(b.Label);
+            float w = Controls.ButtonWidth(b.Label, b.External);
             right -= w;
-            if (Controls.Button(new Rect(right, Mathf.Round(r.center.y - 12f), w, 24f), b.Label, k, b.Primary)) Run(b);
+            if (Controls.Button(new Rect(right, Mathf.Round(r.center.y - 12f), w, 24f), b, k, null)) Run(b);
             right -= 6f;
         }
     }
@@ -112,12 +112,12 @@ internal static class TextRows
     private sealed class ButtonRenderer : RowRenderer<ActionButton>
     {
         protected override float Height(ActionButton row, float width, RowContext ctx) => RowLayout.ControlHeight + RowLayout.RowGap;
-        protected override float InlineWidth(ActionButton row) => Controls.ButtonWidth(row.Label);
+        protected override float InlineWidth(ActionButton row) => Controls.ButtonWidth(row.Label, row.External);
 
         protected override void Draw(ActionButton row, Rect rect, RowContext ctx)
         {
-            var r = new Rect(rect.x, rect.y, Controls.ButtonWidth(row.Label), RowLayout.ControlHeight);
-            if (Controls.Button(r, row.Label, ctx.Prefix + row.Key, row.Primary, Tip(row))) Run(row);
+            var r = new Rect(rect.x, rect.y, Controls.ButtonWidth(row.Label, row.External), RowLayout.ControlHeight);
+            if (Controls.Button(r, row, ctx.Prefix + row.Key, Tip(row))) Run(row);
         }
 
         protected override IEnumerable<string> Search(ActionButton row) => new[] { row.Label };
@@ -133,7 +133,7 @@ internal static class TextRows
         protected override void Draw(TextButtonRow row, Rect rect, RowContext ctx)
         {
             var parts = RowLayout.Lay(rect, rect.width - RowLayout.LabelWidth(rect.width) - RowLayout.Gap, null);
-            float buttonWidth = Controls.ButtonWidth(row.Button.Label);
+            float buttonWidth = Controls.ButtonWidth(row.Button.Label, row.Button.External);
             var style = Widgets.Style(() => Theme.Label, GUI.skin.label);
             string text = Text(row);
             float x = parts.Control.x;
@@ -158,7 +158,7 @@ internal static class TextRows
         {
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(r, button.Label, key, button.Primary, Tip(button))) Run(button);
+            if (Controls.Button(r, button, key, Tip(button))) Run(button);
             GUI.enabled = enabled;
         }
 

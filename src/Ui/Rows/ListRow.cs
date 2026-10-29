@@ -84,7 +84,14 @@ internal static class ListRows
                 {
                     int index = i;
                     string? blocked = row.RemoveBlocked == null ? null : Safe.Call(() => row.RemoveBlocked(index), null, row.Key + ".removeblocked");
-                    if (Glyph(new Rect(bx, line.y + 1f, ButtonSize, ButtonSize), Theme.Cross, prefix + "remove", blocked ?? "Remove", blocked == null)) remove = i;
+                    var glyph = new Rect(bx, line.y + 1f, ButtonSize, ButtonSize);
+                    if (Glyph(glyph, Theme.Cross, prefix + "remove", blocked ?? "Remove", blocked == null))
+                    {
+                        // One that asks first opens its question beside the button.
+                        if (row.RemovePrompt != null && Safe.Call(() => row.RemovePrompt(index), null, row.Key + ".removeprompt") is { } prompt)
+                            Popups.Open(new PromptPopup(Popups.ToWindow(glyph), prompt));
+                        else remove = i;
+                    }
                 }
             }
             if (row.Add != null || row.AddPicked != null) DrawAdd(row, new Rect(rect.x, y, 0f, RowLayout.ControlHeight));

@@ -96,10 +96,10 @@ internal static class LibraryLayout
         }
         foreach (var button in view.Toolbar)
         {
-            float w = Controls.ButtonWidth(button.Label);
+            float w = Controls.ButtonWidth(button.Label, button.External);
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(x, r.y, w, r.height), button.Label, button.Key, button.Primary, TextRows.Tip(button))) Run(button);
+            if (Controls.Button(new Rect(x, r.y, w, r.height), button, button.Key, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             x += w + 6f;
         }
@@ -339,7 +339,7 @@ internal static class LibraryLayout
         {
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(r.x, y, r.width, 24f), button.Label, "action." + button.Key, button.Primary, TextRows.Tip(button))) Run(button);
+            if (Controls.Button(new Rect(r.x, y, r.width, 24f), button, "action." + button.Key, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             y += 30f;
         }
@@ -385,11 +385,11 @@ internal static class LibraryLayout
         {
             var button = editor.Buttons[i];
             if (!Safe.Visible(button)) continue;
-            float w = Controls.ButtonWidth(button.Label);
+            float w = Controls.ButtonWidth(button.Label, button.External);
             right -= w;
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(right, header.center.y - 12f, w, 24f), button.Label, "editor." + button.Key, button.Primary, TextRows.Tip(button))) Run(button);
+            if (Controls.Button(new Rect(right, header.center.y - 12f, w, 24f), button, "editor." + button.Key, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             right -= 6f;
         }
@@ -448,11 +448,11 @@ internal static class LibraryLayout
         for (int i = view.FooterButtons.Count - 1; i >= 0; i--)
         {
             var button = view.FooterButtons[i];
-            float w = Controls.ButtonWidth(button.Label);
+            float w = Controls.ButtonWidth(button.Label, button.External);
             right -= w;
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && Safe.Enabled(button);
-            if (Controls.Button(new Rect(right, cy - 1f, w, 24f), button.Label, "foot." + button.Key, button.Primary, TextRows.Tip(button))) Run(button);
+            if (Controls.Button(new Rect(right, cy - 1f, w, 24f), button, "foot." + button.Key, TextRows.Tip(button))) Run(button);
             GUI.enabled = enabled;
             right -= 6f;
         }
