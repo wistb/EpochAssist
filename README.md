@@ -26,13 +26,13 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 
   </details>
 - **Planner**: imported build marked across interfaces, with a built-in guide viewer.
-  - **Import**: Maxroll export or Last Epoch Tools build data, pasted on Planner tab; builds kept in a library.
+  - **Import**: Maxroll export, Last Epoch Tools link or build data, pasted on Planner tab; builds kept in a library.
   - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
   - **Gear**: badge on each planned equipment slot and idol, coloured ring on idol altar and blessing slots, outline on weaver tree item sockets; hover shows planned item as game's own tooltip beside equipped one, with a card listing planned affixes and tiers.
   - **Compare with build**: optional hotkey shows planned item for hovered item's slot.
-  - **Stages**: one build and stage per character, each with its planned level; changed only with ◀ and ▶, hint once next stage's level is reached.
+  - **Stages**: one build and stage per character, each with its planned level; changed only with ◀ and ▶, hint once next stage's level is reached; Last Epoch Tools variant links gathered as stages of one build, each with own gear and link.
   - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings, weaver tree and weaver items, with next steps per tree; hover a gear row for planned item.
-  - **Guide**: Maxroll build's own guide in game, per stage, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text.
+  - **Guide**: Maxroll build's own guide in game, per stage, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text; Last Epoch Tools builds open their guide page, set by guide link when build data names none.
   - **Loot filter**: loot filter from a stage's plan: uniques by potential, slot rules on planner affixes and tiers, idols, levelling rules, rest hidden; built on EA · Base or any listed filter; strictness Levelling to Very strict; per-rule looks; saved to game's Filters folder, made active only on Use now.
   - **Drawing only**: nothing spent, chosen, equipped or moved; files written only for build library and on loot filter Make; on by default.
   <details><summary>Screenshots</summary>
