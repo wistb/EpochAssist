@@ -105,7 +105,7 @@ internal sealed class __NAME__Feature : Feature
     public override string[] RunsAfter => new[] { "profiles" };
     // Its place in the menu and on the HUD pill. The menu draws the entry: a node in the __TAB__ tab with a page per
     // settings section, searchable and reachable by key, with no drawing code here. Players can turn the whole feature
-    // off from Settings › Diagnostics › Features.
+    // off from Config › General › Diagnostics › Modules.
     public override MenuEntry? Menu => s_menu;
     public override string? StatusName => "__NAME__";
 

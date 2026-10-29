@@ -53,7 +53,7 @@ internal static class SettingsContent
             Pages =
             {
                 Overview(),
-                new MenuPage("Features") { Block = "diagnostics.features", Resettable = false },
+                new MenuPage("Modules") { Block = "diagnostics.features", Resettable = false },
                 new MenuPage("Mods") { Block = "diagnostics.mods", Resettable = false },
                 new MenuPage("Reports") { Block = "diagnostics.reports", Resettable = false },
                 new MenuPage("Console") { Block = "console", Resettable = false },

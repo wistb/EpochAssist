@@ -6,7 +6,7 @@ namespace EpochAssist.Ui;
 
 /// <summary>
 /// Diagnostics, General › Diagnostics in the menu: the mod's build and mode with the log level (Overview), each feature's
-/// state with its switch (Features), other mods and where they overlap ours (Mods), crash reports (Reports), and a copy of
+/// state with its switch (Modules), other mods and where they overlap ours (Mods), crash reports (Reports), and a copy of
 /// it all as scrubbed text for a bug report.
 /// The feature owns the copy and open actions; the pages are the menu's blocks.
 /// </summary>
@@ -154,7 +154,7 @@ internal static class DiagnosticsPage
         }
     }
 
-    // ---- Features: one row each, with its switch where it can be turned off ----
+    // ---- Modules: one row each, with its switch where it can be turned off ----
 
     private static void Features()
     {
