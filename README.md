@@ -33,7 +33,8 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   - **Stages**: one build and stage per character, each with its planned level; changed only with ◀ and ▶, hint once next stage's level is reached.
   - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings, weaver tree and weaver items, with next steps per tree; hover a gear row for planned item.
   - **Guide**: Maxroll build's own guide in game, per stage, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text.
-  - **Drawing only**: nothing spent, chosen, equipped, moved or saved; on by default.
+  - **Loot filter**: loot filter from a stage's plan: uniques by potential, slot rules on planner affixes and tiers, idols, levelling rules, rest hidden; built on EA · Base or any listed filter; strictness Levelling to Very strict; per-rule looks; saved to game's Filters folder, made active only on Use now.
+  - **Drawing only**: nothing spent, chosen, equipped or moved; files written only for build library and on loot filter Make; on by default.
   <details><summary>Screenshots</summary>
 
   ![Passive tree with Planner marks](nexus/media/planner-passives.png)
