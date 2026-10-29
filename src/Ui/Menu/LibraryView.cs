@@ -384,6 +384,7 @@ internal static class LibraryLayout
         for (int i = editor.Buttons.Count - 1; i >= 0; i--)
         {
             var button = editor.Buttons[i];
+            if (!Safe.Visible(button)) continue;
             float w = Controls.ButtonWidth(button.Label);
             right -= w;
             bool enabled = GUI.enabled;
@@ -475,7 +476,7 @@ internal static class LibraryLayout
         {
             yield return $"editor {RowText.Quote(editor.Key)} {RowText.Quote(Safe.Call(editor.Title, string.Empty, "library.editor.title"))}";
             if (editor.Note != null && Safe.Call(editor.Note, null, "library.editor.note") is { } note) yield return $"note {RowText.Quote(note)}";
-            foreach (var button in editor.Buttons) yield return $"button {button.Key} {RowText.Quote(button.Label)} enabled={(Safe.Enabled(button) ? "yes" : "no")}";
+            foreach (var button in editor.Buttons.Where(Safe.Visible)) yield return $"button {button.Key} {RowText.Quote(button.Label)} enabled={(Safe.Enabled(button) ? "yes" : "no")}";
             yield break;
         }
         var classes = Safe.Call(view.Classes, Array.Empty<string>(), "library.classes");

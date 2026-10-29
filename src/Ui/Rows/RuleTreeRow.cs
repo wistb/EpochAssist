@@ -201,16 +201,24 @@ internal static class RuleTreeRowKinds
     {
         protected override float Height(ValueTextField row, float width, RowContext ctx) => RowLayout.Height(width, 220f, null);
 
+        protected override float InlineWidth(ValueTextField row) => row.InlineWidth;
+
         protected override void Draw(ValueTextField row, Rect rect, RowContext ctx)
         {
-            var parts = RowLayout.Lay(rect, Mathf.Min(260f, rect.width * 0.6f), null);
-            RowLayout.Label(parts.Label, row.Label, ctx, null);
+            // Inline in a list entry the field fills its width; the entry's number says what it is.
+            Rect field = rect;
+            if (!ctx.Inline)
+            {
+                var parts = RowLayout.Lay(rect, Mathf.Min(260f, rect.width * 0.6f), null);
+                RowLayout.Label(parts.Label, row.Label, ctx, null);
+                field = parts.Control;
+            }
             string text = Safe.Call(row.Get, string.Empty, row.Key + ".get");
             string control = "field." + row.Key;
             GUI.SetNextControlName(control);
-            string typed = GUI.TextField(parts.Control, text, row.MaxLength, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
+            string typed = GUI.TextField(field, text, row.MaxLength, Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField));
             if (typed != text) Safe.Run(() => row.Set(typed), row.Key + ".set");
-            if (Focus.Item(row.Key, parts.Control)) GUI.FocusControl(control);
+            if (Focus.Item(row.Key, field)) GUI.FocusControl(control);
         }
 
         protected override IEnumerable<string> Search(ValueTextField row) => new[] { row.Label };

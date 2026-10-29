@@ -82,6 +82,8 @@ internal sealed class ValueTextField : MenuRow
     public Func<string> Get { get; }
     public Action<string> Set { get; }
     public int MaxLength { get; }
+    /// <summary>The field's width inline in a list entry, where it shows with no label.</summary>
+    public float InlineWidth { get; init; } = 220f;
     protected override string DefaultKey => "text." + MenuEntry.Slug(Label);
 }
 
