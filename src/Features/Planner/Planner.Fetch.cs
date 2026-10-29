@@ -14,13 +14,14 @@ internal enum PlannerSite
 
 /// <summary>
 /// Which sites' link import a build offers. A release build hides a site's link import until that site has agreed;
-/// dev builds show both. A site that agrees has its constant flipped; one that withdraws is dropped by its switch in
-/// Settings at once, and by its constant in the next release.
+/// dev builds show both. A site that agrees has its constant flipped; one that withdraws is dropped by its constant in
+/// the next release.
 /// </summary>
 internal static class PlannerSites
 {
     public const bool MaxrollAgreed = false;
-    public const bool LetAgreed = false;
+    // Last Epoch Tools agreed to link import through its public build data (2026-10-28).
+    public const bool LetAgreed = true;
 
     public static bool Shown(PlannerSite site)
     {
