@@ -1,5 +1,6 @@
 using EpochAssist.Core;
 using Il2Cpp;
+using Il2CppItemFiltering;
 using Feature = EpochAssist.Core.Feature;
 using S = EpochAssist.Features.PlannerSettings;
 
@@ -175,6 +176,73 @@ internal sealed class PlannerFeature : Feature
         Need<NodeTooltipManager>(nameof(NodeTooltipManager.close), Planner.GuideTipsGroup),
         Need<NodeTooltipManager>(nameof(NodeTooltipManager.rectTransform), Planner.GuideTipsGroup),
         Need<UITooltipAbility>(nameof(UITooltipAbility.rectTransform), Planner.GuideTipsGroup),
+
+        // Loot filters made from the game's own filter classes and saved with its own serializer.
+        Need(typeof(ItemFilterManager), nameof(ItemFilterManager.Instance), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.Filter), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.filtersPath), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.serializer), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.ns), Planner.LootFilterGroup),
+        Need(typeof(ItemFilterManager), nameof(ItemFilterManager.LoadFilterFromPath), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.GetFilterFileList), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.LoadFilter), Planner.LootFilterGroup),
+        Need<ItemFilterManager>(nameof(ItemFilterManager.UpdateBindingForActiveCharacter), Planner.LootFilterGroup),
+        Need(typeof(ItemFilterManager), nameof(ItemFilterManager.InvokeLootFilterChanged), Planner.LootFilterGroup),
+        Need(typeof(ItemFilter), nameof(ItemFilter.MAX_RULES_PER_FILTER), Planner.LootFilterGroup),
+        Need(typeof(ItemFilter), nameof(ItemFilter.CURRENT_LF_VERSION), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.lootFilterVersion), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.rules), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.AddRule), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.UpdateRuleOrders), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.UpdatedLastEditVersion), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.PreSerialization), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.Clone), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.Match), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.description), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.filterIcon), Planner.LootFilterGroup),
+        Need<ItemFilter>(nameof(ItemFilter.filterIconColor), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.conditions), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.isEnabled), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.nameOverride), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.recolor), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.color), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.emphasized), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.SoundId), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.MapIconId), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.BeamOverride), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.BeamSizeOverride), Planner.LootFilterGroup),
+        Need<Rule>(nameof(Rule.BeamColorOverride), Planner.LootFilterGroup),
+        Need<SubTypeCondition>(nameof(SubTypeCondition.SetTypes), Planner.LootFilterGroup),
+        Need<SubTypeCondition>(nameof(SubTypeCondition.SetSubTypes), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.SetAffixes), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.comparsion), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.comparsionValue), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.minOnTheSameItem), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.combinedComparsion), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.combinedComparsionValue), Planner.LootFilterGroup),
+        Need<AffixCondition>(nameof(AffixCondition.advanced), Planner.LootFilterGroup),
+        Need<UniqueModifiersCondition>(nameof(UniqueModifiersCondition.SetUniqueIds), Planner.LootFilterGroup),
+        Need<PotentialCondition>(nameof(PotentialCondition.MinLegendaryPotential), Planner.LootFilterGroup),
+        Need<PotentialCondition>(nameof(PotentialCondition.MinWeaversWill), Planner.LootFilterGroup),
+        Need<RarityCondition>(nameof(RarityCondition.rarity), Planner.LootFilterGroup),
+        Need<CorruptionCondition>(nameof(CorruptionCondition.Corruption), Planner.LootFilterGroup),
+        Need<CharacterLevelCondition>(nameof(CharacterLevelCondition.minimumLvl), Planner.LootFilterGroup),
+        Need<CharacterLevelCondition>(nameof(CharacterLevelCondition.maximumLvl), Planner.LootFilterGroup),
+        Need<ClassCondition>(nameof(ClassCondition.req), Planner.LootFilterGroup),
+
+        // The game's loot filter window and settings panel, refreshed after Use now.
+        Need<LootFilterUI>(nameof(LootFilterUI.ForcedInit), Planner.LootFilterPanelGroup),
+        Need<LootFilterSettingsPanelUI>(nameof(LootFilterSettingsPanelUI.Init), Planner.LootFilterPanelGroup),
+        Need<LootFilterUI>(nameof(LootFilterUI.filterSelector), Planner.LootFilterPanelGroup),
+        Need<LootFilterUI>(nameof(LootFilterUI._isBuildingUi), Planner.LootFilterPanelGroup),
+        Need<LootFilterUI>(nameof(LootFilterUI.autoScrollScrollRect), Planner.LootFilterPanelGroup),
+        Need<LootFilterUI>(nameof(LootFilterUI.entries), Planner.LootFilterPanelGroup),
+        Need<RuleEntryUI>(nameof(RuleEntryUI.rule), Planner.LootFilterPanelGroup),
+        Need<RuleEntryUI>(nameof(RuleEntryUI.SetRuleTogleActive), Planner.LootFilterPanelGroup),
+        Need<RuleEntryUI>(nameof(RuleEntryUI.Init), Planner.LootFilterPanelGroup),
+        Need<LootFilterUI>(nameof(LootFilterUI._lastActiveFilterWithUiBuilt), Planner.LootFilterPanelGroup),
+        Need<LootFilterSettingsPanelUI>(nameof(LootFilterSettingsPanelUI.filterSelector), Planner.LootFilterPanelGroup),
+        Need<Il2CppLE.UI.Controls.ColoredIconDropdown>(nameof(Il2CppLE.UI.Controls.ColoredIconDropdown.SetValueWithoutNotify), Planner.LootFilterPanelGroup),
     };
 
     public override FeatureStatus Status => State == FeatureState.Running ? Planner.StatusOf(this) : base.Status;
@@ -182,6 +250,8 @@ internal sealed class PlannerFeature : Feature
     public override void RegisterSettings() => S.Register();
     public override void Start() => Planner.Start(this);
     public override void Update() => Planner.Frame();
+    // The game's loot filter window is held in place after the game's own scripts moved it, before it's drawn.
+    public override void LateUpdate() => Planner.LootFilterGame.LateFrame();
     public override void OnSceneChanged() => Planner.OnSceneChanged();
     public override void Shutdown() => Planner.Shutdown();
 }

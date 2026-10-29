@@ -76,6 +76,34 @@ internal static partial class Planner
         }
     }
 
+    // Item icons asked for outside a guide (the loot filter page's uniques), by icon key.
+    private static readonly Dictionary<string, Embed> s_itemEmbeds = new();
+
+    /// <summary>A planned item's game icon for a page outside the guide: asked for on first use, null until loaded.</summary>
+    public static GuideIcon? ItemIcon(PlannedItem item)
+    {
+        if (s_run?.Feature is not { } feature || !feature.Has(GuideIconsGroup)) return null;
+        string key = $"item:{item.ItemType}:{item.SubType}:{item.Unique}";
+        if (s_icons.TryGetValue(key, out var icon)) return icon.State == IconState.Ready ? icon : null;
+        if (!s_itemEmbeds.TryGetValue(key, out var embed))
+            s_itemEmbeds[key] = embed = new Embed { Key = key, Kind = EmbedKind.Item, ItemType = item.ItemType, SubType = item.SubType, Unique = item.Unique, Resolved = true, IconKey = key };
+        icon = new GuideIcon();
+        s_icons[key] = icon;
+        s_iconsEmbeds[icon] = embed;
+        try
+        {
+            Ask(embed, icon);
+        }
+        catch (Exception e)
+        {
+            icon.State = IconState.Missing;
+            icon.Why = e.Message;
+            Log.ErrorThrottled("planner:guide icons", $"Planner: an item icon couldn't be loaded: {e.Message}", 30);
+        }
+        if (icon.State == IconState.Asked) s_iconsPending++;
+        return null;
+    }
+
     /// <summary>The name's icon once it has loaded, else null.</summary>
     public static GuideIcon? Icon(Embed embed) =>
         s_icons.TryGetValue(IconKey(embed), out var icon) && icon.State == IconState.Ready ? icon : null;

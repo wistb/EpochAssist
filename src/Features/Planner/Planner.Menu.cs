@@ -268,7 +268,9 @@ internal static partial class Planner
             rows.Add(new LiveText($"Slot {slot + 1}", () => (BarText(slot), null)) { Key = $"bar.{slot}", VisibleWhen = () => BarShown(id) });
         }
 
-        var editor = new LibraryEditor(id, () => build.Name, () => ShowingGuide(build) ? GuideRows(build, head) : ChecklistRows(id, rows)) { Note = () => credit };
+        rows.Add(FilterChecklistRow(build));
+        var editor = new LibraryEditor(id, () => build.Name,
+            () => ShowingFilter(build) ? FilterRows(build, head) : ShowingGuide(build) ? GuideRows(build, head) : ChecklistRows(id, rows)) { Note = () => credit };
         if (build.Url is { } url)
             editor.Buttons.Add(TabButton("Open planner page", "page", () => UnityEngine.Application.OpenURL(url), tip: "Opens the build's page in the browser"));
         editor.Buttons.Add(TabButton("Use for this character", "use", () =>

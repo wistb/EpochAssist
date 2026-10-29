@@ -134,6 +134,7 @@ internal static partial class Planner
         long guideStart = s_costOn ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         PollIcons();
         GuideFrame();
+        FilterFrame();
         if (s_costOn) s_costTicks += System.Diagnostics.Stopwatch.GetTimestamp() - guideStart;
         // The icons follow at the tick (0.1 s): made again every frame they'd cost more than the rest together.
         if (s_run is { InventoryOpen: true } open)
@@ -162,6 +163,11 @@ internal static partial class Planner
         Panels.Forget();
         ForgetGear();
         ForgetGuidePage();
+        // Made filters stay in the game's folder; only what the page holds is dropped.
+        ForgetFilterPage();
+        LootFilterStore.Forget();
+        LootFilterGame.Forget();
+        LootFilterBase.Forget();
         RemoveGuideSearch();
         s_run = null;
     }
@@ -656,6 +662,8 @@ internal static partial class Planner
         if (!feature.Has(WeaverItemsGroup)) kinds.Add("weaver items");
         if (!feature.Has(GuideIconsGroup)) kinds.Add("guide icons");
         if (!feature.Has(GuideTipsGroup)) kinds.Add("guide tooltips");
+        if (!feature.Has(LootFilterGroup)) kinds.Add("loot filter");
+        else if (!feature.Has(LootFilterPanelGroup)) kinds.Add("loot filter window refresh");
         return kinds.Count > 0 ? string.Join(", ", kinds) : null;
     }
 

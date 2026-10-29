@@ -215,6 +215,10 @@ internal sealed class ValueChoice : MenuRow
     public Func<string?>? Shown { get; init; }
     /// <summary>The width inline, when the options' own would be too wide for the line.</summary>
     public float? Width { get; init; }
+    /// <summary>A colour swatch before each option (null for none), shown in the list and on the closed control.</summary>
+    public Func<IReadOnlyList<UnityEngine.Color?>>? Swatches { get; init; }
+    /// <summary>An example before each option, drawn by the owner at its width (an icon in its colour), or null.</summary>
+    public (float Width, Action<int, UnityEngine.Rect> Draw)? Sample { get; init; }
     protected override string DefaultKey => "choice." + MenuEntry.Slug(Label);
 }
 
@@ -295,6 +299,10 @@ internal sealed class ValueNumber : MenuRow
     public string Unit { get; }
     /// <summary>Drawn as a slider instead of a number field.</summary>
     public bool Slider { get; init; }
+    /// <summary>Muted words beside the field, as a setting's help shows on its row; null for none.</summary>
+    public string? Hint { get; init; }
+    /// <summary>A longer explanation as the label's and field's tooltip; null for none.</summary>
+    public string? Tip { get; init; }
     protected override string DefaultKey => "number." + MenuEntry.Slug(Label);
 
     public float Snap(float value) => Math.Clamp(Step > 0f ? MathF.Round(value / Step) * Step : value, Min, Max);
@@ -315,6 +323,10 @@ internal sealed class ValueToggle : MenuRow
     public string Label { get; }
     public Func<bool> Get { get; }
     public Action<bool> Set { get; }
+    /// <summary>Muted words beside the switch, as a setting's help shows on its row; null for none.</summary>
+    public string? Hint { get; init; }
+    /// <summary>A longer explanation as the label's and switch's tooltip; null for none.</summary>
+    public string? Tip { get; init; }
     protected override string DefaultKey => "toggle." + MenuEntry.Slug(Label);
 }
 

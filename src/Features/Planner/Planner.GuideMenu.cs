@@ -6,7 +6,7 @@ using S = EpochAssist.Features.PlannerSettings;
 
 namespace EpochAssist.Features;
 
-// The build view's Guide: a Checklist | Guide switch under the stage line, then the build's own guide as rows, one
+// The build view's Guide: a Checklist | Guide | Loot filter switch under the stage line, then the build's own guide as rows, one
 // per paragraph, list item or heading, so only those in view draw.
 internal static partial class Planner
 {
@@ -16,8 +16,11 @@ internal static partial class Planner
     // The clock, read once a frame for the icons' checks.
     private static float s_guideNow;
 
-    // Kept for the session, never saved: Checklist until the player picks Guide.
-    private static bool s_showingGuide;
+    /// <summary>What the build view shows under its switch.</summary>
+    private enum BuildView { Checklist, Guide, Filter }
+
+    // Kept for the session, never saved: Checklist until the player picks another.
+    private static BuildView s_buildView;
     // Folds the player opened, by document and fold id; a section fold (FAQ, Changelog) is its document's -2.
     private static readonly HashSet<(GuideDoc Doc, int Fold)> s_openFolds = new();
     private const int SectionFold = -2;
@@ -31,7 +34,9 @@ internal static partial class Planner
     /// <summary>Whether the build view offers the Guide: the switch is on and the build has a guide of some kind.</summary>
     private static bool GuideOffered(Build build) => S.GuideEnabled.Value && GuideOf(build).Kind != GuideKind.None;
 
-    private static bool ShowingGuide(Build build) => s_showingGuide && GuideOffered(build);
+    private static bool ShowingGuide(Build build) => s_buildView == BuildView.Guide && GuideOffered(build);
+
+    private static bool ShowingFilter(Build build) => s_buildView == BuildView.Filter && LootFilterOffered;
 
     // The bound stage when this character uses the build, else the build's first.
     private static int GuideStage(Build build)
@@ -45,32 +50,43 @@ internal static partial class Planner
 
     private static MenuRow ViewSwitch(Build build)
     {
-        if (!MenuBlocks.Has(ViewBlock)) MenuBlocks.Register(ViewBlock, DrawViewSwitch, _ => new[] { $"view: {(s_showingGuide ? "Guide" : "Checklist")}" }, (_, _) => RowLayout.ControlHeight + RowLayout.RowGap);
-        return new BlockRow(ViewBlock, build) { Key = "view", VisibleWhen = () => GuideOffered(build) };
+        if (!MenuBlocks.Has(ViewBlock)) MenuBlocks.Register(ViewBlock, DrawViewSwitch, _ => new[] { $"view: {s_buildView}" }, (_, _) => RowLayout.ControlHeight + RowLayout.RowGap);
+        return new BlockRow(ViewBlock, build) { Key = "view", VisibleWhen = () => GuideOffered(build) || LootFilterOffered };
     }
 
-    // Two buttons, the chosen one shown as the primary.
+    // A button per view the build offers, the chosen one shown as the primary.
     private static void DrawViewSwitch(Rect rect, object? data)
     {
+        if (data is not Build build) return;
         float x = rect.x;
-        foreach (var (label, guide) in new[] { ("Checklist", false), ("Guide", true) })
+        foreach (var (label, view, tip) in s_views)
         {
+            if (view == BuildView.Guide && !GuideOffered(build) || view == BuildView.Filter && !LootFilterOffered) continue;
             float w = Controls.ButtonWidth(label);
             var r = new Rect(x, rect.y, w, RowLayout.ControlHeight);
-            if (Controls.Button(r, label, "planner.view." + label.ToLowerInvariant(), primary: s_showingGuide == guide,
-                    tip: guide ? "Shows the build's own guide" : "Shows the checklist and next steps"))
-                SetGuideView(guide);
+            if (Controls.Button(r, label, "planner.view." + label.Replace(" ", string.Empty).ToLowerInvariant(), primary: s_buildView == view, tip: tip))
+                s_buildView = view;
             x += w + 6f;
         }
     }
 
+    private static readonly (string Label, BuildView View, string Tip)[] s_views =
+    {
+        ("Checklist", BuildView.Checklist, "Shows the checklist and next steps"),
+        ("Guide", BuildView.Guide, "Shows the build's own guide"),
+        ("Loot filter", BuildView.Filter, "Makes a game loot filter from the stage's plan"),
+    };
+
     /// <summary>Shows the build view's Guide or its checklist (the switch, the dev bridge).</summary>
-    internal static void SetGuideView(bool guide) => s_showingGuide = guide;
+    internal static void SetGuideView(bool guide) => s_buildView = guide ? BuildView.Guide : BuildView.Checklist;
+
+    /// <summary>Shows the build view's Loot filter page (its checklist row, the dev bridge).</summary>
+    internal static void SetFilterView() => s_buildView = BuildView.Filter;
 
     /// <summary>Opens a build's view in the library's place, as its Open button does (the dev bridge).</summary>
     internal static void OpenBuildView(string id) => s_viewing = id;
 
-    internal static bool GuideViewShown => s_showingGuide;
+    internal static bool GuideViewShown => s_buildView == BuildView.Guide;
 
     // ---- The rows ----
 
@@ -437,7 +453,7 @@ internal static partial class Planner
     {
         if (MenuRoutes.ForFeature("planner") is { } page) MenuRoutes.Show(page);
         s_viewing = build;
-        s_showingGuide = true;
+        s_buildView = BuildView.Guide;
         if (Library.Find(build) is { } b) s_guideView = (b, GuideStage(b));
         ScrollGuideTo(section, block);
     }
@@ -450,7 +466,8 @@ internal static partial class Planner
         s_layoutStamp = LayoutStampNow;
         s_guideNow = Clock.Now;
         if (s_run is { } run) GuideTipFrame(run);
-        if (S.GuideEnabled.Value || s_icons.Count == 0 && s_layouts.Count == 0) return;
+        // The Loot filter page shows item icons too, so they stay while it's shown.
+        if (S.GuideEnabled.Value || s_icons.Count == 0 && s_layouts.Count == 0 || s_buildView == BuildView.Filter && LootFilterOffered) return;
         s_tipHeld = null;
         CloseGuideTip();
         FreeIcons();

@@ -266,7 +266,7 @@ internal static class SettingRows
         protected override float Height(ValueChoice row, float width, RowContext ctx) =>
             ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, InlineWidth(row), null);
 
-        protected override float InlineWidth(ValueChoice row) => row.Width ?? Dropdown.WidthFor(Options(row));
+        protected override float InlineWidth(ValueChoice row) => row.Width ?? Dropdown.WidthFor(Options(row)) + (row.Swatches != null ? 18f : row.Sample is { } sample ? sample.Width + 8f : 0f);
 
         protected override void Draw(ValueChoice row, Rect rect, RowContext ctx)
         {
@@ -276,8 +276,9 @@ internal static class SettingRows
             int current = Safe.Call(row.Get, -1, row.Key + ".get");
             var groups = row.Groups == null ? null : Safe.Call(row.Groups, null, row.Key + ".groups");
             string? shown = current >= 0 || row.Shown == null ? null : Safe.Call(row.Shown, null, row.Key + ".shown");
+            var swatches = row.Swatches == null ? null : Safe.Call(row.Swatches, null, row.Key + ".swatches");
             Dropdown.Draw(control, ctx.Prefix + row.Key, options, current, i => Safe.Call(() => { row.Set(i); return true; }, false, row.Key + ".set"),
-                groups, shown, tip: row.Label);
+                groups, shown, swatches, tip: row.Label, samples: row.Sample);
         }
 
         protected override IEnumerable<string> Search(ValueChoice row) => Options(row).Prepend(row.Label);
@@ -411,22 +412,23 @@ internal static class SettingRows
         private static float Width(ValueNumber row) => row.Slider ? Slider.Width : NumberField.Width;
 
         protected override float Height(ValueNumber row, float width, RowContext ctx) =>
-            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, Width(row), null);
+            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, Width(row), row.Hint);
 
         protected override float InlineWidth(ValueNumber row) => Width(row);
 
         protected override void Draw(ValueNumber row, Rect rect, RowContext ctx)
         {
-            var parts = RowLayout.Lay(rect, Width(row), null);
+            var parts = RowLayout.Lay(rect, Width(row), ctx.Inline ? null : row.Hint);
             Rect control = ctx.Inline ? new Rect(rect.x, rect.y, rect.width, RowLayout.ControlHeight) : parts.Control;
-            if (!ctx.Inline) RowLayout.Label(parts.Label, row.Label, ctx, null);
+            if (!ctx.Inline) RowLayout.Label(parts.Label, row.Label, ctx, row.Tip);
             float value = Safe.Call(row.Get, row.Min, row.Key + ".get");
             Action<float> set = v => Safe.Call(() => { row.Set(v); return true; }, false, row.Key + ".set");
-            if (row.Slider) Slider.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), set, row.Label);
-            else NumberField.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), set, row.Label);
+            if (row.Slider) Slider.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), set, row.Tip ?? row.Label);
+            else NumberField.Draw(control, ctx.Prefix + row.Key, value, NumberSpec.Of(row), set, row.Tip ?? row.Label);
+            if (!ctx.Inline) RowLayout.Hint(parts.Hint, row.Hint);
         }
 
-        protected override IEnumerable<string> Search(ValueNumber row) => new[] { row.Label };
+        protected override IEnumerable<string> Search(ValueNumber row) => row.Hint != null ? new[] { row.Label, row.Hint } : new[] { row.Label };
 
         protected override RowText Bridge(ValueNumber row, RowContext ctx) =>
             new("number", row.Label, row.Format(Safe.Call(row.Get, row.Min, row.Key + ".get")), ctx.Enabled && Safe.Enabled(row));
@@ -435,20 +437,21 @@ internal static class SettingRows
     private sealed class ValueToggleRenderer : RowRenderer<ValueToggle>
     {
         protected override float Height(ValueToggle row, float width, RowContext ctx) =>
-            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, Controls.SwitchWidth, null);
+            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, Controls.SwitchWidth, row.Hint);
 
         protected override float InlineWidth(ValueToggle row) => Controls.SwitchWidth;
 
         protected override void Draw(ValueToggle row, Rect rect, RowContext ctx)
         {
-            var parts = RowLayout.Lay(rect, Controls.SwitchWidth, null);
+            var parts = RowLayout.Lay(rect, Controls.SwitchWidth, ctx.Inline ? null : row.Hint);
             Rect control = ctx.Inline ? new Rect(rect.x, rect.y, Controls.SwitchWidth, RowLayout.ControlHeight) : parts.Control;
-            if (!ctx.Inline) RowLayout.Label(parts.Label, row.Label, ctx, null);
+            if (!ctx.Inline) RowLayout.Label(parts.Label, row.Label, ctx, row.Tip);
             bool value = Safe.Call(row.Get, false, row.Key + ".get");
-            if (Controls.Switch(control, value, ctx.Prefix + row.Key, row.Label) != value) Safe.Call(() => { row.Set(!value); return true; }, false, row.Key + ".set");
+            if (Controls.Switch(control, value, ctx.Prefix + row.Key, row.Tip ?? row.Label) != value) Safe.Call(() => { row.Set(!value); return true; }, false, row.Key + ".set");
+            if (!ctx.Inline) RowLayout.Hint(parts.Hint, row.Hint);
         }
 
-        protected override IEnumerable<string> Search(ValueToggle row) => new[] { row.Label };
+        protected override IEnumerable<string> Search(ValueToggle row) => row.Hint != null ? new[] { row.Label, row.Hint } : new[] { row.Label };
 
         protected override RowText Bridge(ValueToggle row, RowContext ctx) =>
             new("switch", row.Label, Safe.Call(row.Get, false, row.Key + ".get") ? "on" : "off", ctx.Enabled && Safe.Enabled(row));

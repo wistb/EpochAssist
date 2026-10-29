@@ -162,6 +162,126 @@ internal static class PlannerSettings
         Help = "Shows the planner's own guide for a build: its notes, strengths and weaknesses, with game icons for skills, passives and items.",
     };
 
+    // The defaults of a made filter; each build's own choices on its Loot filter page are build data, not settings.
+    public static readonly Section LootFilterSection = Group.Section("lootfilter", "Loot filter");
+    public static readonly Toggle LootFilter = new(LootFilterSection, "LootFilter", "Loot filter page", true)
+    {
+        Help = "Shows the Loot filter page beside a build's checklist and guide, to make a game loot filter from the build's stage.",
+    };
+    public static readonly Choice<string> LootFilterStrictness = new(LootFilterSection, "LootFilterStrictness", "Default strictness", "regular",
+        ("levelling", "Levelling"), ("regular", "Regular"), ("strict", "Strict"), ("verystrict", "Very strict"))
+    {
+        Help = "Which rules a new filter turns on; each build's page can move it.",
+    };
+    public static readonly Number LootFilterMinAffixes = new(LootFilterSection, "LootFilterMinAffixes", "Planner affixes per item", 2f, 1f, 4f)
+    {
+        Step = 1f, Help = "How many of a slot's planner affixes an item needs for the slot's main rule.",
+    };
+    public static readonly Number LootFilterTierCap = new(LootFilterSection, "LootFilterTierCap", "Tier bar cap", 5f, 1f, 7f)
+    {
+        Step = 1f, Help = "The highest tier a slot rule asks for; a lower planner tier lowers the slot's bar.",
+    };
+    public static readonly Number LootFilterLowShards = new(LootFilterSection, "LootFilterLowShards", "Highly needed: fewer shards than", 20f, 0f, 100f)
+    {
+        Step = 5f, Help = "Items with a planner affix you hold fewer shards of show to shatter, at any tier; 0 turns the rule off.",
+    };
+    public static readonly Toggle LootFilterHideRest = new(LootFilterSection, "LootFilterHideRest", "Hide other equipment", true)
+    {
+        Help = "Ends the filter with a rule hiding equipment and idols no rule above shows.",
+    };
+    public static readonly Toggle LootFilterEmphasizeUniques = new(LootFilterSection, "LootFilterEmphasizeUniques", "Emphasize planner uniques", true)
+    {
+        Help = "Planner uniques and sets with good potential get the brightest looks and a beam.",
+    };
+    public static readonly Toggle LootFilterHideOtherClasses = new(LootFilterSection, "LootFilterHideOtherClasses", "Hide items for other classes", true)
+    {
+        Help = "Adds a rule hiding items only other classes can use.",
+    };
+    public static readonly Toggle LootFilterHideClassesFirst = new(LootFilterSection, "LootFilterHideClassesFirst", "Hide other classes above uniques", true)
+    {
+        Help = "The other-classes rule goes first, so even a rare unique for another class is hidden.",
+    };
+    public static readonly Toggle LootFilterHideAll = new(LootFilterSection, "LootFilterHideAll", "Hide every item kind", true)
+    {
+        Help = "The last rule hides everything no rule above shows, from level 10 unless Hide from level says otherwise; runes, glyphs, keys, woven echoes, shards and resonances get their own rules.",
+    };
+    // UTILITY: rule groups: off turns the group's rules off in new filters; each build's page can change it.
+    public static readonly Toggle LootFilterUtilityAscend = new(LootFilterSection, "LootFilterUtilityAscend", "Item types to ascend", true)
+    {
+        Help = "Circle of Fortune items of each type the planner has a unique or set item for.",
+    };
+    public static readonly Toggle LootFilterUtilityHavoc = new(LootFilterSection, "LootFilterUtilityHavoc", "T7s for a Rune of Havoc", true)
+    {
+        Help = "Uncorrupted items with a T7 and a build affix, to turn with a Rune of Havoc.",
+    };
+    public static readonly Toggle LootFilterUtilityClass = new(LootFilterSection, "LootFilterUtilityClass", "Class affixes to shatter", true)
+    {
+        Help = "Items with a planner class affix at any tier (T4+ at Very strict), for shards.",
+    };
+    public static readonly Toggle LootFilterUtilityLow = new(LootFilterSection, "LootFilterUtilityLow", "Highly needed affixes", true)
+    {
+        Help = "Items with a planner affix you're short of shards of (below the count under it), at any tier, loud.",
+    };
+    public static readonly Number LootFilterShatterTier = new(LootFilterSection, "LootFilterShatterTier", "Build affixes to shatter, from tier", 5f, 0f, 7f)
+    {
+        Step = 1f, Help = "Items with any planner affix at this tier or higher, for shards, quiet; 0 turns the rule off.",
+    };
+
+    /// <summary>The setting giving each switched UTILITY: group's default; the shatter rule has a tier instead.</summary>
+    public static Toggle UtilityDefault(UtilityGroup group) => group switch
+    {
+        UtilityGroup.Ascend => LootFilterUtilityAscend,
+        UtilityGroup.Havoc => LootFilterUtilityHavoc,
+        UtilityGroup.ClassShatter => LootFilterUtilityClass,
+        UtilityGroup.LowShards => LootFilterUtilityLow,
+        _ => throw new ArgumentOutOfRangeException(nameof(group), "the shatter rule is set by tier"),
+    };
+
+    // EA · Base's rule groups: off turns the group's rules off in filters made on EA · Base.
+    public static readonly Toggle LootFilterEveryLegendary = new(LootFilterSection, "LootFilterEveryLegendary", "Every legendary", true)
+    {
+        Help = "EA · Base's rule showing every legendary item; planner legendaries show either way.",
+    };
+    public static readonly Toggle LootFilterRarestUniques = new(LootFilterSection, "LootFilterRarestUniques", "Rarest uniques", true)
+    {
+        Help = "Uniques a drop rerolls into another 98% of the time or more.",
+    };
+    public static readonly Toggle LootFilterVeryRareUniques = new(LootFilterSection, "LootFilterVeryRareUniques", "Very rare uniques", true)
+    {
+        Help = "Uniques a drop rerolls into another 80% of the time or more.",
+    };
+    public static readonly Toggle LootFilterRareRollUniques = new(LootFilterSection, "LootFilterRareRollUniques", "Uniques with rare LP or WW rolls", true)
+    {
+        Help = "2–3 LP and 18–21 WW on uniques whose LP level makes that roll rare.",
+    };
+    public static readonly Toggle LootFilterSetSourceUniques = new(LootFilterSection, "LootFilterSetSourceUniques", "Boss and other set-source uniques", true)
+    {
+        Help = "Uniques that never drop at random: from bosses, dungeons and other set sources.",
+    };
+    public static readonly Toggle LootFilterPrimordialUniques = new(LootFilterSection, "LootFilterPrimordialUniques", "Primordial uniques", true);
+    public static readonly Toggle LootFilterCocoonedUniques = new(LootFilterSection, "LootFilterCocoonedUniques", "Cocooned uniques", true);
+
+    /// <summary>EA · Base rule ids each group switch turns off.</summary>
+    public static readonly (Toggle Switch, string[] Ids)[] LootFilterBaseGroups =
+    {
+        (LootFilterEveryLegendary, new[] { "legendary" }),
+        (LootFilterRarestUniques, new[] { "rarest" }),
+        (LootFilterVeryRareUniques, new[] { "veryrare", "veryrare.lp1" }),
+        (LootFilterRareRollUniques, new[] { "lp3.58", "lp2.100", "ww21", "ww20", "ww19", "ww18", "lp2.70", "lp3.27", "lp2.48" }),
+        (LootFilterSetSourceUniques, new[] { "setsource", "setsource.lp1" }),
+        (LootFilterPrimordialUniques, new[] { "primordial" }),
+        (LootFilterCocoonedUniques, new[] { "cocooned" }),
+    };
+
+    /// <summary>The default strictness as a step: Levelling 0, Regular 1, Strict 2, Very strict 3.</summary>
+    public static int DefaultStrictness => LootFilterStrictness.Value switch
+    {
+        "levelling" => 0,
+        "strict" => 2,
+        "verystrict" => 3,
+        _ => 1,
+    };
+
     public static readonly PanelLook[] Panels = { PassiveLook, SkillTreeLook, SkillChoiceLook, SkillsPageLook, WeaverLook };
 
     /// <summary>The interface pages with no look of their own: the inventory and the blessings panel.</summary>

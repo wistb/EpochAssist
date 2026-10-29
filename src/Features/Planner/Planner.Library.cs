@@ -162,6 +162,8 @@ internal static partial class Planner
             }
             s_builds.Remove(build);
             ForgetResolution(id);
+            // Its loot filter choices go with it; the filters made from it stay, as the player's.
+            LootFilterStore.DeleteChoices(id);
             int before = s_bindings.Count;
             foreach (var (character, binding) in s_bindings.ToList())
                 if (binding.Build == id) s_bindings.Remove(character);
