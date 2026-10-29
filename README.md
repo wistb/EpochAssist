@@ -30,9 +30,9 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   - **Marks**: outlines by state (matches, partial, to place, not in build); next point labelled; hover hints.
   - **Gear**: badge on each planned equipment slot and idol, coloured ring on idol altar and blessing slots, outline on weaver tree item sockets; hover shows planned item as game's own tooltip beside equipped one, with a card listing planned affixes and tiers.
   - **Compare with build**: optional hotkey shows planned item for hovered item's slot.
-  - **Stages**: one build and stage per character, each with its planned level; changed only with ◀ and ▶, hint once next stage's level is reached; Last Epoch Tools variant links gathered as stages of one build, each with own gear and link.
+  - **Variants**: one build and variant per character (levelling, endgame and so on), each with its planned level; changed only with ◀ and ▶, hint once next variant's level is reached; Last Epoch Tools variant links gathered into one build, each with own gear and link.
   - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings, weaver tree and weaver items, with next steps per tree; hover a gear row for planned item.
-  - **Guide**: Maxroll build's own guide in game, per stage, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text; Last Epoch Tools builds open their guide page, set by guide link when build data names none.
+  - **Guide**: Maxroll build's own guide in game, per variant, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text; Last Epoch Tools builds open their guide page, set by guide link when build data names none.
   - **Loot filter**: game loot filter made based on the planner, for one setup or levelling to endgame in one filter: planner uniques, slot and legendary rules, crafting and shatter rules, rest hidden; strictness Levelling to Very strict; active only on Use now.
   - **Drawing only**: nothing spent, chosen, equipped or moved; files written only for build library and on loot filter Make; on by default.
   <details><summary>Screenshots</summary>
@@ -45,7 +45,7 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 
   ![Active blessings with Planner rings, one slot selected](nexus/media/planner-blessings.png)
 
-  ![Planner tab: stage, Checklist/Guide/Loot filter switch, skill bar and checklist](nexus/media/planner-tab.png)
+  ![Planner tab: variant, Checklist/Guide/Loot filter switch, skill bar and checklist](nexus/media/planner-tab.png)
 
   ![Planner checklist: next steps and gear in columns](nexus/media/planner-checklist.png)
 
@@ -53,7 +53,7 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 
   ![Planner guide: skill tips with game icons](nexus/media/planner-guide-tips.png)
 
-  ![Planner loot filter: stage, base, strictness and utility rules](nexus/media/planner-filter.png)
+  ![Planner loot filter: variant, base, strictness and utility rules](nexus/media/planner-filter.png)
 
   ![Planner loot filter: planner uniques and rule list](nexus/media/planner-filter-rules.png)
 
