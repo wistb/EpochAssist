@@ -33,7 +33,7 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   - **Stages**: one build and stage per character, each with its planned level; changed only with ◀ and ▶, hint once next stage's level is reached; Last Epoch Tools variant links gathered as stages of one build, each with own gear and link.
   - **Checklist**: done out of planned per tree, skill bar, gear, idols, blessings, weaver tree and weaver items, with next steps per tree; hover a gear row for planned item.
   - **Guide**: Maxroll build's own guide in game, per stage, with game icons for skills, passives and items; hover a name for its game tooltip; menu search finds its text; Last Epoch Tools builds open their guide page, set by guide link when build data names none.
-  - **Loot filter**: loot filter from a stage's plan: uniques by potential, slot rules on planner affixes and tiers, idols, levelling rules, rest hidden; built on EA · Base or any listed filter; strictness Levelling to Very strict; per-rule looks; saved to game's Filters folder, made active only on Use now.
+  - **Loot filter**: game loot filter from a stage's plan or all stages: planner uniques by potential, slot and legendary rules on planner affixes and tiers, idols, levelling rules, utility rules for Rune of Havoc, shattering (class affixes, low shard counts) and ascending, rest hidden; built on EA · Base (from game's unique data) or any listed filter; strictness Levelling to Very strict; per-rule looks; saved to game's Filters folder, made active only on Use now.
   - **Drawing only**: nothing spent, chosen, equipped or moved; files written only for build library and on loot filter Make; on by default.
   <details><summary>Screenshots</summary>
 
@@ -45,13 +45,17 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 
   ![Active blessings with Planner rings, one slot selected](nexus/media/planner-blessings.png)
 
-  ![Planner tab: stage, skill bar and checklist](nexus/media/planner-tab.png)
+  ![Planner tab: stage, Checklist/Guide/Loot filter switch, skill bar and checklist](nexus/media/planner-tab.png)
 
   ![Planner checklist: next steps and gear in columns](nexus/media/planner-checklist.png)
 
   ![Planner guide: Maxroll build guide in game](nexus/media/planner-guide.png)
 
   ![Planner guide: skill tips with game icons](nexus/media/planner-guide-tips.png)
+
+  ![Planner loot filter: stage, base, strictness and utility rules](nexus/media/planner-filter.png)
+
+  ![Planner loot filter: planner uniques and rule list](nexus/media/planner-filter-rules.png)
 
   </details>
 - **Map Reveal**: reveal entire map on overlay and minimap. Customize map appearance.
