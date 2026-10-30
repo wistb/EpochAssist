@@ -79,17 +79,20 @@ internal static class ProfilesPage
     }
 
     // Buttons left to right from x; returns the index pressed, or -1. Disabled ones (enabled false) take no press.
-    private static int Buttons(Rect row, string keyPrefix, params (string Label, bool Enabled, bool Primary)[] buttons)
+    // How a button of a row looks: plain, the row's main action, or one that removes something (muted red).
+    private enum Look { Plain, Primary, Danger }
+
+    private static int Buttons(Rect row, string keyPrefix, params (string Label, bool Enabled, Look Look)[] buttons)
     {
         float x = row.x;
         int pressed = -1;
         for (int i = 0; i < buttons.Length; i++)
         {
-            var (label, enabled, primary) = buttons[i];
+            var (label, enabled, look) = buttons[i];
             float w = Controls.ButtonWidth(label);
             bool wasEnabled = GUI.enabled;
             GUI.enabled = wasEnabled && enabled;
-            if (Controls.Button(new Rect(x, row.y, w, RowLayout.ControlHeight), label, keyPrefix + label.ToLowerInvariant(), primary)) pressed = i;
+            if (Controls.Button(new Rect(x, row.y, w, RowLayout.ControlHeight), label, keyPrefix + label.ToLowerInvariant(), look == Look.Primary, danger: look == Look.Danger)) pressed = i;
             GUI.enabled = wasEnabled;
             x += w + 6f;
         }
@@ -126,7 +129,7 @@ internal static class ProfilesPage
         Rect buttons = Row(string.Empty);
         // Default is the shared profile: it can't be renamed or deleted.
         bool own = !active.IsDefault && !s_renaming;
-        switch (Buttons(buttons, "profile.", ("New", true, false), ("Duplicate", true, false), ("Rename", own, false), ("Delete", own, false)))
+        switch (Buttons(buttons, "profile.", ("New", true, Look.Plain), ("Duplicate", true, Look.Plain), ("Rename", own, Look.Plain), ("Delete", own, Look.Plain)))
         {
             case 0:
                 s_pending = () => Made(Profiles.Create(ProfilesFeature.NextName("Profile"), copy: false, out string reason), reason, "a copy of Default");
@@ -179,7 +182,7 @@ internal static class ProfilesPage
         s_name = GUI.TextField(field, s_name, 40, Style(() => Theme.TreeFilter, GUI.skin.textField));
         if (focused) Focus.Take("name");
         if (Focus.Item("name", field) || Focus.Arrived("name")) GUI.FocusControl(NameControl);
-        int pressed = Buttons(new Rect(field.xMax + 8f, row.y, row.width, row.height), "rename.", ("Save", true, true), ("Cancel", true, false));
+        int pressed = Buttons(new Rect(field.xMax + 8f, row.y, row.width, row.height), "rename.", ("Save", true, Look.Primary), ("Cancel", true, Look.Plain));
         if (pressed == 1)
         {
             s_renaming = false;
@@ -208,7 +211,7 @@ internal static class ProfilesPage
         int users = Profiles.Users(active.Id);
         Hint(Colored($"Delete {active.Name}?", Theme.Pause)
             + $" {(users > 0 ? $"{users} character{(users == 1 ? " goes" : "s go")} back to Default." : "No character uses it.")}");
-        switch (Buttons(Row(string.Empty), "delete.", ("Delete", true, true), ("Keep", true, false)))
+        switch (Buttons(Row(string.Empty), "delete.", ("Delete", true, Look.Danger), ("Keep", true, Look.Plain)))
         {
             case 0:
                 string id = active.Id, name = active.Name;
@@ -270,7 +273,7 @@ internal static class ProfilesPage
         s_exportTree ??= new CheckTree(() => TreeOf(ProfileTransfer.Segments, s => s.ToJson(global: false)), s_exportChosen, "export");
         Heading($"Export from {Profiles.Active.Name}");
         Rect row = GUILayoutUtility.GetRect(10f, RowLayout.ControlHeight + RowLayout.RowGap, GUILayout.ExpandWidth(true));
-        switch (Buttons(row, "export.", ("All", true, false), ("None", true, false)))
+        switch (Buttons(row, "export.", ("All", true, Look.Plain), ("None", true, Look.Plain)))
         {
             case 0:
                 s_exportChosen.UnionWith(ProfileTransfer.KeysOf(segments.Select(x => x.Id)));
@@ -305,7 +308,7 @@ internal static class ProfilesPage
             Rect into = Row("Into");
             var targets = new List<string> { $"{Profiles.Active.Name} (in use)", "As a new profile" };
             Dropdown.Draw(new Rect(into.x, into.y, Mathf.Min(220f, into.width), into.height), "import.target", targets, s_importTarget, i => s_importTarget = i);
-            if (Buttons(new Rect(into.x + Mathf.Min(220f, into.width) + 8f, into.y, 200f, into.height), "import.", ("Read", true, false)) == 0)
+            if (Buttons(new Rect(into.x + Mathf.Min(220f, into.width) + 8f, into.y, 200f, into.height), "import.", ("Read", true, Look.Plain)) == 0)
             {
                 string source = sources[s_importSource];
                 bool clipboard = s_importSource == 0;
@@ -326,7 +329,7 @@ internal static class ProfilesPage
             s_importTree = new CheckTree(() => TreeOf(ProfileTransfer.Segments.Where(x => export.Segments.Contains(x.Id)).ToList(), export.ValueOf), s_importChosen, "import");
         DrawTree(s_importTree);
         Rect row = Row(s_importTarget == 1 ? "Into a new profile" : $"Into {Profiles.Active.Name}");
-        switch (Buttons(row, "import.", ("Import", s_importChosen.Count > 0, true), ("Cancel", true, false)))
+        switch (Buttons(row, "import.", ("Import", s_importChosen.Count > 0, Look.Primary), ("Cancel", true, Look.Plain)))
         {
             case 0:
                 var chosen = s_importChosen.ToList();
