@@ -61,6 +61,7 @@ internal sealed class PlannerFeature : Feature
         Need<AbilityBarIcon>(nameof(AbilityBarIcon.abilityNumber), Planner.SkillChoiceGroup),
 
         Need<SkillsPanelManager>(nameof(SkillsPanelManager.baseClassPanelIcons), Planner.SkillsPageGroup),
+        Need<SkillsPanelManager>(nameof(SkillsPanelManager.baseClassTreePanelIcons), Planner.SkillsPageGroup),
         Need<SkillsPanelManager>(nameof(SkillsPanelManager.masteryClass1PanelIcons), Planner.SkillsPageGroup),
         Need<SkillsPanelManager>(nameof(SkillsPanelManager.masteryClass2PanelIcons), Planner.SkillsPageGroup),
         Need<SkillsPanelManager>(nameof(SkillsPanelManager.masteryClass3PanelIcons), Planner.SkillsPageGroup),

@@ -1853,7 +1853,8 @@ internal static partial class Planner
     // skill in it; an empty slot is to place while a planned skill is still to specialise.
     private static void MarkSkillsPage(SkillsPanelManager page, Guidance guidance, Stage stage, Allocation allocation, in MarkLook look, int pass)
     {
-        foreach (var group in new[] { page.baseClassPanelIcons, page.masteryClass1PanelIcons, page.masteryClass2PanelIcons, page.masteryClass3PanelIcons })
+        // The class's skills, those its passive tree unlocks (Smoke Bomb, Umbral Blades), and each mastery's.
+        foreach (var group in new[] { page.baseClassPanelIcons, page.baseClassTreePanelIcons, page.masteryClass1PanelIcons, page.masteryClass2PanelIcons, page.masteryClass3PanelIcons })
             for (int i = 0; group != null && i < group.Count; i++) MarkPageIcon(group[i], guidance, stage, allocation, look, pass);
         MarkPageIcon(page.masteryAbilityPanelIcon1, guidance, stage, allocation, look, pass);
         MarkPageIcon(page.masteryAbilityPanelIcon2, guidance, stage, allocation, look, pass);

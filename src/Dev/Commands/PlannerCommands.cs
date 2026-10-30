@@ -243,6 +243,7 @@ internal static class PlannerCommands
         if (Open(page))
         {
             AddIcons(lines, "base", page!.baseClassPanelIcons);
+            AddIcons(lines, "passive tree", page.baseClassTreePanelIcons);
             AddIcons(lines, "mastery 1", page.masteryClass1PanelIcons);
             AddIcons(lines, "mastery 2", page.masteryClass2PanelIcons);
             AddIcons(lines, "mastery 3", page.masteryClass3PanelIcons);
@@ -256,7 +257,7 @@ internal static class PlannerCommands
                 if (Game.Alive(icon)) lines.Add($"  specialised slot {icon!.AbilityNumber} {AbilityText(icon.Ability)} rect {Rect(icon.transform)}");
             }
             lines.Add($"picker: slot {page.currentSpecializationSlotIndex}, free slot {page.isAnyAvailableSpecializationSlot}");
-            foreach (var group in new[] { page.baseClassPanelIcons, page.masteryClass1PanelIcons, page.masteryClass2PanelIcons, page.masteryClass3PanelIcons })
+            foreach (var group in new[] { page.baseClassPanelIcons, page.baseClassTreePanelIcons, page.masteryClass1PanelIcons, page.masteryClass2PanelIcons, page.masteryClass3PanelIcons })
             {
                 for (int i = 0; group != null && i < group.Count; i++)
                 {
