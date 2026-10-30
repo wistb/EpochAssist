@@ -705,6 +705,29 @@ internal sealed class MacroDoc
         return (set, macroId == null ? null : set?.Macros.FirstOrDefault(m => m.Id == macroId));
     }
 
+    /// <summary>The ids of the named conditions a set's lines name: every macro's tree and its steps' trees.</summary>
+    public static HashSet<string> NamedIds(MacroSet set)
+    {
+        var ids = new HashSet<string>();
+        foreach (var macro in set.Macros)
+        {
+            NamedConditions.Ids(macro.All, ids);
+            foreach (var step in macro.Actions)
+            {
+                if (step.Until != null) NamedConditions.Ids(step.Until, ids);
+            }
+        }
+        return ids;
+    }
+
+    /// <summary>A copy of a set whose named-condition lines name the mapped ids (others as they were).</summary>
+    public static MacroSet RemapNamed(MacroSet set, IReadOnlyDictionary<string, string> map)
+    {
+        var json = SetJson(set);
+        NamedConditions.RemapIds(json, map);
+        return ParseSet(json);
+    }
+
     /// <summary>Counts of parts this build can't read (unknown kinds, steps, fields), for an import's report.</summary>
     public static List<string> UnknownParts(MacroSet set)
     {

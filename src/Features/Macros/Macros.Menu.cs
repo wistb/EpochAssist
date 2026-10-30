@@ -93,6 +93,7 @@ internal static partial class Macros
             lines.Add(new($"{SlotsKey}/{i + 1}", 1, $"Slot {i + 1}: {SlotMacros.SlotAbilityName(i) ?? "-"}", status.Text, status.State,
                 MacroSettingsPage.Status.Slots?[i] ?? false, false));
         }
+        AddNamedLines(lines);
         var doc = S.LibraryDoc.Doc;
         foreach (var set in doc.SetsOf(MacroSet.AllClasses).Concat(doc.SetsOf(PickedClass)))
         {
@@ -139,6 +140,7 @@ internal static partial class Macros
             Core.Actions.Run($"macros.slot.{slot}", "menu library");
             return;
         }
+        if (IsNamedPage(line.Key)) return;
         var (setId, macroId) = Split(line.Key);
         EditLibrary(doc =>
         {
@@ -169,6 +171,7 @@ internal static partial class Macros
         if (line == null) return Array.Empty<ActionButton>();
         if (line.Key == SlotsKey) return Array.Empty<ActionButton>();
         if (line.Key == EveryKey) return new[] { Button("Edit", "edit", () => Edit(line.Key)) };
+        if (IsNamedPage(line.Key)) return NamedActions(line.Key);
         if (line.Key.StartsWith(SlotsKey + "/") && int.TryParse(line.Key[(SlotsKey.Length + 1)..], out int slotNumber))
         {
             return new[]
@@ -223,8 +226,16 @@ internal static partial class Macros
 
     private static LibraryEditor? EditorFor(string key)
     {
+        if (NamedIdOfPage(key) is { } named && !NamedConditions.IsNamed(S.NamedConditions.Doc, named))
+        {
+            // Deleted (or undone away): back to where it was opened from.
+            s_editors.Remove(key);
+            CloseEditor();
+            return s_editing != null ? EditorFor(s_editing) : null;
+        }
         if (s_editors.TryGetValue(key, out var editor)) return editor;
         if (key == EveryKey) editor = EveryEditor();
+        else if (IsNamedPage(key)) editor = NamedEditor(key);
         else if (key.StartsWith(SlotsKey + "/") && int.TryParse(key[(SlotsKey.Length + 1)..], out int slot) && slot is >= 1 and <= SlotMacros.Slots) editor = SlotEditor(slot - 1);
         else editor = MacroEditor(key);
         if (editor == null)
@@ -487,6 +498,7 @@ internal static partial class Macros
         if (line.Key == SlotsKey) return "Slot macros cast whatever is in their slot while toggled. Toggle a slot with its tick box, or hold the modifier and press the slot's key.";
         if (line.Key == EveryKey) return "Checked before each slot macro's own conditions, after the enemy gate.";
         if (line.Key.StartsWith(SlotsKey + "/")) return "Ticked: the slot casts its skill when ready and its conditions pass.";
+        if (IsNamedPage(line.Key)) return NamedHint(line.Key);
         var (setId, macroId) = Split(line.Key);
         var (set, macro) = S.LibraryDoc.Doc.Find(setId, macroId);
         if (macro != null) return macro.Invalid is { } invalid ? $"Never starts: {invalid}." : null;
@@ -551,6 +563,13 @@ internal static partial class Macros
 
     private static void Rename(LibraryLine line, string name)
     {
+        if (NamedIdOfPage(line.Key) is { } named)
+        {
+            Rename(named, name);
+            if (s_nameProblem != null) Report($"Not renamed: {s_nameProblem}.", ToastKind.Warning);
+            return;
+        }
+        if (IsNamedPage(line.Key)) return;
         if (name.Length > Macro.MaxName) name = name[..Macro.MaxName];
         var (setId, macroId) = Split(line.Key);
         EditLibrary(doc =>
@@ -699,21 +718,23 @@ internal static partial class Macros
     }
 
     /// <summary>
-    /// Up to 50 snapshots this session of the library, the shared conditions, the slot lists and the slot targets (R14): a change seen on
+    /// Up to 50 snapshots this session of the library, the shared conditions, the slot lists, the slot targets and the named
+    /// conditions (R14): a change seen on
     /// the Macros tab pushes the texts from before it, and Undo puts the last back through the settings. Cleared when
     /// the profile or character changes; never saved.
     /// </summary>
     internal static class History
     {
         private const int Max = 50;
-        private static readonly List<(string Library, string Gate, string Slots, string Targets)> s_stack = new();
-        private static (string Library, string Gate, string Slots, string Targets)? s_last;
+        private static readonly List<(string Library, string Gate, string Slots, string Targets, string Named)> s_stack = new();
+        private static (string Library, string Gate, string Slots, string Targets, string Named)? s_last;
         private static int s_profileGeneration = -1;
 
         public static bool CanUndo => s_stack.Count > 0;
         public static int Count => s_stack.Count;
 
-        private static (string, string, string, string) Now() => (S.LibraryDoc.Value, S.GateConditions.Value, S.SlotConditions.Value, S.SlotTargets.Value);
+        private static (string, string, string, string, string) Now() =>
+            (S.LibraryDoc.Value, S.GateConditions.Value, S.SlotConditions.Value, S.SlotTargets.Value, S.NamedConditions.Value);
 
         /// <summary>Notes the texts now; a change since the last look pushes the texts from before it.</summary>
         public static void Watch()
@@ -738,14 +759,15 @@ internal static partial class Macros
             what = string.Empty;
             Watch();
             if (s_stack.Count == 0) return false;
-            var (library, gate, slots, targets) = s_stack[^1];
+            var (library, gate, slots, targets, named) = s_stack[^1];
             s_stack.RemoveAt(s_stack.Count - 1);
-            var (nowLibrary, nowGate, nowSlots, nowTargets) = Now();
+            var (nowLibrary, nowGate, nowSlots, nowTargets, nowNamed) = Now();
             var parts = new List<string>();
             if (library != nowLibrary && S.LibraryDoc.SetText(library, out _)) parts.Add("library");
             if (gate != nowGate && S.GateConditions.SetText(gate, out _)) parts.Add("shared conditions");
             if (slots != nowSlots && S.SlotConditions.SetText(slots, out _)) parts.Add("slot conditions");
             if (targets != nowTargets && S.SlotTargets.SetText(targets, out _)) parts.Add("slot targets");
+            if (named != nowNamed && S.NamedConditions.SetText(named, out _)) parts.Add("named conditions");
             s_last = Now();
             what = parts.Count > 0 ? string.Join(", ", parts) : "nothing changed";
             return true;
@@ -768,7 +790,7 @@ internal static partial class Macros
     private static void CopyCode(string setId)
     {
         if (S.LibraryDoc.Doc.Find(setId).Set is not { } set) return;
-        var (code, error) = ShareCode.Encode(set);
+        var (code, error) = ShareCode.Encode(set, S.NamedConditions.Doc);
         if (code == null)
         {
             Report($"Can't copy: {error}.", ToastKind.Warning);
@@ -781,13 +803,25 @@ internal static partial class Macros
     private static void Paste() => Report(Import(Clipboard.Text), ToastKind.Info);
 
     /// <summary>
-    /// Adds the set in a share code: new ids, switched off, " (2)" on a name its class already has; the result names
-    /// what was added and the parts this build keeps without reading. Nothing is added for a bad code.
+    /// Adds the set in a share code: new ids, switched off, " (2)" on a name its class already has, with the named
+    /// conditions it carries (reused when the player has the same one, else added; a name the player has with other
+    /// lines is added as "&lt;name&gt; (2)" and offers Use mine). The result names what was added and the parts this build
+    /// keeps without reading. Nothing is added for a bad code.
     /// </summary>
     internal static string Import(string text)
     {
         var decoded = ShareCode.Decode(text);
         if (decoded.Set is not { } set) return $"Nothing added: {decoded.Error}.";
+        ConditionDoc? merged = null;
+        var namedReport = new List<string>();
+        var clashes = new List<NamedConditions.Clash>();
+        if (decoded.Named is { } named && NamedConditions.Count(named) > 0)
+        {
+            if (S.NamedConditions.Doc.ReadOnly) return "Nothing added: the named conditions were made by a newer version and can't be changed here.";
+            merged = NamedConditions.Merge(S.NamedConditions.Doc, named, set.Name, out var map, namedReport, clashes, out string reason);
+            if (merged == null) return $"Nothing added: {reason}.";
+            set = MacroDoc.RemapNamed(set, map);
+        }
         string? added = null, refused = null;
         bool stored = EditLibrary(doc =>
         {
@@ -804,8 +838,18 @@ internal static partial class Macros
         });
         if (!stored) return "Nothing added: the library can't be changed.";
         if (refused != null) return $"Nothing added: {refused}.";
+        string namedNote = string.Empty;
+        if (merged != null)
+        {
+            if (!S.NamedConditions.SetText(merged.ToText(), out string reason)) namedNote = $" Its named conditions weren't added: {reason}.";
+            else
+            {
+                namedNote = $" Named conditions: {string.Join("; ", namedReport)}.";
+                foreach (var clash in clashes) Clashes().Add(clash with { SetName = added ?? set.Name });
+            }
+        }
         string unknown = decoded.Unknown.Count > 0 ? $" Kept without reading: {string.Join(", ", decoded.Unknown)}." : string.Empty;
         string classNote = set.KnownClass ? string.Empty : " Its class isn't known here, so it never runs.";
-        return $"Added \"{added}\" ({MacroSet.ClassLabel(set.Class)}), switched off.{classNote}{unknown}";
+        return $"Added \"{added}\" ({MacroSet.ClassLabel(set.Class)}), switched off.{classNote}{namedNote}{unknown}";
     }
 }

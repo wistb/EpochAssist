@@ -95,6 +95,8 @@ internal sealed class ActionButton : MenuRow
     public Action? OnClick { get; init; }
     /// <summary>Opens a page outside the game (the browser): drawn with the external link mark.</summary>
     public bool External { get; init; }
+    /// <summary>Confirms something that removes (a delete's Yes): drawn muted red.</summary>
+    public bool Danger { get; init; }
     /// <summary>Asks first, in a popup beside the button; it acts through the prompt's Submit, not OnClick.</summary>
     public ButtonPrompt? Prompt { get; init; }
     public string? Tip { get; init; }

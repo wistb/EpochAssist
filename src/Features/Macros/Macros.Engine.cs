@@ -98,6 +98,7 @@ internal static partial class Macros
         ConditionKinds.CursorPoint = FrameCursor;
         ConditionKinds.MoreSkills = LibrarySkills;
         HotkeyConflicts.MoreKeys = TriggerKeys;
+        StartNamed();
     }
 
     // Trigger keys of the library's macros, for the mod's bindings' conflict warnings.
@@ -113,6 +114,7 @@ internal static partial class Macros
         ConditionKinds.CursorPoint = null;
         ConditionKinds.MoreSkills = null;
         HotkeyConflicts.MoreKeys = null;
+        StopNamed();
     }
 
     private static int s_cursorFrame = -1;
@@ -307,6 +309,7 @@ internal static partial class Macros
                 Cancel(engine, "character or profile change");
                 Disarm(engine);
                 engine.Toggled.Clear();
+                s_named?.ResetAll();
             }
             engine.ProfileGeneration = Profiles.Generation;
         }
@@ -318,6 +321,7 @@ internal static partial class Macros
             {
                 Cancel(engine, "class change");
                 Disarm(engine);
+                s_named?.ResetAll();
             }
             engine.Class = cls;
         }
@@ -327,6 +331,8 @@ internal static partial class Macros
             engine.ZoneChanged = false;
             Cancel(engine, "zone change");
             Disarm(engine);
+            // Sticky named conditions start from false in a new zone.
+            s_named?.ResetAll();
         }
         if (!GameState.PlayerAlive)
         {
@@ -679,21 +685,11 @@ internal static partial class Macros
         Gate.Wait => ($"wait {ArgSpec.Format(Math.Max(0f, check.WaitLeft))} s", StatusState.Holding),
         Gate.Landing => ("waiting: last drink landing", StatusState.Holding),
         Gate.NotReady => ($"waiting: {ConditionKinds.SkillName(check.Skill ?? string.Empty)} not ready", StatusState.Holding),
-        Gate.Tree => ("waiting on " + FailingWords(macro.All, check.Tree), StatusState.Holding),
+        Gate.Tree => ("waiting on " + Conditions.FailingWords(macro.All, check.Tree), StatusState.Holding),
         Gate.Off => ("off", StatusState.Off),
         Gate.Invalid => ("invalid", StatusState.Waiting),
         _ => ("waiting", StatusState.Waiting),
     };
-
-    /// <summary>The first failing line of a tree, as words with its value: "health below 50% (78%)".</summary>
-    internal static string FailingWords(ConditionList list, TreeState state)
-    {
-        int node = state.Verdict.FirstFailing;
-        if (node < 0 || node >= list.NodeCount) return list.Invalid ?? "conditions";
-        var entry = list.Nodes[node];
-        string value = node < state.Results.Length ? Conditions.ValueText(entry, state.Results[node]) : string.Empty;
-        return value.Length > 0 ? $"{entry.Words} ({value})" : entry.Words;
-    }
 
     /// <summary>A macro's last start check, for dev output; null when it wasn't checked.</summary>
     internal static MacroCheck? LastCheck(Macro macro) => s_engine != null && s_engine.Checks.TryGetValue(macro, out var check) ? check : null;
@@ -752,7 +748,7 @@ internal static partial class Macros
         string ready = string.Join(",", macro.Ready.Where(r => r.Value).Select(r => $"{ConditionKinds.SkillName(r.Key)}:{ReadyWord(r.Key)}"));
         string verdict = check == null ? "not checked" : GateText(macro, check).Text;
         string path = check is { Gate: Gate.Tree } && check.Tree.List != null && check.Tree.Verdict.FirstFailing is int f and >= 0
-            ? $" path {check.Tree.List.Path(f)}{FailingWords(check.Tree.List, check.Tree)} {Conditions.StateWord(check.Tree.Results[f].State)}" : string.Empty;
+            ? $" path {check.Tree.List.Path(f)}{Conditions.FailingWords(check.Tree.List, check.Tree)} {Conditions.StateWord(check.Tree.Results[f].State)}" : string.Empty;
         string state = engine?.Run is { } run && run.Macro.Id == macro.Id ? $" run: step {run.StepIndex + 1}/{macro.Actions.Count} {run.Step?.Step} {RunWaiting(run)}"
             : LastCauseOf(macro.Id) is { } cause ? $" last run: {cause}" : string.Empty;
         return $"macro {set.Name}/{macro.Name} ({set.Id}/{macro.Id}): on {on}, trigger {macro.Trigger.Kind}{(macro.Trigger.Key.Length > 0 ? " " + macro.Trigger.Key : string.Empty)}, "
@@ -823,12 +819,14 @@ internal static partial class Macros
     /// buff, a skill, three enemy lines around hero and cursor, an any group and a none group) ending in a line that
     /// fails, so all are checked every frame and none starts. 0 removes them. With targets, each also has a cast step
     /// and two lines (Has a target, and a target's health) using one of 20 targets (10 area, radius 2–6 m; 10 single),
-    /// so the scan picks them.
+    /// so the scan picks them. With named, each has instead one line per starter named condition and three bench ones
+    /// (in memory too), then the failing line.
     /// </summary>
-    public static string Bench(int count, bool targets = false)
+    public static string Bench(int count, bool targets = false, bool named = false)
     {
         if (s_engine is not { } engine) return "error macro bench: macros aren't running";
         engine.BenchVersion++;
+        BenchNamed(count > 0 && named);
         if (count <= 0)
         {
             engine.Bench = null;
@@ -853,6 +851,11 @@ internal static partial class Macros
                 + "{\"none\":[{\"kind\":\"zone.kind\",\"args\":{\"is\":\"town\"},\"on\":true,\"trueWhenUnknown\":false}]},"
                 + "{\"kind\":\"player.health\",\"args\":{\"compare\":\"below\",\"percent\":1},\"on\":true,\"trueWhenUnknown\":false}],"
                 + $"\"actions\":[{{\"step\":\"wait\",\"ms\":50}}{(targets ? BenchCast(i, skill) : string.Empty)}]}}";
+            if (named)
+            {
+                text = $"{{\"id\":\"bench{i}\",\"name\":\"Bench {i + 1}\",\"on\":true,\"trigger\":{{\"kind\":\"auto\"}},\"waitMs\":0,\"all\":[{BenchNamedLines()}],"
+                    + "\"actions\":[{\"step\":\"wait\",\"ms\":50}]}";
+            }
             var holder = MacroDoc.ParseSet(System.Text.Json.Nodes.JsonNode.Parse($"{{\"macros\":[{text}]}}"));
             set.Macros.Add(holder.Macros[0]);
         }
@@ -875,7 +878,8 @@ internal static partial class Macros
         }
         engine.Bench = set;
         string with = targets ? $", {set.Macros.SelectMany(m => m.Actions).Select(s => s.Target.Key).Distinct().Count()} distinct cast targets" : string.Empty;
-        return $"ok macro bench {count}{(targets ? " targets" : string.Empty)}: {count} macros of {set.Macros[0].All.NodeCount} lines for {cls}{with}, in memory only";
+        if (named) with += $", {NamedConditions.Count(NamedDoc())} named conditions";
+        return $"ok macro bench {count}{(targets ? " targets" : named ? " named" : string.Empty)}: {count} macros of {set.Macros[0].All.NodeCount} lines for {cls}{with}, in memory only";
     }
 
     // One of 20 targets: 0–9 area (health, weight, count in turn; radius 2–6 m), 10–19 single-enemy picks.

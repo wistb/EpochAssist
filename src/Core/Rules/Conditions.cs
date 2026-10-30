@@ -204,6 +204,19 @@ internal static class Conditions
         _ => "invalid",
     };
 
+    /// <summary>The first failing line of a tree, as words with its value: "health below 50% (78%)"; a named condition's
+    /// line names its own first failing line ("Worth fighting false: weight 3 within 12 m (weight 3)").</summary>
+    public static string FailingWords(ConditionList list, TreeState state)
+    {
+        int node = state.Verdict.FirstFailing;
+        if (node < 0 || node >= list.NodeCount) return list.Invalid ?? "conditions";
+        var entry = list.Nodes[node];
+        var result = node < state.Results.Length ? state.Results[node] : default;
+        if (entry.Invalid == null && entry.KindDef is { FailTextExplains: true } && result.State is ConditionState.Pass or ConditionState.Fail) return entry.FailText;
+        string value = node < state.Results.Length ? ValueText(entry, result) : string.Empty;
+        return value.Length > 0 ? $"{entry.Words} ({value})" : entry.Words;
+    }
+
     /// <summary>A result as a readout shows it: the value, or why it's unknown or invalid.</summary>
     public static string ValueText(ConditionEntry entry, ConditionResult result) => entry.IsGroup && result.State != ConditionState.Invalid
         ? $"{ArgSpec.Format(result.Number)} {result.Note} pass"

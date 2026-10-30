@@ -50,7 +50,7 @@ internal static class Controls
     /// One that asks first opens its prompt beside it and reports no click; the prompt acts.</summary>
     public static bool Button(Rect r, ActionButton button, string key, string? tip)
     {
-        if (!Button(r, button.Label, key, button.Primary, tip, button.External)) return false;
+        if (!Button(r, button.Label, key, button.Primary, tip, button.External, button.Danger)) return false;
         if (button.Prompt is not { } prompt) return true;
         Popups.Open(new PromptPopup(Popups.ToWindow(r), prompt));
         return false;

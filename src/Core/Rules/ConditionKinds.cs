@@ -16,6 +16,7 @@ internal static partial class ConditionKinds
     {
         ("player", "Player"), ("buff", "Buffs"), ("potions", "Potions"), ("skill", "Skills"), ("slot", "Slots"), ("macro", "Macros"),
         ("enemies", "Enemies"), ("enemy", "Enemy"), ("cursor", "Cursor"), ("players", "Players"), ("zone", "Zone"), ("input", "Keys"),
+        ("named", "Named conditions"),
     };
 
     public static IReadOnlyList<ConditionKind> All => s_kinds;
@@ -28,6 +29,7 @@ internal static partial class ConditionKinds
         AddEnemyKinds();
         AddInputKinds();
         AddMacroKinds();
+        AddNamedKinds();
     }
 
     public static void Add(ConditionKind kind)
@@ -107,6 +109,8 @@ internal static partial class ConditionKinds
     private static readonly Dictionary<string, string> s_failed = new();
     public const string NotInGame = "not in game";
     public const string NotCounted = "not counted yet";
+    /// <summary>A line about the calling slot or macro, checked in a named condition, which has neither.</summary>
+    public const string OnlyInCaller = "only in a slot or macro";
 
     // Why a player part has no value: no player, its group missing in this mode, or its read failing this frame.
     private static string PlayerReason(string part)
@@ -288,7 +292,7 @@ internal static partial class ConditionKinds
             Check = (ctx, a) =>
             {
                 int number = ctx.SlotNumber(a.Int("slot"));
-                if (number == 0) return ConditionResult.Unknown("no slot to read");
+                if (number == 0) return ConditionResult.Unknown(ctx.Named ? OnlyInCaller : "no slot to read");
                 if (!FrameHasSlots()) return ConditionResult.Unknown(PlayerReason("skill bar"));
                 var slot = FrameSlot(number);
                 if (slot?.Ready is not bool ready) return ConditionResult.Unknown(slot == null ? "slot not read" : "readiness not read");
@@ -304,7 +308,7 @@ internal static partial class ConditionKinds
             Check = (ctx, a) =>
             {
                 int number = ctx.SlotNumber(a.Int("slot"));
-                if (number == 0) return ConditionResult.Unknown("no slot to read");
+                if (number == 0) return ConditionResult.Unknown(ctx.Named ? OnlyInCaller : "no slot to read");
                 if (!FrameHasSlots()) return ConditionResult.Unknown(PlayerReason("skill bar"));
                 var slot = FrameSlot(number);
                 if (slot == null) return ConditionResult.Unknown("slot not read");

@@ -109,6 +109,9 @@ internal sealed class TreeAccess
     public Func<ConditionEntry, bool>? Hidden { get; init; }
     /// <summary>The check context for live values ("this slot" args read the slot).</summary>
     public string? Note { get; init; }
+    /// <summary>The id of the named condition whose tree this is, or null: its lines may not lead back to it, and lines
+    /// about the calling slot or macro aren't offered.</summary>
+    public string? Named { get; init; }
 }
 
 /// <summary>
@@ -239,7 +242,7 @@ internal static class RuleTreeRows
             Depth = depth,
             Last = last,
             Ancestors = ancestors,
-            Words = () => Current()?.Words ?? string.Empty,
+            Words = () => Current() is { } e ? LineWords(access, e) : string.Empty,
             On = () => Current()?.On ?? false,
             SetOn = on => Change(access, copy =>
             {
@@ -281,6 +284,77 @@ internal static class RuleTreeRows
         };
     }
 
+    // A line's words; in a named condition, a line that leads back to it says so.
+    private static string LineWords(TreeAccess access, ConditionEntry entry)
+    {
+        if (access.Named is { } editing && ConditionKinds.NamedIdOf(entry) is { } id && ConditionKinds.Named is { } named && named.Reaches(id, editing))
+            return $"{entry.Words}: loops back to {ConditionKinds.NamedName(editing)}";
+        return entry.Words;
+    }
+
+    // The add list of one tree: every kind but the named-condition line (and, in a named condition, the ones about the
+    // calling macro), then a "Named conditions" group with one choice per named condition the tree may use. Made again
+    // when the named conditions change.
+    private sealed class AddList
+    {
+        public readonly List<string> Labels = new();
+        public readonly List<ConditionKind?> Kinds = new();
+        public readonly List<string?> Named = new();
+        public (string Label, int First)[] Groups = Array.Empty<(string, int)>();
+        public IReadOnlyList<(string Id, string Name)>? Offered;
+    }
+
+    private static readonly Dictionary<string, AddList> s_addLists = new();
+
+    private static AddList AddChoices(TreeAccess access)
+    {
+        var offered = ConditionKinds.Named?.Offered(access.Named);
+        string key = access.Named != null ? "named:" + access.Named : "tree";
+        if (s_addLists.TryGetValue(key, out var cached) && ReferenceEquals(cached.Offered, offered)) return cached;
+        var add = new AddList { Offered = offered };
+        var groups = new List<(string, int)>();
+        for (int g = 0; g < s_kindGroups.Length; g++)
+        {
+            int end = g + 1 < s_kindGroups.Length ? s_kindGroups[g + 1].First : s_kinds.Count;
+            int first = add.Labels.Count;
+            for (int i = s_kindGroups[g].First; i < end; i++)
+            {
+                var kind = s_kinds[i];
+                if (kind.Id == ConditionKinds.NamedKind || (access.Named != null && CallerOnly(kind))) continue;
+                add.Labels.Add(s_kindLabels[i]);
+                add.Kinds.Add(kind);
+                add.Named.Add(null);
+            }
+            if (add.Labels.Count > first) groups.Add((s_kindGroups[g].Label, first));
+        }
+        if (offered is { Count: > 0 })
+        {
+            groups.Add(("Named conditions", add.Labels.Count));
+            foreach (var (id, name) in offered)
+            {
+                add.Labels.Add(name);
+                add.Kinds.Add(ConditionKinds.Find(ConditionKinds.NamedKind));
+                add.Named.Add(id);
+            }
+        }
+        add.Groups = groups.ToArray();
+        s_addLists[key] = add;
+        return add;
+    }
+
+    // Kinds about the calling macro itself, left out of a named condition's add list.
+    private static bool CallerOnly(ConditionKind kind) => kind.Id == "macro.sinceFired";
+
+    // A new line of a kind; in a named condition a slot line starts at slot 1 (it has no slot of its own) and a
+    // named-condition line names the one picked.
+    private static ConditionEntry NewLine(TreeAccess access, ConditionKind kind, string? named)
+    {
+        var entry = ConditionEntry.New(kind);
+        if (named != null) entry.Args["named"] = named;
+        if (access.Named != null && kind.Args.Any(a => a.Kind == ArgKind.Slot)) entry.Args["slot"] = 1;
+        return entry;
+    }
+
     private static TreeAdd AddRow(TreeAccess access, ConditionList list, string groupPath, int depth)
     {
         int groupDepth = groupPath.Length == 0 ? 1 : groupPath.Split('.').Length + 1;
@@ -289,17 +363,18 @@ internal static class RuleTreeRows
             Key = $"{access.Prefix}.add.{(groupPath.Length == 0 ? "root" : groupPath)}",
             Depth = depth,
             Label = "+ add a condition",
-            Choices = () => s_kindLabels,
-            Groups = () => s_kindGroups,
+            Choices = () => AddChoices(access).Labels,
+            Groups = () => AddChoices(access).Groups,
             Picked = i =>
             {
-                if (i < 0 || i >= s_kinds.Count) return;
-                var kind = s_kinds[i];
+                var add = AddChoices(access);
+                if (i < 0 || i >= add.Kinds.Count || add.Kinds[i] is not { } kind) return;
+                string? named = add.Named[i];
                 string? opened = null;
                 Change(access, copy =>
                 {
                     if (copy.NodeCount >= ConditionList.Limit || ItemsAt(copy, groupPath) is not { } items) return;
-                    items.Add(ConditionEntry.New(kind));
+                    items.Add(NewLine(access, kind, named));
                     opened = (groupPath.Length == 0 ? string.Empty : groupPath + ".") + items.Count;
                 });
                 // A new line opens, so its arguments can be set at once.
@@ -339,7 +414,7 @@ internal static class RuleTreeRows
             if (NodeAt(copy, path, out _) is { } n) change(n);
         });
         string prefix = $"{access.Prefix}.opt.{path}.";
-        foreach (var arg in kind.Args) yield return ArgRow(arg, prefix, Current, Edit, kind);
+        foreach (var arg in kind.Args) yield return ArgRow(arg, prefix, Current, Edit, kind, access.Named);
         if (kind.Args.Any(a => a.Name == "wNormal"))
         {
             yield return new ValueToggle("Own weights", () => Current()?.Args.ContainsKey("wNormal") == true, on => Edit(e =>
@@ -378,7 +453,7 @@ internal static class RuleTreeRows
     public static Func<string, float>? OwnerWeight { get; set; }
 
     // One argument's control, with the visibility rules of optional args.
-    internal static MenuRow ArgRow(ArgSpec arg, string prefix, Func<ConditionEntry?> current, Action<Action<ConditionEntry>> edit, ConditionKind kind)
+    internal static MenuRow ArgRow(ArgSpec arg, string prefix, Func<ConditionEntry?> current, Action<Action<ConditionEntry>> edit, ConditionKind kind, string? inNamed = null)
     {
         string label = ArgLabel(arg.Name);
         JsonNode? Stored() => current()?.Args.TryGetPropertyValue(arg.Name, out var node) == true ? node : null;
@@ -405,7 +480,8 @@ internal static class RuleTreeRows
                 return new ValueNumber(label, Number, v => Set(JsonValue.Create(v)), arg.Min, arg.Max, arg.Step, arg.Unit) { Key = key, VisibleWhen = visible };
             case ArgKind.Choice:
             case ArgKind.Rarity:
-                var options = arg.Options;
+                // A named condition has no cast step, so its lines have no cast target to be about.
+                var options = inNamed != null && arg.Name == "subject" ? arg.Options.Where(o => o != "cast").ToArray() : arg.Options;
                 var shown = options.Select(o => arg.Kind == ArgKind.Rarity ? RarityLabel(o) : arg.Name == "pick" ? PickLabel(o) : ArgSpec.OptionWords(o)).ToList();
                 return new ValueChoice(label, () => Array.IndexOf(options, Text()), i =>
                 {
@@ -454,8 +530,13 @@ internal static class RuleTreeRows
                     Shown = () => Stored() is JsonValue v && v.TryGetValue(out double id) ? Name((int)Math.Round(id)) : arg.Optional ? none : mods ? "Select monster mod" : "Select ailment",
                 };
             }
+            case ArgKind.Slot when inNamed != null:
+                // No "this slot": a named condition has no slot of its own.
+                return new ValueChoice(label, () => (int)Math.Round(Number()) - 1, i => Set(JsonValue.Create(i + 1)), () => s_barSlotOptions) { Key = key, Width = 110f };
             case ArgKind.Slot:
                 return new ValueChoice(label, () => (int)Math.Round(Number()), i => Set(JsonValue.Create(i)), () => s_slotOptions) { Key = key, Width = 110f };
+            case ArgKind.Named:
+                return NamedPicker(label, key, Text, id => Set(JsonValue.Create(id)), inNamed);
             case ArgKind.Key:
                 return new ValueKey(label, Text, chord => Set(JsonValue.Create(chord)))
                 {
@@ -481,6 +562,32 @@ internal static class RuleTreeRows
         };
 
     private static readonly List<string> s_slotOptions = new() { "This slot", "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5" };
+    private static readonly List<string> s_barSlotOptions = new() { "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5" };
+
+    /// <summary>A named-condition dropdown: the ones the tree may use (none that lead back to the one being edited).</summary>
+    public static ValueChoice NamedPicker(string label, string key, Func<string> get, Action<string> set, string? editing)
+    {
+        IReadOnlyList<(string Id, string Name)> Offered() => ConditionKinds.Named?.Offered(editing) ?? Array.Empty<(string, string)>();
+        return new ValueChoice(label, () =>
+        {
+            var offered = Offered();
+            string id = get();
+            for (int i = 0; i < offered.Count; i++)
+            {
+                if (offered[i].Id == id) return i;
+            }
+            return -1;
+        }, i =>
+        {
+            var offered = Offered();
+            if (i >= 0 && i < offered.Count) set(offered[i].Id);
+        }, () => Offered().Select(o => o.Name).ToList())
+        {
+            Key = key,
+            Width = 170f,
+            Shown = () => get().Length == 0 ? "Select named condition" : ConditionKinds.NamedName(get()),
+        };
+    }
 
     private static bool SubjectIs(Func<ConditionEntry?> current, string subject) =>
         current()?.Args["subject"] is JsonValue v && v.TryGetValue(out string? s) ? s == subject : subject == "nearest";
@@ -524,6 +631,7 @@ internal static class RuleTreeRows
         "atLeast" => "At least",
         "mod" => "Mod",
         "ailment" => "Ailment",
+        "named" => "Named condition",
         _ => char.ToUpperInvariant(name[0]) + name[1..],
     };
 }

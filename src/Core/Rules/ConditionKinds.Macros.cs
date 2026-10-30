@@ -195,7 +195,7 @@ internal static partial class ConditionKinds
             Args = { ArgSpec.Compare("above", "above", "below"), ArgSpec.Number("seconds", 5, 0, 600, 0.1f, " s"), To() },
             Check = (ctx, a) =>
             {
-                if (ctx.Macro is not { } id || MacroFiredAt is not { } firedAt) return ConditionResult.Unknown("only in a library macro");
+                if (ctx.Macro is not { } id || MacroFiredAt is not { } firedAt) return ConditionResult.Unknown(ctx.Named ? OnlyInCaller : "only in a library macro");
                 float at = firedAt(id);
                 // Never fired reads as infinitely long ago.
                 float since = float.IsNegativeInfinity(at) ? float.PositiveInfinity : Clock.Now - at;

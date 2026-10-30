@@ -73,6 +73,42 @@ internal static class MacroSettings
     public static readonly Section Slots = Group.Section("slots", "Slot conditions");
     public static readonly ConditionSetting SlotConditions = new(Slots, "SlotConditions", "Slot conditions", "{\"v\":1,\"lists\":{}}");
 
+    // Named conditions, keyed by id; "<id>/ends" is one's ends tree (contracts/named-format.md). Six starters, used by
+    // no macro, built from kinds every class has and the default enemy weights; once anything is saved, a deleted one
+    // stays gone. Thresholds from game-facts.md.
+    public static readonly Section Named = Group.Section("named", "Named conditions");
+    private const string NamedDefault = """
+        {"v":1,"lists":{
+          "worth":{"name":"Worth fighting","all":[{"any":[
+            {"kind":"enemies.weight","args":{"range":12,"weight":6,"compare":"atLeast"},"on":true,"trueWhenUnknown":false},
+            {"kind":"enemies.rarity","args":{"range":15,"rarity":"rare"},"on":true,"trueWhenUnknown":false}]}]},
+          "travel":{"name":"Travelling","all":[
+            {"kind":"player.moving","args":{"is":"moving"},"on":true,"trueWhenUnknown":false},
+            {"kind":"cursor.distance","args":{"compare":"above","metres":8},"on":true,"trueWhenUnknown":false},
+            {"kind":"named.is","args":{"named":"worth","is":"false"},"on":true,"trueWhenUnknown":false}]},
+          "pack":{"name":"Pack ahead","all":[
+            {"kind":"enemies.weight","args":{"range":10,"weight":6,"compare":"atLeast","centre":"cursor"},"on":true,"trueWhenUnknown":false},
+            {"kind":"cursor.distance","args":{"compare":"above","metres":8},"on":true,"trueWhenUnknown":false},
+            {"kind":"enemies.weight","args":{"range":8,"weight":1,"compare":"below"},"on":true,"trueWhenUnknown":false}]},
+          "engaged":{"name":"Engaged","holdS":3,"all":[{"any":[
+            {"kind":"named.is","args":{"named":"worth","is":"true"},"on":true,"trueWhenUnknown":false},
+            {"kind":"named.is","args":{"named":"boss","is":"true"},"on":true,"trueWhenUnknown":false}]}]},
+          "engaged/ends":{"all":[
+            {"kind":"enemies.weight","args":{"range":12,"weight":2,"compare":"below"},"on":true,"trueWhenUnknown":false}]},
+          "danger":{"name":"In danger","all":[{"any":[
+            {"all":[
+              {"kind":"player.health","args":{"compare":"below","percent":35},"on":true,"trueWhenUnknown":false},
+              {"kind":"enemies.count","args":{"range":5,"count":3,"compare":"atLeast"},"on":true,"trueWhenUnknown":false}]},
+            {"kind":"player.health","args":{"compare":"below","percent":20},"on":true,"trueWhenUnknown":false}]}]},
+          "boss":{"name":"Boss nearby","all":[
+            {"kind":"enemies.rarity","args":{"range":40,"rarity":"boss"},"on":true,"trueWhenUnknown":false}]}
+        }}
+        """;
+    public static readonly ConditionSetting NamedConditions = new(Named, "NamedConditions", "Named conditions", NamedDefault)
+    {
+        Help = "Condition trees with a name, used by macro lines such as \"Worth fighting is true\".",
+    };
+
     // Named sets of macros per class (contracts/macro-format.md); the Slots set isn't stored here.
     public static readonly Section Library = Group.Section("library", "Macro library");
     public static readonly MacroLibrarySetting LibraryDoc = new(Library, "Library", "Macro library", MacroDoc.DefaultText)

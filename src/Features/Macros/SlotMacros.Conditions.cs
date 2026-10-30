@@ -124,6 +124,9 @@ internal static partial class SlotMacros
         CastTarget = slot >= 0 ? S.EffectiveSlotTarget(CurrentFormKey, slot) : S.SharedSlotTarget,
     };
 
+    /// <summary>When the enemy count last refreshed (-1 before the first, NaN while not counting).</summary>
+    internal static float TallyAt() => s_run is { Active: true } run ? run.Tally.RefreshedAt : float.NaN;
+
     /// <summary>Whether the slot macros count enemies now (for the editor's "not counted (macros off)").</summary>
     internal static bool Scanning => s_run is { Active: true };
 
@@ -291,9 +294,11 @@ internal static partial class SlotMacros
             name => name == S.EveryList ? S.EveryList : null, _ => ContextFor(-1)));
         ConditionTargets.Register(new ConditionTargets.Target(feature.Id, "slots", S.SlotConditions, () => new[] { "1", "2", "3", "4", "5" },
             name => int.TryParse(name, out int n) && n is >= 1 and <= SlotCount ? SlotKey(CurrentFormKey, n - 1)
-                : name.Contains('/') ? name : null,
+                : name.Contains('/') && !name.EndsWith(NamedConditions.EndsSuffix, StringComparison.Ordinal) ? name : null,
             name => ContextFor(int.TryParse(name.Split('/')[^1], out int n) && n is >= 1 and <= SlotCount ? n - 1 : -1)));
+        Macros.RegisterNamedTarget(feature.Id);
         ConditionKeys.Register(feature.Id, S.GateConditions, _ => "every-slot condition");
         ConditionKeys.Register(feature.Id, S.SlotConditions, key => $"slot {key.Split('/')[^1]} condition");
+        ConditionKeys.Register(feature.Id, S.NamedConditions, key => $"named condition {NamedConditions.Name(S.NamedConditions.Doc, key.Split('/')[0])}");
     }
 }

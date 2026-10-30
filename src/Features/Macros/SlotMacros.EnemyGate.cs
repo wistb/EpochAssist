@@ -27,6 +27,7 @@ internal static partial class SlotMacros
         }
         ConditionEditor.ShownEnemyRanges(S.GateConditions, ranges);
         ConditionEditor.ShownEnemyRanges(S.SlotConditions, ranges);
+        ConditionEditor.ShownEnemyRanges(S.NamedConditions, ranges);
         Macros.EnemyKeys(ranges);
         var subjects = run.Subjects;
         subjects.Clear();

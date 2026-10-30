@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace EpochAssist.Core;
 
 // Never stored: entries store args by name and choices by option name.
-internal enum ArgKind { Number, Choice, Buff, Slot, Rarity, Key, Skill, Mod, Ailment, Bool }
+internal enum ArgKind { Number, Choice, Buff, Slot, Rarity, Key, Skill, Mod, Ailment, Bool, Named }
 internal enum ConditionState { Pass, Fail, Unknown, Invalid }
 
 /// <summary>
@@ -69,6 +69,9 @@ internal sealed class ArgSpec
 
     /// <summary>An ailment by id (0–255), as buffs are; the player picks it.</summary>
     public static ArgSpec Ailment(string name) => new(name, ArgKind.Ailment, null);
+
+    /// <summary>A named condition by id ("worth"); the player picks it.</summary>
+    public static ArgSpec Named(string name) => new(name, ArgKind.Named, JsonValue.Create(string.Empty));
 
     /// <summary>A comparison: the kind's original ones first (so stored values keep meaning), then the rest.</summary>
     public static ArgSpec Compare(string defaultValue, params string[] first) =>
@@ -167,6 +170,14 @@ internal sealed class ArgSpec
                     return true;
                 }
                 reason = "select skill";
+                return false;
+            case ArgKind.Named:
+                if (node is JsonValue nv && nv.TryGetValue(out string? named) && named.Length > 0)
+                {
+                    text = named;
+                    return true;
+                }
+                reason = "select named condition";
                 return false;
             case ArgKind.Key:
                 if (node is JsonValue kv && kv.TryGetValue(out string? chordText) && Chord.TryParse(chordText, HotkeyKind.Hold, out var chord) && !chord.IsEmpty)
@@ -298,6 +309,10 @@ internal readonly record struct ConditionContext(int Slot, WorldTally? Tally, fl
     /// target, or a library macro's cast step's; null where the list has no cast to take it from.</summary>
     public TargetSpec? CastTarget { get; init; }
 
+    /// <summary>The check is a named condition's: it has no slot, macro or cast target of its own, so lines that need
+    /// one read unknown there.</summary>
+    public bool Named { get; init; }
+
     /// <summary>A slot arg as a bar slot number (1–5): 0 means the list's own slot; 0 when there is none.</summary>
     public int SlotNumber(int arg) => arg > 0 ? arg : Slot >= 0 ? Slot + 1 : 0;
 }
@@ -348,6 +363,9 @@ internal sealed class ConditionKind
     public Func<ArgValues, string>? LabelledWords { get; init; }
     /// <summary>Why it holds a slot back when it fails, as the status shows it: "health not below 50%".</summary>
     public Func<ArgValues, string>? FailText { get; init; }
+    /// <summary>FailText already says what failed and its value, so a failing line is shown by it rather than by its
+    /// words and value (a named condition names its own first failing line).</summary>
+    public bool FailTextExplains { get; init; }
     /// <summary>A result's value as the readout shows it ("43%", "4.1 s", "weight 6").</summary>
     public Func<ConditionResult, string>? ValueText { get; init; }
 

@@ -4,9 +4,12 @@ using System.Text.Json.Nodes;
 
 namespace EpochAssist.Core;
 
-/// <summary>What reading a share code gave: the set (with the parts this build can't read listed), or why not.</summary>
+/// <summary>What reading a share code gave: the set (with the parts this build can't read listed) and the named
+/// conditions it carries (null for a version 1 code), or why not.</summary>
 internal sealed record ShareDecode(MacroSet? Set, string? Error, IReadOnlyList<string> Unknown)
 {
+    public ConditionDoc? Named { get; init; }
+
     public static ShareDecode Fail(string error) => new(null, error, Array.Empty<string>());
 }
 
@@ -14,12 +17,14 @@ internal sealed record ShareDecode(MacroSet? Set, string? Error, IReadOnlyList<s
 /// One macro set as one line (contracts/share-code.md): "EAMACRO1:" + base64url(deflate(UTF-8 set JSON)) + "." + its
 /// CRC-32 as 8 hex digits, at most 16 000 characters. When deflate isn't available the payload is "u" + base64url of the
 /// JSON itself; decoding takes both. A code holds only the set as the library stores it: names given by the player,
-/// classes, keys, conditions and steps, never character or account data.
+/// classes, keys, conditions and steps, never character or account data. A set that uses named conditions is version 2:
+/// {"set": …, "named": a condition document of the named conditions it reaches}; one that uses none stays version 1.
 /// </summary>
 internal static class ShareCode
 {
     public const string Tag = "EAMACRO";
-    public const int Version = 1;
+    /// <summary>The newest version this build reads.</summary>
+    public const int Version = 2;
     public const int MaxLength = 16000;
 
     public const string NotACode = "not a share code";
@@ -29,10 +34,26 @@ internal static class ShareCode
     /// <summary>Whether deflate worked the last time a code was made (false: codes are uncompressed).</summary>
     public static bool? Compressed { get; private set; }
 
-    /// <summary>The set's code, or the reason it can't be shared ("set too large to share (N characters)").</summary>
-    public static (string? Code, string? Error) Encode(MacroSet set)
+    /// <summary>The set's code, with the named conditions it uses from named, or the reason it can't be shared ("set too
+    /// large to share (N characters)").</summary>
+    public static (string? Code, string? Error) Encode(MacroSet set, ConditionDoc? named = null)
     {
+        var closure = named != null ? NamedConditions.Closure(named, MacroDoc.NamedIds(set)) : new HashSet<string>();
+        int version = 1;
         string json = MacroDoc.SetJson(set)?.ToJsonString() ?? "{}";
+        if (closure.Count > 0)
+        {
+            version = 2;
+            var lists = new JsonObject();
+            var stored = named!.ToJson()["lists"] as JsonObject;
+            foreach (string key in named.Order)
+            {
+                string owner = key.EndsWith(NamedConditions.EndsSuffix, StringComparison.Ordinal) ? key[..^NamedConditions.EndsSuffix.Length] : key;
+                if (closure.Contains(owner) && stored?[key] is { } list) lists[key] = ConditionDoc.Clone(list);
+            }
+            var both = new JsonObject { ["set"] = MacroDoc.SetJson(set), ["named"] = new JsonObject { ["v"] = ConditionDoc.FormatVersion, ["lists"] = lists } };
+            json = both.ToJsonString();
+        }
         byte[] bytes = Encoding.UTF8.GetBytes(json);
         string crc = Crc32(bytes).ToString("x8");
         string payload;
@@ -49,7 +70,7 @@ internal static class ShareCode
             payload = "u" + Base64Url(bytes);
             Compressed = false;
         }
-        string code = $"{Tag}{Version}:{payload}.{crc}";
+        string code = $"{Tag}{version}:{payload}.{crc}";
         return code.Length > MaxLength ? (null, $"set too large to share ({code.Length} characters)") : (code, null);
     }
 
@@ -96,9 +117,18 @@ internal static class ShareCode
         {
             return ShareDecode.Fail(Damaged);
         }
+        ConditionDoc? named = null;
+        if (version == 2)
+        {
+            if (node is not JsonObject both || both["set"] is not JsonObject setNode) return ShareDecode.Fail(Damaged);
+            named = ConditionDoc.Parse(both["named"], out _);
+            if (named == null) return ShareDecode.Fail(Damaged);
+            if (named.ReadOnly) return ShareDecode.Fail(Newer);
+            node = setNode;
+        }
         var set = MacroDoc.ParseSet(node);
         if (set.Raw != null) return ShareDecode.Fail(Damaged);
-        return new ShareDecode(set, null, MacroDoc.UnknownParts(set));
+        return new ShareDecode(set, null, MacroDoc.UnknownParts(set)) { Named = named };
     }
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');

@@ -71,7 +71,7 @@ internal static partial class ConditionKinds
         {
             if (ctx.CastTarget is not { } cast)
             {
-                other = ConditionResult.Invalid("no cast step to take the target from");
+                other = ctx.Named ? ConditionResult.Unknown(OnlyInCaller) : ConditionResult.Invalid("no cast step to take the target from");
                 return false;
             }
             if (cast.Pick == TargetPick.Cursor)

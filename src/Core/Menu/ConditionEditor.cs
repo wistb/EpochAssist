@@ -84,62 +84,68 @@ internal static class ConditionEditor
         }
     }
 
-    /// <summary>Adds the enemies that switched-on, valid enemy-subject conditions in a tree are about.</summary>
-    public static void EnemySubjects(ConditionList list, List<SubjectKey> into)
+    /// <summary>Adds the enemies that switched-on, valid enemy-subject conditions in a tree are about (and in the named
+    /// conditions its lines use).</summary>
+    public static void EnemySubjects(ConditionList list, List<SubjectKey> into) => Walk(list, null, (entry, _, _) =>
     {
-        if (list.Invalid != null) return;
-        var nodes = list.Nodes;
-        for (int i = 0; i < nodes.Length; i++)
-        {
-            var entry = nodes[i];
-            if (!entry.On)
-            {
-                if (entry.IsGroup) i = list.End(i) - 1;
-                continue;
-            }
-            if (entry.IsGroup || entry.Invalid != null || entry.KindDef?.Picks is not { } subject || subject(entry.Values) is not { } key) continue;
-            if (!into.Contains(key)) into.Add(key);
-        }
-    }
+        if (entry.KindDef?.Picks is { } subject && subject(entry.Values) is { } key && !into.Contains(key)) into.Add(key);
+    });
 
     /// <summary>
     /// Collects the kept targets that switched-on, valid lines in a tree are about (their own "target" subjects, and
-    /// "cast" subjects as the owner's cast target), so the scan picks them; owner names them for the dev verb.
+    /// "cast" subjects as the owner's cast target), so the scan picks them; owner names them for the dev verb. Inside a
+    /// named condition a line has no cast target.
     /// </summary>
-    public static void EnemyTargets(ConditionList list, TargetSpec? castTarget, string? owner)
+    public static void EnemyTargets(ConditionList list, TargetSpec? castTarget, string? owner) => Walk(list, castTarget, (entry, cast, line) =>
     {
-        if (list.Invalid != null) return;
-        var nodes = list.Nodes;
-        for (int i = 0; i < nodes.Length; i++)
-        {
-            var entry = nodes[i];
-            if (!entry.On)
-            {
-                if (entry.IsGroup) i = list.End(i) - 1;
-                continue;
-            }
-            if (entry.IsGroup || !ConditionKinds.SubjectTarget(entry, castTarget, out var key)) continue;
-            if (key.Pick is TargetPick.Cursor or TargetPick.Nearest or TargetPick.Hovered) continue;
-            Targets.Collect(key, owner != null ? $"{owner} line {i + 1}" : null);
-        }
-    }
+        if (!ConditionKinds.SubjectTarget(entry, cast, out var key)) return;
+        if (key.Pick is TargetPick.Cursor or TargetPick.Nearest or TargetPick.Hovered) return;
+        Targets.Collect(key, owner != null ? $"{owner} line {line + 1}" : null);
+    });
 
-    /// <summary>Adds the counts that switched-on, valid enemy conditions in a tree need (inside switched-on groups).</summary>
-    public static void EnemyRanges(ConditionList list, List<TallyKey> into)
+    /// <summary>Adds the counts that switched-on, valid enemy conditions in a tree need (inside switched-on groups, and in
+    /// the named conditions its lines use).</summary>
+    public static void EnemyRanges(ConditionList list, List<TallyKey> into) => Walk(list, null, (entry, _, _) =>
+    {
+        if (entry.KindDef?.KeyFor(entry.Values) is { } key && !into.Contains(key)) into.Add(key);
+    });
+
+    // The named conditions one walk has been into, so each adds its lines once and loops stop.
+    private static readonly HashSet<string> s_walked = new();
+    private static int s_walkDepth;
+
+    // Each switched-on, valid condition of a tree (nothing under a switched-off group counts), then the trees of the named
+    // conditions its switched-on named lines use, with no cast target.
+    private static void Walk(ConditionList list, TargetSpec? castTarget, Action<ConditionEntry, TargetSpec?, int> visit)
     {
         if (list.Invalid != null) return;
-        var nodes = list.Nodes;
-        for (int i = 0; i < nodes.Length; i++)
+        if (s_walkDepth == 0) s_walked.Clear();
+        s_walkDepth++;
+        try
         {
-            var entry = nodes[i];
-            if (!entry.On)
+            var nodes = list.Nodes;
+            for (int i = 0; i < nodes.Length; i++)
             {
-                // Nothing under a switched-off group counts.
-                if (entry.IsGroup) i = list.End(i) - 1;
-                continue;
+                var entry = nodes[i];
+                if (!entry.On)
+                {
+                    if (entry.IsGroup) i = list.End(i) - 1;
+                    continue;
+                }
+                if (entry.IsGroup || entry.Invalid != null) continue;
+                if (ConditionKinds.NamedIdOf(entry) is { } id)
+                {
+                    if (ConditionKinds.Named is not { } named || !s_walked.Add(id)) continue;
+                    if (named.StartOf(id) is { } start) Walk(start, null, visit);
+                    if (named.EndsOf(id) is { } ends) Walk(ends, null, visit);
+                    continue;
+                }
+                visit(entry, castTarget, i);
             }
-            if (entry.IsGroup || entry.Invalid != null || entry.KindDef?.KeyFor(entry.Values) is not { } key) continue;
-            if (!into.Contains(key)) into.Add(key);
+        }
+        finally
+        {
+            s_walkDepth--;
         }
     }
 
@@ -393,6 +399,8 @@ internal static class ConditionEditor
                     };
                 case ArgKind.Buff:
                     return BuffPicker(index, arg, label);
+                case ArgKind.Named:
+                    return RuleTreeRows.NamedPicker(label, "arg." + arg.Name, () => StoredText(index, arg), id => SetArg(index, arg.Name, JsonValue.Create(id)), null);
                 case ArgKind.Skill:
                     return new ValueChoice(label, () => ConditionKinds.SkillOptions(StoredText(index, arg)).FindIndex(o => o.Id == StoredText(index, arg)), i =>
                     {
