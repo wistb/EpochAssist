@@ -9,10 +9,10 @@ using Il2CppInterop.Runtime;
 namespace EpochAssist.Dev;
 
 /// <summary>
-/// Dev only: checks every patch target of every registered feature before a release. Each target's native code is found
-/// through the il2cpp runtime and its first bytes are read from GameAssembly.dll on disk, where our own detours can't
-/// hide them, then decoded. Reads only: nothing is patched or changed. The result goes to dev/patch-check.json, which
-/// tools/release.sh requires.
+/// Dev only: checks every patch target a release build has (its features and every module, no dev features) before a
+/// release. Each target's native code is found through the il2cpp runtime and its first bytes are read from
+/// GameAssembly.dll on disk, where our own detours can't hide them, then decoded. Reads only: nothing is patched or
+/// changed. The result goes to dev/patch-check.json, which tools/release.sh requires.
 /// </summary>
 internal static class PatchCheck
 {
@@ -30,7 +30,7 @@ internal static class PatchCheck
         int before = HarmonyLib.Harmony.GetAllPatchedMethods().Count();
         var module = GameModule();
         var rows = new List<Row>();
-        foreach (var feature in FeatureHost.All)
+        foreach (var feature in ReleaseFeatures())
         {
             foreach (var target in Compat.PatchTargets(feature))
             {
@@ -72,6 +72,15 @@ internal static class PatchCheck
         };
         lines.AddRange(rows.Where(r => r.Outcome != "safe").Select(r => $"  {r.Feature} {r.Target} (patch {r.Patch}): {r.Detail}"));
         return new CommandResult(string.Join("\n", lines));
+    }
+
+    // What a release build patches: every running feature but the dev ones (src/Dev isn't shipped), and every module,
+    // loaded this start or not; one that isn't is built for the check only (its patch targets), never registered or started.
+    private static IEnumerable<Feature> ReleaseFeatures()
+    {
+        static bool Dev(Feature f) => f.GetType().Namespace?.StartsWith("EpochAssist.Dev", StringComparison.Ordinal) == true;
+        foreach (var feature in FeatureHost.All.Where(f => !Dev(f))) yield return feature;
+        foreach (var module in Modules.All.Where(m => FeatureHost.Find(m.Id) == null)) yield return module.Create();
     }
 
     // One outcome per target, from the first rule that applies: missing, ambiguous, unreadable, short_branch, safe.
