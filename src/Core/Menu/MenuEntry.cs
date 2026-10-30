@@ -9,6 +9,8 @@ internal static class MenuCategory
     public const string Macros = "macros";
     /// <summary>The planner's build library.</summary>
     public const string Planner = "planner";
+    /// <summary>The stash layouts page.</summary>
+    public const string Stash = "stash";
     public const string Sessions = "session";
     public const string Overlays = "overlays";
     public const string Map = "map";
@@ -101,6 +103,9 @@ internal sealed class MenuPage
     /// <summary>Esc on this page, before the menu's own handling (an opened item going back to its list); true when
     /// handled.</summary>
     public Func<bool>? Back { get; init; }
+    /// <summary>The game keeps its input while this page shows: as when the menu is folded, only presses on the menu
+    /// window stay the menu's (the Stash page, used beside the game's stash window). A focused field holds keys again.</summary>
+    public bool SharesInput { get; init; }
     /// <summary>Whether the title row offers Reset; null for "when the page has settings".</summary>
     public bool? Resettable { get; init; }
     /// <summary>False: not listed under its node in the tree; reached from a tree item that opens it (a slot macro's

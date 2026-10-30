@@ -25,13 +25,13 @@ internal static partial class Theme
     public static GUIStyle Brand = null!, Version = null!, Tab = null!, TabOn = null!, Crumb = null!, Tag = null!;
     public static GUIStyle TreeRow = null!, TreeNode = null!, TreeNumber = null!, TreeFilter = null!;
     public static GUIStyle Label = null!, FieldText = null!, FieldDim = null!, FieldHint = null!, Heading = null!, BannerText = null!, KeyText = null!;
-    public static GUIStyle ButtonText = null!, PrimaryText = null!, OptionText = null!, OptionHeading = null!, Tooltip = null!;
+    public static GUIStyle ButtonText = null!, PrimaryText = null!, DangerText = null!, OptionText = null!, OptionLit = null!, OptionHeading = null!, Tooltip = null!;
     public static GUIStyle FooterLabel = null!, FooterHint = null!, LiveValue = null!, Glyph = null!;
     // Fills drawn by the menu: flat, so they meet the window's own edge cleanly.
     public static Texture2D Flat = null!, FieldBg = null!, FieldOpen = null!, InputBox = null!, InputFocus = null!, PopupBg = null!;
-    public static Texture2D ButtonBg = null!, ButtonHover = null!, PrimaryBg = null!, PrimaryHover = null!, HighlightBg = null!, SelectionBg = null!, HoverBg = null!;
+    public static Texture2D ButtonBg = null!, ButtonHover = null!, PrimaryBg = null!, PrimaryHover = null!, DangerBg = null!, DangerHover = null!, HighlightBg = null!, SelectionBg = null!, HoverBg = null!;
     public static Texture2D SmallOff = null!, SmallOffHover = null!, SmallOn = null!, SmallOnHover = null!;
-    public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, TreeCollapseAll = null!, TreeExpandAll = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!, CloseCross = null!;
+    public static Texture2D CheckOff = null!, CheckOn = null!, CheckMixed = null!, TickMark = null!, TreeChevron = null!, TreeChevronRight = null!, TreeCollapseAll = null!, TreeExpandAll = null!, StepUp = null!, StepDown = null!, Reset = null!, Cross = null!, CloseCross = null!, Pencil = null!;
     /// <summary>The mark after a button that opens a page outside the game: a box with an arrow out of its corner.</summary>
     public static Texture2D ExternalLink = null!;
     public static Texture2D TagBg = null!, SidebarFill = null!;
@@ -90,7 +90,13 @@ internal static partial class Theme
         ButtonText.hover.textColor = v.Text;
         PrimaryText = new GUIStyle(ButtonText);
         TextColor(PrimaryText, v.OnAccent);
+        // A destructive action's button: white on red.
+        DangerText = new GUIStyle(ButtonText);
+        TextColor(DangerText, Color.white);
         OptionText = new GUIStyle(FieldText) { padding = new RectOffset(8, 22, 0, 1) };
+        // A list's hovered or highlighted option: the main text colour itself, so it reads on the selection colour.
+        OptionLit = new GUIStyle(OptionText);
+        TextColor(OptionLit, v.Text);
         OptionHeading = new GUIStyle(Heading) { padding = new RectOffset(6, 6, 0, 0) };
         // Headings in a list are quieter than its options but must stay readable on the popup (faint is for lines).
         TextColor(OptionHeading, v.Dim);
@@ -115,8 +121,13 @@ internal static partial class Theme
         ButtonHover = Rounded(rControl, rControl, buttonHover, buttonHover, 0f);
         PrimaryBg = Rounded(rControl, rControl, v.Accent, v.Accent, 0f);
         PrimaryHover = Rounded(rControl, rControl, v.AccentHover, v.AccentHover, 0f);
-        // A list's hovered or focused item: the muted selection colour, as the tree's selected row, not the bright highlight.
-        HighlightBg = Rounded(rControl, rControl, v.Selection, v.Selection, 0f);
+        // One muted red in every theme, apart from the themes' error colours (Carbonfox's is pink).
+        Color danger = new(0.55f, 0.22f, 0.22f), dangerHover = new(0.64f, 0.27f, 0.27f);
+        DangerBg = Rounded(rControl, rControl, danger, danger, 0f);
+        DangerHover = Rounded(rControl, rControl, dangerHover, dangerHover, 0f);
+        // A list's hovered or focused item: the muted selection colour a step darker, as the tree's selected row, not the bright highlight.
+        Color highlight = Color.Lerp(v.Selection, Color.black, 0.25f);
+        HighlightBg = Rounded(rControl, rControl, highlight, highlight, 0f);
         SelectionBg = Rounded(rCard, rCard, v.Selection, v.Selection, 0f);
         HoverBg = Rounded(rCard, rCard, v.NavHover, v.NavHover, 0f);
 
@@ -167,6 +178,22 @@ internal static partial class Theme
                 Mathf.Min(Segment(px, py, 1f, 2.5f, 4f, 2.5f), Segment(px, py, 7.5f, 6f, 7.5f, 9f)));
             float arrow = Mathf.Min(Segment(px, py, 4.5f, 5.5f, 9f, 1f), Mathf.Min(Segment(px, py, 5.5f, 1f, 9f, 1f), Segment(px, py, 9f, 1f, 9f, 4.5f)));
             return Shade(Color.white, Coverage(Mathf.Min(box, arrow) - 0.55f));
+        });
+        // Rename: a pencil leaning right, a band near its end and its point at the bottom left.
+        Pencil = Paint(12, 12, (x, y) =>
+        {
+            // Drawn top down; texture rows count from the bottom.
+            float px = x + 0.5f, py = 12f - (y + 0.5f);
+            // Along the pencil from the point (0) to the end (1), and across it.
+            float ax = 1.5f, ay = 10.5f, bx = 10.5f, by = 1.5f;
+            float dx = bx - ax, dy = by - ay, len = Mathf.Sqrt(dx * dx + dy * dy);
+            float t = ((px - ax) * dx + (py - ay) * dy) / (len * len);
+            float across = Mathf.Abs((px - ax) * dy - (py - ay) * dx) / len;
+            if (t < 0f || t > 1f) return Shade(Color.white, 0f);
+            // The point widens over its first quarter; the body is 3 px across; a gap marks the band.
+            float half = t < 0.28f ? 0.35f + 1.25f * (t / 0.28f) : 1.6f;
+            bool band = t > 0.78f && t < 0.84f;
+            return Shade(Color.white, band ? 0f : Coverage(across - half));
         });
         Cross = Paint(10, 10, (x, y) =>
         {

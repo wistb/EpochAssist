@@ -335,7 +335,8 @@ internal sealed class DropdownPopup : IPopup
         bool lit = hover || option == _highlight;
         if (lit && Widgets.Themed) Theme.DrawSliced(item, Theme.HighlightBg, Theme.ControlRadius);
         Color previous = GUI.contentColor;
-        if (Widgets.Themed) GUI.contentColor = lit ? Theme.Values.Text : option == _selected ? Theme.AccentText : previous;
+        if (Widgets.Themed) GUI.contentColor = lit ? Color.white : option == _selected ? Theme.AccentText : previous;
+        if (lit && Widgets.Themed) text = Theme.OptionLit;
         var label = item;
         if (_swatches != null)
         {

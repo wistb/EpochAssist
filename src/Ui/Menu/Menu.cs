@@ -36,12 +36,17 @@ internal static class Menu
     }
 
     // Open and unfolded, the menu holds the game's input and keeps keys in its fields; folded, it lets the game have
-    // everything but clicks on its bars.
+    // everything but clicks on its bars. A page that shares input is gated as the folded menu is, with the whole window
+    // as its bars, until one of the menu's fields takes the keyboard, a search is typed or a popup opens (a dropdown's
+    // filter takes letters, Enter and the arrows).
     private static void GateInput()
     {
-        bool holds = Visible && !Collapsed;
+        bool open = Visible && !Collapsed;
+        bool shares = open && MenuRoutes.Page?.Page.SharesInput == true && GUIUtility.keyboardControl == 0 && s_search.Length == 0 && !Popups.IsOpen;
+        bool holds = open && !shares;
         InputGate.Menu = holds;
-        InputGate.MenuFolded = Visible && Collapsed;
+        InputGate.MenuFolded = Visible && (Collapsed || shares);
+        InputGate.MenuShared = shares;
         KeepKeysInField(holds);
     }
 
@@ -437,7 +442,8 @@ internal static class Menu
     /// <summary>Text shortened with an ellipsis until it fits the width.</summary>
     public static string Fit(string text, GUIStyle style, float width)
     {
-        if (style.CalcSize(new GUIContent(text)).x <= width) return text;
+        // Nothing to cut (an empty label in a field too narrow for even its padding).
+        if (text.Length <= 1 || style.CalcSize(new GUIContent(text)).x <= width) return text;
         for (int n = text.Length - 1; n > 1; n--)
         {
             string cut = text.Substring(0, n).TrimEnd() + "…";

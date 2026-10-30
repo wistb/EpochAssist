@@ -58,7 +58,14 @@ internal static class Widgets
     /// </summary>
     public static void Paint(Rect r, GUIContent content, GUIStyle style) => style.Draw(r, content, false, false, false, false);
 
-    public static void Paint(Rect r, string text, GUIStyle style) => Paint(r, new GUIContent(text), style);
+    // One content for every plain label: drawn at once, so its text can change between calls, and no label allocates one.
+    private static readonly GUIContent s_paint = new();
+
+    public static void Paint(Rect r, string text, GUIStyle style)
+    {
+        s_paint.text = text;
+        Paint(r, s_paint, style);
+    }
 
     public static string Colored(string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 }

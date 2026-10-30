@@ -74,6 +74,7 @@ internal sealed class MenuFeature : Feature
         Diagnostics.ThemeProblems = null;
         InputGate.Menu = false;
         InputGate.MenuFolded = false;
+        InputGate.MenuShared = false;
         GameState.UiTyping = false;
     }
 }

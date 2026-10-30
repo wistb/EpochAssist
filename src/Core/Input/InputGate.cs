@@ -12,6 +12,9 @@ internal static class InputGate
     public static bool Menu;
     /// <summary>The menu is open but folded to its bars: like the HUD, only a press on them is kept from the game.</summary>
     public static bool MenuFolded;
+    /// <summary>The menu is open on a page that shares input: the game has it except while the pointer is over the
+    /// window, where the menu holds it as when open (so its wheel and keys stay the menu's).</summary>
+    public static bool MenuShared;
     public static bool Hud;
 
     private static bool s_blocking;
@@ -21,6 +24,9 @@ internal static class InputGate
 
     /// <summary>The HUD's hit test in screen pixels (top-left origin); set by the HUD while it runs.</summary>
     public static Func<UnityEngine.Vector2, bool>? HudHitTest;
+    /// <summary>Another window's hit test in screen pixels (top-left origin), kept from the game as the HUD is (the dev
+    /// build's tool window).</summary>
+    public static Func<UnityEngine.Vector2, bool>? ToolHitTest;
     /// <summary>The menu window's hit test in screen pixels (top-left origin); set by the menu while it runs.</summary>
     public static Func<UnityEngine.Vector2, bool>? MenuHitTest;
     /// <summary>Off when the game's UI event system can't be read (set by InputGateFeature).</summary>
@@ -84,7 +90,8 @@ internal static class InputGate
         var mouse = InputState.Pointer;
         var point = new UnityEngine.Vector2(mouse.x, UnityEngine.Screen.height - mouse.y);
         // The folded menu's bars count as the HUD does.
-        bool over = HudHitTest != null && HudHitTest(point) || MenuFolded && MenuHitTest != null && MenuHitTest(point);
+        bool over = HudHitTest != null && HudHitTest(point) || MenuFolded && MenuHitTest != null && MenuHitTest(point)
+            || ToolHitTest != null && ToolHitTest(point);
         bool down = InputState.ButtonDown(0) || InputState.ButtonDown(1) || InputState.ButtonDown(2);
         bool held = InputState.Button(0) || InputState.Button(1) || InputState.Button(2);
 
@@ -98,7 +105,7 @@ internal static class InputGate
         {
             s_hudTailFrames--;
         }
-        Hud = s_hudPress || s_hudTailFrames > 0;
+        Hud = s_hudPress || s_hudTailFrames > 0 || MenuShared && MenuHitTest != null && MenuHitTest(point);
 
         // Click-to-move is handled apart from the general lock, so while the cursor is on the HUD the game's own
         // mouse-movement block is held as well. It covers only click-to-move; keys and skills keep working.
@@ -174,6 +181,7 @@ internal static class InputGate
     {
         Menu = false;
         MenuFolded = false;
+        MenuShared = false;
         Hud = false;
         s_hudPress = false;
         s_hudTailFrames = 0;

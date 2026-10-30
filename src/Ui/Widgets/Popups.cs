@@ -34,6 +34,9 @@ internal static class Popups
     // Where the local space of the scroll views and areas being drawn starts, in the window's space.
     private static readonly Stack<Vector2> s_origins = new();
     private static Vector2 s_origin;
+    // What shows of the scroll views entered, in the window's space; null outside any that said.
+    private static readonly Stack<Rect?> s_showns = new();
+    private static Rect? s_shown;
 
     // The tooltip: what the pointer rests on (or what has the focus ring), and since when.
     private static string? s_tipText, s_tipSeen;
@@ -83,13 +86,30 @@ internal static class Popups
     /// Entering a scroll view or area whose local (0, 0) is at offset in the current space (an area's position, a scroll
     /// view's position less its scroll). Pair with PopOrigin.
     /// </summary>
-    public static void PushOrigin(Vector2 offset)
+    public static void PushOrigin(Vector2 offset) => PushOrigin(offset, null);
+
+    /// <summary>The same, also saying what of it shows (in the current space, before entering): a tip, or a hover
+    /// asked through <see cref="Shows"/>, needs the pointer there, so a row scrolled out of view under it isn't hovered.</summary>
+    public static void PushOrigin(Vector2 offset, Rect? shown)
     {
         s_origins.Push(s_origin);
+        s_showns.Push(s_shown);
+        if (shown is { } r)
+        {
+            var w = ToWindow(r);
+            s_shown = s_shown is { } outer ? Rect.MinMaxRect(Mathf.Max(w.xMin, outer.xMin), Mathf.Max(w.yMin, outer.yMin), Mathf.Min(w.xMax, outer.xMax), Mathf.Min(w.yMax, outer.yMax)) : w;
+        }
         s_origin += offset;
     }
 
-    public static void PopOrigin() => s_origin = s_origins.Count > 0 ? s_origins.Pop() : Vector2.zero;
+    public static void PopOrigin()
+    {
+        s_origin = s_origins.Count > 0 ? s_origins.Pop() : Vector2.zero;
+        s_shown = s_showns.Count > 0 ? s_showns.Pop() : null;
+    }
+
+    /// <summary>Whether a point drawn here (inside scroll views) is in what shows of them.</summary>
+    public static bool Shows(Vector2 point) => s_shown is not { } r || r.Contains(point + s_origin);
 
     /// <summary>The space a popup takes below its anchor (or above, when there is no room), inside the window.</summary>
     public static Rect Place(Vector2 size, Rect anchor)
@@ -108,6 +128,8 @@ internal static class Popups
     {
         s_origins.Clear();
         s_origin = Vector2.zero;
+        s_showns.Clear();
+        s_shown = null;
         Event e = Event.current;
         if (e.type == EventType.Repaint)
         {
@@ -154,7 +176,7 @@ internal static class Popups
     {
         if (string.IsNullOrEmpty(text) || Event.current.type != EventType.Repaint || s_open != null) return;
         bool ringed = focusKey != null && Focus.Ringed(focusKey);
-        if (!ringed && !r.Contains(Event.current.mousePosition)) return;
+        if (!ringed && (!r.Contains(Event.current.mousePosition) || !Shows(Event.current.mousePosition))) return;
         if (s_tipNow && !ringed) return;
         s_tipText = text;
         s_tipRect = ToWindow(r);

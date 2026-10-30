@@ -28,8 +28,20 @@ internal static class Controls
         return next;
     }
 
-    public static float ButtonWidth(string label, bool external = false) =>
-        Mathf.Ceil(Widgets.Style(() => Theme.ButtonText, GUI.skin.button).CalcSize(new GUIContent(label)).x) + (external ? ExternalRoom : 0f);
+    // Measured once per label and theme build: pages lay their buttons out every frame.
+    private static readonly Dictionary<(string, int), float> s_buttonWidths = new();
+
+    public static float ButtonWidth(string label, bool external = false)
+    {
+        var key = (label, Theme.Builds);
+        if (!s_buttonWidths.TryGetValue(key, out float width))
+        {
+            if (s_buttonWidths.Count > 1024) s_buttonWidths.Clear();
+            width = Mathf.Ceil(Widgets.Style(() => Theme.ButtonText, GUI.skin.button).CalcSize(new GUIContent(label)).x);
+            s_buttonWidths[key] = width;
+        }
+        return width + (external ? ExternalRoom : 0f);
+    }
 
     // The external link mark's room after the label: its 10 px and a gap.
     private const float ExternalRoom = 14f;
@@ -45,7 +57,7 @@ internal static class Controls
     }
 
     /// <summary>A button; true when clicked or activated by key.</summary>
-    public static bool Button(Rect r, string label, string key, bool primary = false, string? tip = null, bool external = false)
+    public static bool Button(Rect r, string label, string key, bool primary = false, string? tip = null, bool external = false, bool danger = false)
     {
         bool clicked = GUI.Button(r, GUIContent.none, GUIStyle.none);
         if (Event.current.type == EventType.Repaint)
@@ -55,8 +67,9 @@ internal static class Controls
             if (Widgets.Themed)
             {
                 bool hover = GUI.enabled && r.Contains(Event.current.mousePosition);
-                Theme.DrawSliced(r, primary ? (hover ? Theme.PrimaryHover : Theme.PrimaryBg) : (hover ? Theme.ButtonHover : Theme.ButtonBg), Theme.ControlRadius);
-                var style = primary ? Theme.PrimaryText : Theme.ButtonText;
+                Theme.DrawSliced(r, danger ? (hover ? Theme.DangerHover : Theme.DangerBg)
+                    : primary ? (hover ? Theme.PrimaryHover : Theme.PrimaryBg) : (hover ? Theme.ButtonHover : Theme.ButtonBg), Theme.ControlRadius);
+                var style = danger ? Theme.DangerText : primary ? Theme.PrimaryText : Theme.ButtonText;
                 Widgets.Paint(text, label, style);
                 if (external) ExternalMark(text, label, style, hover ? style.hover.textColor : style.normal.textColor);
             }
