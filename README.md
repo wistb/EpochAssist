@@ -58,6 +58,45 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   ![Planner loot filter: planner uniques and rule list](nexus/media/planner-filter-rules.png)
 
   </details>
+- **Stash**: create or use stash tab presets and easily apply them.
+  - **Preset**: Epoch Assist layout: overflow, class idols and gear, idols by size, legendaries, exalted by slot, uniques by LP, sets, altars, corrupted; build uniques from Planner library.
+  - **Budget**: slider or typed amount; most useful tabs first; merged tabs stand in for groups until budget covers them all.
+  - **Own tabs**: Keep or Reuse each folder and tab; Fit items adds tabs for items already stored.
+  - **Apply**: one step at a time, or all after summary of changes and gold; step count known up front.
+  - **Items in wrong tab**: count per tab, outlines in stash window, target tab on hover. Items never moved.
+  - **Edit**: copy preset, drag folders and tabs, rename, recolour, remove with cost shown first, undo; save stash as preset.
+  <details><summary>Screenshots</summary>
+
+  ![Stash: preset beside stash at a budget](nexus/media/stash-page.png)
+
+  ![Stash: Apply all building layout step by step](nexus/media/stash-apply.webp)
+
+  </details>
+- **Session**: dashboard of each game session statistics.
+  - **Focus**: chosen figures as tiles and charts: favour, reputation, memory amber, echoes, level, drops, XP, gold, deaths.
+  - **Live**: per-hour and last 10 minutes rates, time in and out of town, level progress, time to next level and faction rank.
+  - **Charts**: figure over session, timeline of zones, rare drops and deaths, drops by rarity, time by zone.
+  - **Tables**: factions with rank progress; echoes with clear time, gains, modifier, reward, corruption; deaths, monolith picks, loot filter drops.
+  - **Past sessions**: filter by character and range, per-hour trend, best marks, same dashboard per session; leave out of trends or delete.
+  - **New session**: ends session and starts next in place, for timed splits.
+  - **History**: kept in `UserData/EpochAssist/sessions/` within set limits, off in Config › Sessions › History; Export CSV writes two spreadsheet files. Nothing sent anywhere.
+  - **Mini HUD**: figures beside status pill as card, tiles or line in pill: session time, level, XP, gold, drops, echoes, favour, reputation, memory amber, deaths, each as total, per hour or both. Pace graphs, game colours, text and card size, labels on or off; hover for larger graph, three rates and breakdown.
+  - **Colours**: own colour per figure in Config › Sessions, game's by default; dashboard uses same.
+  <details><summary>Screenshots</summary>
+
+  ![Session: Current session with focus tiles and chart](nexus/media/session-dashboard.png)
+
+  ![Session: factions and echoes tables](nexus/media/session-tables.png)
+
+  ![Session: Past sessions with trend](nexus/media/session-past.png)
+
+  ![Session figures on the mini HUD as a card with pace graphs](nexus/media/session-hud.png)
+
+  ![Session figure hovered: larger graph, rates and breakdown](nexus/media/session-hud-detail.png)
+
+  ![Config: Sessions › Mini HUD](nexus/media/settings-session-hud.png)
+
+  </details>
 - **Map Reveal**: reveal entire map on overlay and minimap. Customize map appearance.
   - **Icons**: shrines, rune prisons, caches, tomb chests, omen windows and more, shown on zone entry.
   - **Zoom**: overlay zooms past game's widest; separate corner minimap zoom.
@@ -83,30 +122,13 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   ![Config: Proximity Interact](nexus/media/interact.png)
 
   </details>
-- **Session**: dashboard of each play session and every past one on Session tab, in game colours.
-  - **Focus**: chosen figures as tiles and charts: favour, reputation, memory amber, echoes, level, drops, XP, gold, deaths.
-  - **Live**: per-hour and last 10 minutes rates, time in and out of town, level progress, time to next level and faction rank.
-  - **Charts**: figure over session, timeline of zones, rare drops and deaths, drops by rarity, time by zone.
-  - **Tables**: factions with rank progress; echoes with clear time, gains, modifier, reward, corruption; deaths, monolith picks, loot filter drops.
-  - **Past sessions**: filter by character and range, per-hour trend, best marks, same dashboard per session; leave out of trends or delete.
-  - **New session**: ends session and starts next in place, for timed runs.
-  - **History**: kept in `UserData/EpochAssist/sessions/` within set limits, off under History; Export CSV writes two spreadsheet files. Nothing sent anywhere.
-  <details><summary>Screenshots</summary>
-
-  ![Session: Current session with focus tiles and chart](nexus/media/session-dashboard.png)
-
-  ![Session: factions and echoes tables](nexus/media/session-tables.png)
-
-  ![Session: Past sessions with trend](nexus/media/session-past.png)
-
-  </details>
 
 ## Config
 
 Highly configurable settings available via the Config tab. General options:
 
-- **Mini HUD**: macro state and slots while menu is closed; click for quick toggles. Notifications: own position,
-  duration, count, kinds and order.
+- **Mini HUD**: each feature's state and session figures while menu is closed, in order dragged to; click for quick
+  toggles. Notifications: own position, duration, count, kinds and order.
   <details><summary>Screenshots</summary>
 
   ![The mini HUD with its quick toggles](nexus/media/hud.png)
