@@ -3,7 +3,7 @@
 # it, so the page they check is the page they push.
 # Usage: tools/fill-nexus.sh <file> <version> <game version> <git ref>
 #   {{version}}, {{game_version}}  replaced by the values given
-#   {{media:<name>}}               on a line of its own: the image nexus/media/<name>.png from GitHub at <git ref>, collapsed
+#   {{media:<name>}}               on a line of its own: the image nexus/media/<name>.png (or .gif, .webp) from GitHub at <git ref>, collapsed
 #                                  in a spoiler like the README's (consecutive lines share one), or nothing while that image
 #                                  doesn't exist yet (nexus/media/README.md lists them)
 #   {{image:<name>}}               the same image shown in place, not collapsed (the page's lead images)
@@ -22,17 +22,25 @@ flush() {
     images=""
 }
 
+# A media name's file: <name>.png, else <name>.gif or <name>.webp (an animation); empty while none exists.
+media_file() {
+    local ext
+    for ext in png gif webp; do
+        [ -f "$root/nexus/media/$1.$ext" ] && { printf '%s.%s' "$1" "$ext"; return; }
+    done
+}
+
 while IFS= read -r line || [ -n "$line" ]; do
     if [[ "$line" =~ ^[[:space:]]*\{\{media:([a-z0-9-]+)\}\}[[:space:]]*$ ]]; then
-        name="${BASH_REMATCH[1]}"
-        [ -f "$root/nexus/media/$name.png" ] && images+="${images:+$'\n'}[img]$raw/$name.png[/img]"
+        media="$(media_file "${BASH_REMATCH[1]}")"
+        [ -n "$media" ] && images+="${images:+$'\n'}[img]$raw/$media[/img]"
         continue
     fi
     flush
     if [[ "$line" =~ ^(.*)\{\{image:([a-z0-9-]+)\}\}(.*)$ ]]; then
-        name="${BASH_REMATCH[2]}"
-        [ -f "$root/nexus/media/$name.png" ] || continue
-        line="${BASH_REMATCH[1]}[img]$raw/$name.png[/img]${BASH_REMATCH[3]}"
+        media="$(media_file "${BASH_REMATCH[2]}")"
+        [ -n "$media" ] || continue
+        line="${BASH_REMATCH[1]}[img]$raw/$media[/img]${BASH_REMATCH[3]}"
     fi
     line="${line//\{\{version\}\}/$version}"
     printf '%s\n' "${line//\{\{game_version\}\}/$game}"
