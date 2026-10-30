@@ -15,7 +15,9 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
   - **Targets**: cursor, nearest, rarest, weakest or pack centre, limited by range, rarity, mod, ailment.
   - **Conditions**: health, mana, ward, buffs, skills, potions, enemies (health, rarity, mods, ailments), zone and
     more; all of, any of, none of, optional hold time.
-  - **Sharing**: **Copy share code** and **Import set**.
+  - **Named conditions**: lines written once under a name (Worth fighting, In danger, Boss nearby) and used by any
+    macro, slot or Shared Conditions; one edit reaches every user. Optional keep-true time; six starters included.
+  - **Sharing**: **Copy share code** and **Import set**, named conditions included.
   - **Potions**: ready-made Auto potion for low health or a full potion's missing heal.
   - **Debugging**: footer switches show macro state, enemy ranges and targets, plus a notice per trigger.
   <details><summary>Screenshots</summary>
