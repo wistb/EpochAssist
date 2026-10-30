@@ -94,7 +94,7 @@ internal static class MenuTree
 {
     private static readonly (string Id, string Title)[] s_tabs =
     {
-        (MenuCategory.Combat, "Config"), (MenuCategory.Macros, "Macros"), (MenuCategory.Planner, "Planner"), (MenuCategory.Sessions, "Session"), (MenuCategory.Overlays, "Overlays"), (MenuCategory.Map, "Map"),
+        (MenuCategory.Combat, "Config"), (MenuCategory.Macros, "Macros"), (MenuCategory.Planner, "Planner"), (MenuCategory.Stash, "Stash"), (MenuCategory.Sessions, "Session"), (MenuCategory.Overlays, "Overlays"), (MenuCategory.Map, "Map"),
         (MenuCategory.Visuals, "Visuals"), (MenuCategory.Stats, "Stats"),
     };
 

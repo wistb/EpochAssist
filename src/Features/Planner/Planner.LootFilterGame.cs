@@ -1167,7 +1167,7 @@ internal static partial class Planner
             return $"{index,3} order {rule.Order,3} {outcome} {(rule.emphasized ? "E" : "-")}{(rule.isEnabled ? "on " : "OFF")} col {colour} snd{rule.SoundId} map{rule.MapIconId} beam{beam} | {rule.nameOverride} | {string.Join(" & ", parts)}";
         }
 
-        private static string DescribeCondition(Condition condition)
+        internal static string DescribeCondition(Condition condition)
         {
             if (condition.TryCast<SubTypeCondition>() is { } sub)
             {

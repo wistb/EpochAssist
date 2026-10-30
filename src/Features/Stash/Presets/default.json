@@ -1,0 +1,987 @@
+{
+  "fileVersion": 1,
+  "id": "default",
+  "name": "Epoch Assist",
+  "notes": "No icons by default. Colours read from the video's frames against the 1.5.3 window's 18 colours; the colours of 4 LP to Small idols are inferred from their neighbours.",
+  "folders": [
+    {
+      "key": "dump",
+      "name": "DUMP",
+      "icon": 0,
+      "colour": 8,
+      "tabs": [
+        {
+          "key": "dump",
+          "name": "DUMP",
+          "rank": 1,
+          "rules": {},
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "leveling",
+      "name": "Leveling",
+      "icon": 0,
+      "colour": 7,
+      "tabs": [
+        {
+          "key": "leveling",
+          "name": "Leveling",
+          "rank": 31,
+          "rules": {},
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "turtle",
+      "name": "Turtle",
+      "icon": 0,
+      "colour": 4,
+      "tabs": [
+        {
+          "key": "turtle.lp1",
+          "name": "1LP",
+          "rank": 23,
+          "rules": {
+            "lp": {
+              "min": 1,
+              "max": 1
+            },
+            "corruption": "clean"
+          },
+          "uniques": {
+            "source": "builds",
+            "added": [],
+            "removed": []
+          },
+          "icon": 0
+        },
+        {
+          "key": "turtle.lp2",
+          "name": "2LP",
+          "rank": 24,
+          "rules": {
+            "lp": {
+              "min": 2,
+              "max": 2
+            }
+          },
+          "uniques": {
+            "source": "builds",
+            "added": [],
+            "removed": []
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "nemesis",
+      "name": "Nemesis Egg",
+      "icon": 0,
+      "colour": 3,
+      "tabs": [
+        {
+          "key": "nemesis.egg",
+          "name": "Nemesis Egg",
+          "rank": 25,
+          "rules": {
+            "lp": {
+              "min": 0,
+              "max": 0
+            },
+            "corruption": "clean"
+          },
+          "uniques": {
+            "source": "builds",
+            "added": [],
+            "removed": []
+          },
+          "icon": 0
+        },
+        {
+          "key": "nemesis.good",
+          "name": "Build Uniques",
+          "rank": 26,
+          "rules": {
+            "corruption": "any"
+          },
+          "uniques": {
+            "source": "builds",
+            "added": [],
+            "removed": []
+          },
+          "colour": 12,
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "primalist",
+      "name": "Primalist",
+      "icon": 0,
+      "colour": 10,
+      "tabs": [
+        {
+          "key": "primalist.idols",
+          "name": "Idols",
+          "rank": 32,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2",
+              "IDOL_3x1",
+              "IDOL_1x3",
+              "IDOL_4x1",
+              "IDOL_1x4",
+              "IDOL_2x2"
+            ],
+            "class": [
+              "Primalist"
+            ]
+          },
+          "icon": 0
+        },
+        {
+          "key": "primalist",
+          "name": "Primalist",
+          "rank": 37,
+          "rules": {
+            "class": [
+              "Primalist"
+            ]
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "sentinel",
+      "name": "Sentinel",
+      "icon": 0,
+      "colour": 2,
+      "tabs": [
+        {
+          "key": "sentinel.idols",
+          "name": "Idols",
+          "rank": 33,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2",
+              "IDOL_3x1",
+              "IDOL_1x3",
+              "IDOL_4x1",
+              "IDOL_1x4",
+              "IDOL_2x2"
+            ],
+            "class": [
+              "Sentinel"
+            ]
+          },
+          "icon": 0
+        },
+        {
+          "key": "sentinel",
+          "name": "Sentinel",
+          "rank": 38,
+          "rules": {
+            "class": [
+              "Sentinel"
+            ]
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "mage",
+      "name": "Mage",
+      "icon": 0,
+      "colour": 16,
+      "tabs": [
+        {
+          "key": "mage.idols",
+          "name": "Idols",
+          "rank": 34,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2",
+              "IDOL_3x1",
+              "IDOL_1x3",
+              "IDOL_4x1",
+              "IDOL_1x4",
+              "IDOL_2x2"
+            ],
+            "class": [
+              "Mage"
+            ]
+          },
+          "icon": 0
+        },
+        {
+          "key": "mage",
+          "name": "Mage",
+          "rank": 39,
+          "rules": {
+            "class": [
+              "Mage"
+            ]
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "rogue",
+      "name": "Rogue",
+      "icon": 0,
+      "colour": 13,
+      "tabs": [
+        {
+          "key": "rogue.idols",
+          "name": "Idols",
+          "rank": 35,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2",
+              "IDOL_3x1",
+              "IDOL_1x3",
+              "IDOL_4x1",
+              "IDOL_1x4",
+              "IDOL_2x2"
+            ],
+            "class": [
+              "Rogue"
+            ]
+          },
+          "icon": 0
+        },
+        {
+          "key": "rogue",
+          "name": "Rogue",
+          "rank": 40,
+          "rules": {
+            "class": [
+              "Rogue"
+            ]
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "acolyte",
+      "name": "Acolyte",
+      "icon": 0,
+      "colour": 17,
+      "tabs": [
+        {
+          "key": "acolyte.idols",
+          "name": "Idols",
+          "rank": 36,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2",
+              "IDOL_3x1",
+              "IDOL_1x3",
+              "IDOL_4x1",
+              "IDOL_1x4",
+              "IDOL_2x2"
+            ],
+            "class": [
+              "Acolyte"
+            ]
+          },
+          "icon": 0
+        },
+        {
+          "key": "acolyte",
+          "name": "Acolyte",
+          "rank": 41,
+          "rules": {
+            "class": [
+              "Acolyte"
+            ]
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "idols",
+      "name": "Idols",
+      "icon": 0,
+      "colour": 9,
+      "tabs": [
+        {
+          "key": "idols",
+          "name": "Idols",
+          "rank": 20,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2",
+              "IDOL_3x1",
+              "IDOL_1x3",
+              "IDOL_4x1",
+              "IDOL_1x4",
+              "IDOL_2x2"
+            ],
+            "corruption": "any"
+          },
+          "icon": 0,
+          "colour": 9
+        }
+      ]
+    },
+    {
+      "key": "small",
+      "name": "Small Idols",
+      "icon": 0,
+      "colour": 9,
+      "tabs": [
+        {
+          "key": "small",
+          "name": "Small",
+          "rank": 27,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA"
+            ],
+            "corruption": "any"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "minor",
+      "name": "Minor Idols",
+      "icon": 0,
+      "colour": 9,
+      "tabs": [
+        {
+          "key": "minor",
+          "name": "Minor",
+          "rank": 28,
+          "rules": {
+            "types": [
+              "IDOL_1x1_LAGON"
+            ],
+            "corruption": "any"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "humble",
+      "name": "Humble Idols",
+      "icon": 0,
+      "colour": 9,
+      "tabs": [
+        {
+          "key": "humble",
+          "name": "Humble",
+          "rank": 29,
+          "rules": {
+            "types": [
+              "IDOL_2x1"
+            ],
+            "corruption": "any"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "stout",
+      "name": "Stout Idols",
+      "icon": 0,
+      "colour": 9,
+      "tabs": [
+        {
+          "key": "stout",
+          "name": "Stout",
+          "rank": 30,
+          "rules": {
+            "types": [
+              "IDOL_1x2"
+            ],
+            "corruption": "any"
+          },
+          "icon": 0
+        },
+        {
+          "key": "allidols",
+          "name": "Idols",
+          "rank": 27,
+          "rules": {
+            "types": [
+              "IDOL_1x1_ETERRA",
+              "IDOL_1x1_LAGON",
+              "IDOL_2x1",
+              "IDOL_1x2"
+            ],
+            "corruption": "any"
+          },
+          "mergeOf": [
+            "small",
+            "minor",
+            "humble",
+            "stout"
+          ],
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "legendary",
+      "name": "Legendary",
+      "icon": 0,
+      "colour": 13,
+      "tabs": [
+        {
+          "key": "legendary",
+          "name": "Legendary",
+          "rank": 3,
+          "rules": {
+            "rarity": [
+              "Legendary"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "weapons",
+      "name": "Weapons",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "weapons",
+          "name": "Weapons",
+          "rank": 7,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "ONE_HANDED_AXE",
+              "ONE_HANDED_DAGGER",
+              "ONE_HANDED_MACES",
+              "ONE_HANDED_SCEPTRE",
+              "ONE_HANDED_SWORD",
+              "WAND",
+              "TWO_HANDED_AXE",
+              "TWO_HANDED_MACE",
+              "TWO_HANDED_SPEAR",
+              "TWO_HANDED_STAFF",
+              "TWO_HANDED_SWORD",
+              "BOW"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "helm",
+      "name": "Helm",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "helm",
+          "name": "Helm",
+          "rank": 8,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "HELMET"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "body",
+      "name": "Body Armor",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "body",
+          "name": "Body Armor",
+          "rank": 9,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "BODY_ARMOR"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "belt",
+      "name": "Belt",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "belt",
+          "name": "Belt",
+          "rank": 10,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "BELT"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "boots",
+      "name": "Boots",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "boots",
+          "name": "Boots",
+          "rank": 11,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "BOOTS"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "gloves",
+      "name": "Gloves",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "gloves",
+          "name": "Gloves",
+          "rank": 12,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "GLOVES"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "offhands",
+      "name": "Off-Hands",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "offhands",
+          "name": "Off-Hands",
+          "rank": 13,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "QUIVER",
+              "SHIELD",
+              "CATALYST"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "rings",
+      "name": "Rings",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "rings",
+          "name": "Rings",
+          "rank": 14,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "RING"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "amulets",
+      "name": "Amulets",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "amulets",
+          "name": "Amulets",
+          "rank": 15,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "AMULET"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "relics",
+      "name": "Relics",
+      "icon": 0,
+      "colour": 15,
+      "tabs": [
+        {
+          "key": "relics",
+          "name": "Relics",
+          "rank": 16,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "types": [
+              "RELIC"
+            ],
+            "corruption": "clean"
+          },
+          "icon": 0
+        },
+        {
+          "key": "exalted",
+          "name": "Exalted",
+          "rank": 7,
+          "rules": {
+            "rarity": [
+              "Exalted"
+            ],
+            "corruption": "clean"
+          },
+          "mergeOf": [
+            "weapons",
+            "helm",
+            "body",
+            "belt",
+            "boots",
+            "gloves",
+            "offhands",
+            "rings",
+            "amulets",
+            "relics"
+          ],
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "ww",
+      "name": "Weaver's Will",
+      "icon": 0,
+      "colour": 12,
+      "tabs": [
+        {
+          "key": "ww",
+          "name": "Weaver's Will",
+          "rank": 6,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "ww": {
+              "min": 1,
+              "max": null
+            },
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "lp4",
+      "name": "4 LP",
+      "icon": 0,
+      "colour": 12,
+      "tabs": [
+        {
+          "key": "lp4",
+          "name": "4 LP",
+          "rank": 4,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "lp": {
+              "min": 4,
+              "max": null
+            },
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "lp3",
+      "name": "3 LP",
+      "icon": 0,
+      "colour": 12,
+      "tabs": [
+        {
+          "key": "lp3",
+          "name": "3 LP",
+          "rank": 5,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "lp": {
+              "min": 3,
+              "max": 3
+            },
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "lp2",
+      "name": "2 LP",
+      "icon": 0,
+      "colour": 12,
+      "tabs": [
+        {
+          "key": "lp2",
+          "name": "2 LP",
+          "rank": 17,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "lp": {
+              "min": 2,
+              "max": 2
+            },
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "lp1",
+      "name": "1 LP",
+      "icon": 0,
+      "colour": 12,
+      "tabs": [
+        {
+          "key": "lp1",
+          "name": "1 LP",
+          "rank": 18,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "lp": {
+              "min": 1,
+              "max": 1
+            },
+            "corruption": "clean"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "lp0",
+      "name": "0 LP",
+      "icon": 0,
+      "colour": 12,
+      "tabs": [
+        {
+          "key": "lp0",
+          "name": "Unique",
+          "rank": 19,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "lp": {
+              "min": 0,
+              "max": 0
+            },
+            "corruption": "clean"
+          },
+          "icon": 0
+        },
+        {
+          "key": "uniques",
+          "name": "Uniques",
+          "rank": 4,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "corruption": "clean"
+          },
+          "mergeOf": [
+            "ww",
+            "lp4",
+            "lp3",
+            "lp2",
+            "lp1",
+            "lp0"
+          ],
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "sets",
+      "name": "Sets",
+      "icon": 0,
+      "colour": 10,
+      "tabs": [
+        {
+          "key": "sets",
+          "name": "Sets",
+          "rank": 21,
+          "rules": {
+            "rarity": [
+              "Set"
+            ],
+            "corruption": "any"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "rune",
+      "name": "Rune of Ascendance",
+      "icon": 0,
+      "colour": 3,
+      "tabs": []
+    },
+    {
+      "key": "altars",
+      "name": "Altars",
+      "icon": 0,
+      "colour": 7,
+      "tabs": [
+        {
+          "key": "altars",
+          "name": "Altars",
+          "rank": 22,
+          "rules": {
+            "types": [
+              "IDOL_ALTAR"
+            ],
+            "corruption": "corrupted"
+          },
+          "icon": 0
+        }
+      ]
+    },
+    {
+      "key": "corrupted",
+      "name": "Corrupted",
+      "icon": 0,
+      "colour": 14,
+      "tabs": [
+        {
+          "key": "corrupted.uniques",
+          "name": "Uniques",
+          "rank": 42,
+          "rules": {
+            "rarity": [
+              "Unique"
+            ],
+            "corruption": "corrupted"
+          },
+          "icon": 0
+        },
+        {
+          "key": "corrupted",
+          "name": "Corrupted",
+          "rank": 2,
+          "rules": {
+            "corruption": "corrupted"
+          },
+          "icon": 0
+        }
+      ]
+    }
+  ]
+}

@@ -70,6 +70,11 @@
     <EmbeddedResource Include="Ui/Theme/Assets/logo-wordmark@*.png" LogicalName="EpochAssist.Logo.%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- The built-in stash presets, read with GetManifestResourceStream. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Features/Stash/Presets/*.json" LogicalName="EpochAssist.Stash.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- patchcheck (Dev/) decodes the game's native code with the Iced decoder MelonLoader already ships and loads. -->
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <Reference Include="Iced" HintPath="$(ML)\net6\Iced.dll" />
