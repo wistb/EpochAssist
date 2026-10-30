@@ -121,7 +121,7 @@ if [ "$dry" = 0 ] && git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
     committed=1
     restore=0
     echo "resuming $tag"
-    [ "$(field TestedGameVersion)" = "$game" ] || refuse "$tag was released as tested with Last Epoch $(field TestedGameVersion), not $game"
+    [ "$(field TestedGameVersion)" = "$game" ] || refuse "$tag was released as tested on Last Epoch $(field TestedGameVersion), not $game"
 fi
 
 has_tags=0
@@ -149,7 +149,7 @@ if [ "$resume" = 0 ]; then
         body="$(tail -n +2 <<< "$generated" | trim)"
         grep -q '^- ' <<< "$body" || refuse "nothing to release since $last_tag (no feat or fix commits that players see)"
     fi
-    entry="$(printf '## %s - %s\n\nTested with Last Epoch %s.\n\n%s\n' "$version" "$(date +%F)" "$game" "$body")"
+    entry="$(printf '## %s - %s\n\nTested on Last Epoch %s.\n\n%s\n' "$version" "$(date +%F)" "$game" "$body")"
 
     # 7. A passed patch check on this game version (written by "patchcheck <game version>" in a dev build).
     patch_file="$(dirname "$(wslpath -u "${LE_ML:-/nonexistent}" 2>/dev/null || echo "${LE_ML:-/nonexistent}")")/UserData/EpochAssist/dev/patch-check.json"
@@ -199,7 +199,7 @@ write_notes() {
         check="$(jq -r '"Patch-target check: pass, \(.targets | length) targets, \(.checked_at[0:10])."' "$patch_file")"
     fi
     mkdir -p dist
-    { printf '%s\n\nTested with Last Epoch %s.\n' "$1" "$game"; [ -n "$check" ] && echo "$check"; } > "$notes"
+    { printf '%s\n\nTested on Last Epoch %s.\n' "$1" "$game"; [ -n "$check" ] && echo "$check"; } > "$notes"
 }
 
 if [ "$resume" = 0 ]; then
@@ -279,7 +279,7 @@ else
     fi
     if [ ! -f "$notes" ]; then
         # The committed entry, without its heading and tested line.
-        body="$(awk -v h="## $version - " 'index($0, h) == 1 { f = 1; next } f && /^## / { exit } f && !/^Tested with Last Epoch / { print }' CHANGELOG.md | trim)"
+        body="$(awk -v h="## $version - " 'index($0, h) == 1 { f = 1; next } f && /^## / { exit } f && !/^Tested on Last Epoch / { print }' CHANGELOG.md | trim)"
         patch_file="$(dirname "$(wslpath -u "${LE_ML:-/nonexistent}" 2>/dev/null || echo /nonexistent)")/UserData/EpochAssist/dev/patch-check.json"
         write_notes "$body"
     fi
