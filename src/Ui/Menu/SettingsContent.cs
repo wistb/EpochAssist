@@ -2,9 +2,10 @@ using EpochAssist.Core;
 
 namespace EpochAssist.Ui;
 
-// The menu's own entries, declared like a feature's: Config › General (Profiles, Keybinds, Mini HUD, Appearance and About),
-// Config › Sessions (figure colours, the mini HUD figures, history and export), Config › Diagnostics and the Session tab
-// (current and past sessions). Section ids, order and stored values are the General group's, unchanged.
+// The menu's own entries, declared like a feature's: Config › General (Modules, Profiles, Keybinds, Mini HUD, Appearance
+// and About), Config › Sessions (figure colours, the mini HUD figures, history and export), Config › Diagnostics and the
+// Session tab (current and past sessions). Section ids, order and stored values are the General group's, unchanged. The
+// Sessions entries belong to the Sessions module and show only while it is loaded.
 internal static class SettingsContent
 {
     private static Section Section(string id) => Config.Group.Sections.First(s => s.Id == id);
@@ -23,6 +24,7 @@ internal static class SettingsContent
             Title = "General",
             Pages =
             {
+                new MenuPage("Modules") { Block = ModulesPage.Block, Resettable = false },
                 new MenuPage("Profiles") { Block = "profiles", Resettable = false },
                 Keybinds(),
                 MiniHud(),
@@ -32,12 +34,14 @@ internal static class SettingsContent
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)
         {
+            Module = "sessions",
             Layout = MenuLayout.Wide,
             Title = "Current session",
             Pages = { CurrentSession() },
         },
         new MenuEntry(MenuCategory.Sessions, order: 1)
         {
+            Module = "sessions",
             Layout = MenuLayout.Wide,
             Title = "Past sessions",
             Pages = { PastSessions() },
@@ -45,6 +49,7 @@ internal static class SettingsContent
         // Session settings live in Config, after Map and before General; the Session tab keeps the dashboards.
         new MenuEntry(MenuCategory.Combat, order: 60)
         {
+            Module = "sessions",
             Title = "Sessions",
             Pages = { SessionColours(), SessionMiniHud(), SessionHistory() },
         },
@@ -54,7 +59,7 @@ internal static class SettingsContent
             Pages =
             {
                 Overview(),
-                new MenuPage("Modules") { Block = "diagnostics.features", Resettable = false },
+                new MenuPage("Features") { Block = "diagnostics.features", Resettable = false },
                 new MenuPage("Mods") { Block = "diagnostics.mods", Resettable = false },
                 new MenuPage("Reports") { Block = "diagnostics.reports", Resettable = false },
                 new MenuPage("Console") { Block = "console", Resettable = false },
@@ -63,15 +68,15 @@ internal static class SettingsContent
         },
     };
 
-    // Every key a player can set, under a heading per settings group (General first, then each feature's), with the
-    // choices that go with them. The same settings stay on their own pages; both rows change one value. No page reset:
+    // Every key a player can set, under a heading per shown settings group (General first, then each loaded module's),
+    // with the choices that go with them. The same settings stay on their own pages; both rows change one value. No page reset:
     // it would reach into every feature's settings.
     private static MenuPage Keybinds()
     {
         var page = new MenuPage("Keybinds") { Resettable = false };
-        foreach (var group in SettingsRegistry.Groups)
+        foreach (var group in SettingsRegistry.Shown)
         {
-            var keys = group.All.Where(s => s is Key or Hotkey or Choice<UnityEngine.KeyCode> || s.WithKeybinds).ToList();
+            var keys = SettingsRegistry.ShownSettings(group).Where(s => s is Key or Hotkey or Choice<UnityEngine.KeyCode> || s.WithKeybinds).ToList();
             if (keys.Count == 0) continue;
             page.Rows.Add(new HeadingRow(group.Name) { Key = "heading." + group.Id });
             page.Rows.AddRange(keys.Select(s => new SettingRow(s) { Key = $"{group.Id}.{s.Id}" }));
@@ -79,17 +84,16 @@ internal static class SettingsContent
         return page;
     }
 
-    // Every debug switch in one place: each feature's Debug section and the settings that ask to be listed, under a
+    // Every debug switch in one place: each loaded feature's Debug section and the settings that ask to be listed, under a
     // heading per settings group, with All on and All off for a full debug view. The same settings stay on their own
     // pages. No page reset, as on Keybinds.
     private static MenuPage Debug()
     {
-        var page = new MenuPage("Debug") { Resettable = false };
         var switches = new List<Toggle>();
         var rows = new List<MenuRow>();
-        foreach (var group in SettingsRegistry.Groups)
+        foreach (var group in SettingsRegistry.Shown)
         {
-            var debug = group.All.Where(s => s.Section.Id == "debug" || s.WithDebug).ToList();
+            var debug = SettingsRegistry.ShownSettings(group).Where(s => s.Section.Id == "debug" || s.WithDebug).ToList();
             if (debug.Count == 0) continue;
             rows.Add(new HeadingRow(group.Name) { Key = "heading." + group.Id });
             rows.AddRange(debug.Select(s => new SettingRow(s) { Key = $"{group.Id}.{s.Id}" }));
@@ -101,6 +105,9 @@ internal static class SettingsContent
             rows.Add(new HeadingRow("Dev (dev builds only)") { Key = "heading.dev" });
             rows.AddRange(dev);
         }
+        // With nothing to switch (no loaded module's debug settings, a release build) there is no page.
+        bool any = rows.Count > 0;
+        var page = new MenuPage("Debug") { Resettable = false, VisibleWhen = () => any };
         page.Rows.Add(new HintRow(() => "Everything the mod can draw or report to show what it is doing. Each switch is on its feature's page too."));
         page.Rows.AddRange(rows);
         page.Actions.Add(new ActionButton("All on", "debug.all-on") { OnClick = () => SetAll(switches, dev, true), Tip = "Turns every switch below on" });
@@ -182,10 +189,13 @@ internal static class SettingsContent
     {
         var page = new MenuPage(HudSettings.Hud)
         {
+            // Nothing to set while no loaded module gives the mini HUD a part.
+            VisibleWhen = () => Hud.HasParts,
             Actions =
             {
                 new ActionButton("Session figures", "hud.sessionfigures")
                 {
+                    VisibleWhen = () => Modules.Loaded("sessions"),
                     OnClick = () => Menu.Open("combat/sessions/mini-hud"), Tip = "Opens Config › Sessions › Mini HUD: the session figures by the pill",
                 },
             },
@@ -213,11 +223,11 @@ internal static class SettingsContent
     }
 
     // The mini HUD's sections in their order: every feature with a status, and the session figures (in the pill, or as a
-    // card or tiles before or after it).
+    // card or tiles before or after it) while Sessions is loaded.
     private static IReadOnlyList<string> SectionIds()
     {
         var ids = FeatureHost.All.Where(f => f.StatusName != null).Select(f => f.Id).ToList();
-        ids.Add(HudSettings.SessionSection);
+        if (Modules.Loaded("sessions")) ids.Add(HudSettings.SessionSection);
         return HudSettings.SectionOrder.Sort(ids, id => id);
     }
 

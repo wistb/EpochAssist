@@ -48,6 +48,16 @@ internal static class GameState
     public static string ActiveSceneName => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name ?? string.Empty;
     public static SceneKind Kind { get; private set; }
 
+    /// <summary>A zone's kind for session records and macro zone conditions: menu, town, echo, dungeon or other.</summary>
+    public static string ZoneKind(string scene, SceneKind kind, bool monolith) => kind switch
+    {
+        SceneKind.Menu => "menu",
+        SceneKind.NonCombat => "town",
+        SceneKind.Combat when monolith || scene.StartsWith("M_", StringComparison.Ordinal) => "echo",
+        SceneKind.Combat when scene.StartsWith("Dun", StringComparison.Ordinal) => "dungeon",
+        _ => "other",
+    };
+
     /// <summary>A character is loaded and the scene is a playable zone.</summary>
     public static bool InGame => Kind is SceneKind.NonCombat or SceneKind.Combat && Player.Exists;
 

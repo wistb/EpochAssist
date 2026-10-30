@@ -13,7 +13,7 @@ internal static class PlannerSettings
 {
     // Stored ids are a contract. Renaming or retyping one raises the version and adds a migration for it. The library
     // and the character bindings are files, not settings, so profiles and share codes never carry them.
-    public static readonly SettingsGroup Group = new("EpochAssist_Planner", "Planner", version: 1) { ActionKey = "planner" };
+    public static readonly SettingsGroup Group = new("EpochAssist_Planner", "Planner", version: 1) { ActionKey = "planner", Module = "planner" };
 
     public static readonly Section Main = Group.Section("main", "Overlay");
     // On by default: it only draws, and only for a character using a build. The quick label offers it on the HUD panel

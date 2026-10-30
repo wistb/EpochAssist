@@ -143,7 +143,7 @@ internal static class MenuTree
     /// <summary>Forgets the tree; the next use builds it again (the menu opening, shutdown).</summary>
     public static void Invalidate() => s_seen = Array.Empty<MenuEntry?>();
 
-    // Rebuilt when a feature's entry changes (or the first time).
+    // Rebuilt when a feature's entry changes, a module loads late (its features join the host), or the first time.
     private static void Ensure()
     {
         var features = FeatureHost.All;
@@ -161,7 +161,8 @@ internal static class MenuTree
         var tabs = s_tabs.Select(t => new MenuTab(t.Id, t.Title)).ToList();
         var entries = FeatureHost.All.Where(f => f.Menu != null).Select(f => (Entry: f.Menu!, Feature: (Feature?)f, Title: f.Menu!.Title ?? f.Name))
             .Concat(FeatureHost.All.Where(f => f.ConfigMenu != null).Select(f => (Entry: f.ConfigMenu!, Feature: (Feature?)f, Title: f.ConfigMenu!.Title ?? f.Name)))
-            .Concat(SettingsContent.Entries.Select(e => (Entry: e, Feature: (Feature?)null, Title: e.Title ?? string.Empty)))
+            // The menu's own entries that belong to a module (Sessions') go with it.
+            .Concat(SettingsContent.Entries.Where(e => e.Module == null || Modules.Loaded(e.Module)).Select(e => (Entry: e, Feature: (Feature?)null, Title: e.Title ?? string.Empty)))
             .Select((e, index) => (e.Entry, e.Feature, e.Title, Index: index))
             .OrderBy(e => e.Entry.Order).ThenBy(e => e.Index)
             // A folder's entries sit together, at its first entry's place.
@@ -179,7 +180,7 @@ internal static class MenuTree
             if (entry.Switch != null && entry.Switch.QuickLabel == null) Problem($"{title}: its switch {entry.Switch.Id} has no quick label");
             if (entry.Pages.Count == 0) Problem($"{title}: no pages");
             if (entry.Layout == MenuLayout.Library && entry.Library == null) Problem($"{title}: library layout without its view");
-            foreach (var page in entry.Pages) node.Pages.Add(new PageNode(node, page));
+            foreach (var page in entry.Pages.Where(p => p.VisibleWhen == null || Safe.Call(p.VisibleWhen, true, $"{title}.{p.Title}.visible"))) node.Pages.Add(new PageNode(node, page));
             // Paths read the node's leaf state, which needs every page added first.
             foreach (var page in node.Pages) page.Path = node.Leaf ? node.Path : $"{node.Path}/{MenuEntry.Slug(page.Page.Title)}";
             tab.Nodes.Add(node);

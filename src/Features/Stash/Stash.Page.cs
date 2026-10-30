@@ -164,8 +164,9 @@ internal static partial class Stash
         if (x.Tab.Uniques != null)
         {
             var ids = ByName(x.Rules.Uniques);
-            lines.Add(x.Tab.Uniques.Kind == UniqueSource.Builds ? $"Uniques used by builds in your Planner library ({ids.Length})" : $"Uniques ({ids.Length})");
-            if (ids.Length == 0) lines.Add("No uniques yet: import builds on the Planner tab, or add uniques here.");
+            bool builds = x.Tab.Uniques.Kind == UniqueSource.Builds && PlannerLoaded;
+            lines.Add(builds ? $"Uniques used by builds in your Planner library ({ids.Length})" : $"Uniques ({ids.Length})");
+            if (ids.Length == 0) lines.Add(builds ? "No uniques yet: import builds on the Planner tab, or add uniques here." : "No uniques yet: add uniques here.");
             if (CurrentPreset.BuiltIn) lines.Add("Duplicate the preset to edit this list.");
             else lines.Add(string.Join(", ", ids.Take(30).Select(Rules.UniqueName)) + (ids.Length > 30 ? $" and {ids.Length - 30} more" : string.Empty));
         }
@@ -734,8 +735,8 @@ internal static partial class Stash
         else Paint(new Rect(r.x, y, statusW, Line), Controls.Fit(status, HintStyle, statusW), HintStyle);
     }
 
-    // Attention in every theme: amber, apart from the theme's own state colours.
-    private static readonly Color Amber = new(1f, 0.69f, 0.2f);
+    // Attention in every theme: the menu's alert amber.
+    private static Color Amber => Controls.AlertColor;
 
     private static string s_attentionText = string.Empty;
     private static float s_attentionSince;
@@ -915,8 +916,10 @@ internal static partial class Stash
         string key = x.Tab.Key;
         bool unfolded = s_uniquesUnfolded == key;
         var title = new Rect(r.x, r.y, r.width, Line);
-        Paint(title, source.Kind == UniqueSource.Builds ? $"Uniques used by builds in your Planner library ({ids.Length})" : $"Uniques ({ids.Length})", LabelStyle);
-        if (source.Kind == UniqueSource.Builds)
+        // Builds are named only while the Planner is loaded; without it the list is what was added here.
+        bool builds = source.Kind == UniqueSource.Builds && PlannerLoaded;
+        Paint(title, builds ? $"Uniques used by builds in your Planner library ({ids.Length})" : $"Uniques ({ids.Length})", LabelStyle);
+        if (builds)
             Popups.Tip(title, "Every unique the builds imported on the Planner tab use, over all their stages. The list follows the library as builds are imported or removed; what you add or remove here stays.");
         // Each unique as a small button that removes it; under the pointer, the game's tooltip for it shows beside the menu.
         var (tags, lines) = TagPlaces(ids, r.x, r.y + Line, r.width, unfolded);
@@ -924,7 +927,7 @@ internal static partial class Stash
         foreach (var (id, rect) in tags)
         {
             // Not through a popup over it (the add dropdown's list), nor while scrolled out of the list's view.
-            if (Event.current.type == EventType.Repaint && !Popups.IsOpen && rect.Contains(mouse) && Popups.Shows(mouse)) Planner.HoverUnique((ushort)id);
+            if (Event.current.type == EventType.Repaint && !Popups.IsOpen && rect.Contains(mouse) && Popups.Shows(mouse) && PlannerLoaded) Planner.HoverUnique((ushort)id);
             if (Controls.Button(rect, Controls.Fit(TagLabel(id), Theme.Label, rect.width - 12f), $"stash.unique.{key}.{id}", tip: "Remove from this tab's list"))
             {
                 int remove = id;

@@ -49,10 +49,14 @@ internal static class CoreCommands
     private static CommandResult Set(CommandCall call)
     {
         string id = call.Lower(1), value = call.Rest(2);
-        var setting = SettingsRegistry.Groups.SelectMany(g => g.All)
-            .FirstOrDefault(s => s.Id.Equals(id, StringComparison.OrdinalIgnoreCase)
-                || $"{s.Section.Group.Id}.{s.Id}".Equals(id, StringComparison.OrdinalIgnoreCase));
+        var matches = SettingsRegistry.Groups.SelectMany(g => g.All)
+            .Where(s => s.Id.Equals(id, StringComparison.OrdinalIgnoreCase)
+                || $"{s.Section.Group.Id}.{s.Id}".Equals(id, StringComparison.OrdinalIgnoreCase)).ToList();
+        // A shown setting wins over one of an unloaded module with the same id.
+        var setting = matches.FirstOrDefault(s => SettingsRegistry.IsShown(s.Section)) ?? matches.FirstOrDefault();
         if (setting == null) return CommandResult.Error($"set {id}: no such setting") with { Settle = SettleFrames };
+        if (!SettingsRegistry.IsShown(setting.Section))
+            return CommandResult.Error($"set {id}: {(setting.Section.Module is { } module ? Modules.NotLoaded(module) : "not a setting the menu shows")}") with { Settle = SettleFrames };
         bool set = setting switch
         {
             Toggle t when bool.TryParse(value, out bool b) => Apply(() => t.Value = b),

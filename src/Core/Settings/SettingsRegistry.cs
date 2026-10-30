@@ -13,22 +13,55 @@ internal interface IQuickSwitch
     string ActionId { get; }
 }
 
-/// <summary>Every registered group, for the menu and the HUD's quick toggles.</summary>
+/// <summary>
+/// Every registered group. Groups is all of them, for storage (profiles, exports, migrations); Shown is the ones a
+/// player sees and runs (menu pages, keys, search, quick toggles, actions, console lookup): core groups and the groups and
+/// sections of loaded modules.
+/// </summary>
 internal static class SettingsRegistry
 {
     private static readonly List<SettingsGroup> s_groups = new();
 
     public static IReadOnlyList<SettingsGroup> Groups => s_groups;
 
-    /// <summary>Every quick switch, in declaration order; a setting's own switches come at its place.</summary>
-    public static IEnumerable<IQuickSwitch> QuickToggles => s_groups.SelectMany(g => g.All).SelectMany(s => s.QuickSwitches);
+    /// <summary>Changes whenever Shown can: a group registers, or a module loads late.</summary>
+    public static int Generation { get; private set; }
 
-    // Each group's sections get a reset action and its quick toggles a toggle action, owned by the settings layer.
+    /// <summary>Groups with something shown: not drawn by a page of their own, owned by the core or a loaded module, or
+    /// holding a section that is.</summary>
+    public static IEnumerable<SettingsGroup> Shown => s_groups.Where(g => !g.Hidden && g.Sections.Any(IsShown));
+
+    /// <summary>A group's sections that show: its module's and its own owner's loaded (or core).</summary>
+    public static IEnumerable<Section> ShownSections(SettingsGroup group) => group.Sections.Where(IsShown);
+
+    /// <summary>The shown sections' settings, in order.</summary>
+    public static IEnumerable<Setting> ShownSettings(SettingsGroup group) => ShownSections(group).SelectMany(s => s.Settings);
+
+    public static bool IsShown(Section section) => !section.Group.Hidden && (section.Module == null || Modules.Loaded(section.Module));
+
+    /// <summary>Every shown quick switch, in declaration order; a setting's own switches come at its place.</summary>
+    public static IEnumerable<IQuickSwitch> QuickToggles => Shown.SelectMany(ShownSettings).SelectMany(s => s.QuickSwitches);
+
+    // Each shown section gets a reset action and its quick toggles a toggle action, owned by the settings layer; an
+    // unloaded module's get theirs if it loads late (RegisterActions).
     internal static void Add(SettingsGroup group)
     {
         if (s_groups.Contains(group)) return;
         s_groups.Add(group);
-        foreach (var section in group.Sections)
+        Generation++;
+        AddActions(group.Sections.Where(IsShown).ToList());
+    }
+
+    /// <summary>The actions of a module that loaded after its settings registered (the first-start answer).</summary>
+    public static void RegisterActions(string module)
+    {
+        Generation++;
+        foreach (var group in s_groups) AddActions(group.Sections.Where(s => s.Module == module && IsShown(s)).ToList());
+    }
+
+    private static void AddActions(List<Section> sections)
+    {
+        foreach (var section in sections)
         {
             Actions.Register("settings", ResetAction(section), $"Reset {section.Title}", () =>
             {
@@ -36,7 +69,7 @@ internal static class SettingsRegistry
                 Toasts.Show("settings", $"{section.Title} reset to defaults.", ToastKind.Info);
             });
         }
-        foreach (var quick in group.All.SelectMany(s => s.QuickSwitches))
+        foreach (var quick in sections.SelectMany(s => s.Settings).SelectMany(s => s.QuickSwitches))
         {
             Actions.Register("settings", quick.ActionId, quick.Label, () => quick.Set(!quick.Value), () => quick.Value);
         }

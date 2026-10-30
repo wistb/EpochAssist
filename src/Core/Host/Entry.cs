@@ -62,12 +62,17 @@ public static class Runtime
     {
         Hosted = hosted;
         LoadedAt = DateTime.Now;
+        // Before anything registers: registering writes defaults, and a fresh install must look fresh.
+        bool fresh = ModuleChoices.DetectFresh();
         // The UI layer's sections of the General group, declared before it registers.
         HudSettings.Declare();
         LookSettings.Declare();
         KeySettings.Declare();
         SessionSettings.Declare();
         Config.Init();
+        ModuleChoices.Register(fresh);
+        // Every module's settings, loaded or not, so profiles and exports keep them; only the chosen modules are built.
+        Modules.RegisterAllSettings();
         // Features read rarity and danger colours from Core; the theme keeps them up to date.
         ColourRoles.Sync = Theme.SyncRoles;
         Edits.RecoverSaved();
@@ -75,12 +80,14 @@ public static class Runtime
         UiCommands.Register();
         // The host orders features by their Needs and RunsAfter (FeatureHost.StartAll); this list only breaks ties, which
         // are shown in this order.
-        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new SessionsFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
+        FeatureHost.Register(new GameStateFeature(), new GameDataFeature(), new PlayerModelFeature(), new WorldModelFeature(), new VisualsFeature(), new GameUiFeature(), new GameEventsFeature(), new ProfilesFeature(), new HotkeysFeature(), new MenuFeature(), new HudFeature(), new ToastFeature(), new DiagnosticsFeature(), new ConsoleFeature(),
             new InputGateFeature(),
-            new DispatcherFeature(), new MacrosFeature(), new InteractFeature(), new MapRevealFeature(), new PlannerFeature(), new StashFeature());
+            new DispatcherFeature());
+        // The modules the player chose (Config › General › Modules), with their dev features.
+        FeatureHost.Register(Modules.CreateChosen());
 #if DEV
         // Dev code isn't compiled into release builds (src/Dev/).
-        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature(), new InteractTraceFeature(), new StashTraceFeature(), new DevWindowFeature());
+        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature(), new DevWindowFeature());
 #endif
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");
@@ -125,6 +132,7 @@ public static class Runtime
     public static void Shutdown()
     {
         FeatureHost.StopAll();
+        Modules.Shutdown();
         Edits.RestoreAll();
         InputGate.Release();
         Theme.Release();

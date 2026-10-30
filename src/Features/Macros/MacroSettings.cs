@@ -5,7 +5,7 @@ namespace EpochAssist.Features;
 
 internal static class MacroSettings
 {
-    public static readonly SettingsGroup Group = new("EpochAssist_Macros", "Macros", version: 1) { ActionKey = "macros" };
+    public static readonly SettingsGroup Group = new("EpochAssist_Macros", "Macros", version: 1) { ActionKey = "macros", Module = "macros" };
 
     private static readonly Section Main = Group.Section("main", "Macros");
     public static readonly Toggle Enabled = new(Main, "Enabled", "Run macros", false) { QuickLabel = "Macros" };

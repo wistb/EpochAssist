@@ -104,8 +104,8 @@ internal sealed class __NAME__Feature : Feature
     // Features it runs after each frame, order only: profiles puts a character's settings in place first.
     public override string[] RunsAfter => new[] { "profiles" };
     // Its place in the menu and on the HUD pill. The menu draws the entry: a node in the __TAB__ tab with a page per
-    // settings section, searchable and reachable by key, with no drawing code here. Players can turn the whole feature
-    // off from Config › General › Diagnostics › Modules.
+    // settings section, searchable and reachable by key, with no drawing code here. To let players leave it out, add it
+    // to the module catalogue (src/Core/Host/Modules.cs) instead of the core list in Runtime.Init.
     public override MenuEntry? Menu => s_menu;
     public override string? StatusName => "__NAME__";
 

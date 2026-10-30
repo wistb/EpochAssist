@@ -16,8 +16,8 @@ internal sealed class MenuFeature : Feature
         ProfilesPage.Register();
         InputGate.MenuHitTest = point => Ui.Menu.ScreenRect.Contains(point);
         DiagnosticsPage.Register();
-        SessionsPage.Register();
-        SessionsPast.Register();
+        ModulesPage.Register();
+        if (Modules.Loaded("sessions")) RegisterSessionBlocks();
         RolePreview.Register();
         AboutPage.Register();
         ConsolePage.Register();
@@ -27,21 +27,8 @@ internal sealed class MenuFeature : Feature
         Actions.Register(Id, "menu.close", "Close the menu", Ui.Menu.Close);
         Actions.Register(Id, "menu.collapse", "Fold the menu to its bars, or unfold it", Ui.Menu.ToggleCollapsed, () => Ui.Menu.Collapsed);
         Actions.Register(Id, "menu.escape", "Close a list, cancel, clear the search, or close the menu", Ui.Menu.Escape);
-        // One per feature with a menu entry; a feature that isn't running still opens, to show why.
-        foreach (var feature in FeatureHost.All.Where(f => f.Menu != null))
-        {
-            string id = feature.Id;
-            Actions.Register(Id, $"menu.page.{id}", $"Open {feature.Menu!.Title ?? feature.Name}", () => Ui.Menu.Open(id));
-        }
-        // A feature with a tab of its own and its settings in the Config tree: a way to its settings from the tab.
-        foreach (var feature in FeatureHost.All.Where(f => f.ConfigMenu != null))
-        {
-            var owner = feature;
-            Actions.Register(Id, $"menu.config.{owner.Id}", $"Open {owner.ConfigMenu!.Title ?? owner.Name} settings", () =>
-            {
-                if (MenuTree.ConfigNodeOf(owner) is { } node) Ui.Menu.Open(MenuRoutes.First(node));
-            });
-        }
+        RegisterPageActions(FeatureHost.All);
+        Modules.LoadedLate += OnModulesLoaded;
         Actions.Register(Id, "menu.page.settings", "Open Settings", Ui.Menu.OpenSettings);
         Actions.Register(Id, "menu.profiles", "Open Profiles", Ui.Menu.OpenProfiles);
         // The theme choice lists presets and player files, which the core setting can't know about.
@@ -51,11 +38,51 @@ internal sealed class MenuFeature : Feature
         Diagnostics.ThemeProblems = () => Themes.Problems;
     }
 
-    public override void Update() => Ui.Menu.OnUpdate();
+    // One per feature with a menu entry; a feature that isn't running still opens, to show why.
+    private void RegisterPageActions(IEnumerable<Feature> features)
+    {
+        foreach (var feature in features.Where(f => f.Menu != null))
+        {
+            string id = feature.Id;
+            Actions.Register(Id, $"menu.page.{id}", $"Open {feature.Menu!.Title ?? feature.Name}", () => Ui.Menu.Open(id));
+        }
+        // A feature with a tab of its own and its settings in the Config tree: a way to its settings from the tab.
+        foreach (var feature in features.Where(f => f.ConfigMenu != null))
+        {
+            var owner = feature;
+            Actions.Register(Id, $"menu.config.{owner.Id}", $"Open {owner.ConfigMenu!.Title ?? owner.Name} settings", () =>
+            {
+                if (MenuTree.ConfigNodeOf(owner) is { } node) Ui.Menu.Open(MenuRoutes.First(node));
+            });
+        }
+    }
+
+    private static void RegisterSessionBlocks()
+    {
+        SessionsPage.Register();
+        SessionsPast.Register();
+    }
+
+    // The first-start answer loaded modules: their pages, page actions and the settings rows on core pages (Keybinds,
+    // Debug) join the menu.
+    private void OnModulesLoaded(IReadOnlyList<string> ids)
+    {
+        if (ids.Contains("sessions")) RegisterSessionBlocks();
+        RegisterPageActions(FeatureHost.All.Where(f => ids.Contains(f.Id)));
+        SettingsContent.Reset();
+        MenuTree.Invalidate();
+    }
+
+    public override void Update()
+    {
+        ModulesPage.OnUpdate();
+        Ui.Menu.OnUpdate();
+    }
     public override void OnGUI() => Ui.Menu.OnGUI();
 
     public override void Shutdown()
     {
+        Modules.LoadedLate -= OnModulesLoaded;
         InputGate.MenuHitTest = null;
         Ui.Menu.Close();
         Popups.Reset();
@@ -65,6 +92,7 @@ internal sealed class MenuFeature : Feature
         PageView.Reset();
         TreeView.Reset();
         ProfilesPage.Reset();
+        ModulesPage.Reset();
         SessionsPage.Reset();
         SessionsPast.Reset();
         TextCache.Clear();

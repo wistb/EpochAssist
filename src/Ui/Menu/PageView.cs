@@ -341,7 +341,6 @@ internal static class PageView
     {
         if (page.Page.Status != null) return Safe.Call(page.Page.Status, new PageStatus(StatusState.Off, "off"), page.Path + ".status");
         if (page.Node.Feature is not { } feature) return null;
-        if (feature.Record.TurnedOff) return new PageStatus(StatusState.Off, Tag("turned off", string.Empty));
         if (feature.State != FeatureState.Running) return new PageStatus(StatusState.Off, Tag(feature.State.ToString().ToLowerInvariant(), string.Empty));
         // The state, and why when there is a reason ("status: waiting · menu open").
         FeatureStatus current = feature.Status;
@@ -375,18 +374,17 @@ internal static class PageView
     }
 
     // Banners for this page: settings that couldn't be brought up to date, a declaration problem, why the feature isn't
-    // running (with Turn on or Restart where that helps), a partly working feature, and the page's own banner.
+    // running (with Restart where that helps), a partly working feature, and the page's own banner.
     private static IEnumerable<(string Text, ActionButton? Button)> Banners(PageNode page)
     {
-        foreach (var group in SettingsRegistry.Groups)
+        foreach (var group in SettingsRegistry.Shown)
         {
             if (group.Failures.Count > 0) yield return ($"{group.Name} settings not updated: {string.Join("; ", group.Failures)}", null);
         }
         if (page.Problem != null) yield return ($"This page has a problem: {page.Problem}.", null);
         if (page.Node.Feature is { } feature)
         {
-            if (feature.Record.TurnedOff) yield return (Menu.Reason(feature), new ActionButton("Turn on", $"feature.toggle.{feature.Id}"));
-            else if (feature.State != FeatureState.Running)
+            if (feature.State != FeatureState.Running)
                 yield return (Menu.Reason(feature), feature.State == FeatureState.Unavailable || feature.BlockedBy != null ? null : new ActionButton("Restart", $"feature.restart.{feature.Id}"));
             else if (feature.Degraded)
                 yield return ($"{feature.Name} partly works: " + string.Join("; ", feature.MissingGroups.Select(g => $"without {g} (game update)")
@@ -454,7 +452,11 @@ internal static class PageView
         var body = new Rect(inner.x, y, inner.width, inner.yMax - y);
         if (results.Count == 0 && entries.Count == 0)
         {
-            Widgets.Paint(new Rect(body.x, body.y, body.width, 40f), $"No settings match \"{query}\". Clear the search to see every page.", Widgets.Style(() => Theme.Hint, GUI.skin.label));
+            // The last query's layout would still count in the header.
+            s_results.Clear();
+            // Painted outside a repaint, text lands mirrored in the middle of the screen.
+            if (Event.current.type == EventType.Repaint)
+                Widgets.Paint(new Rect(body.x, body.y, body.width, 40f), $"No settings match \"{query}\". Clear the search to see every page.", Widgets.Style(() => Theme.Hint, GUI.skin.label));
             return;
         }
 

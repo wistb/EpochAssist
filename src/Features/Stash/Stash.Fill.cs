@@ -7,9 +7,14 @@ internal static partial class Stash
 {
     private static (ulong Fingerprint, string Preset, int Uniques, Dictionary<string, int> Tabs, Dictionary<string, (int Items, int Cells)> Detail)? s_fill;
 
-    /// <summary>Changes when a unique list from the planner builds may have changed.</summary>
+    /// <summary>The Planner module is loaded: only then are its builds' uniques read (a module that isn't loaded is never
+    /// reached into).</summary>
+    private static bool PlannerLoaded => Modules.Loaded("planner");
+
+    /// <summary>Changes when a unique list from the planner builds may have changed; 0 while the Planner isn't loaded.</summary>
     private static int UniquesGeneration()
     {
+        if (!PlannerLoaded) return 0;
         try
         {
             return Planner.LibraryGeneration;
@@ -31,8 +36,10 @@ internal static partial class Stash
         return tab.Rules.WithUniques(ids);
     }
 
+    // None while the Planner isn't loaded.
     private static IEnumerable<int> BuildUniques()
     {
+        if (!PlannerLoaded) return Enumerable.Empty<int>();
         try
         {
             return Planner.LibraryUniques().Select(u => (int)u);

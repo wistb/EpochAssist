@@ -127,6 +127,7 @@ internal static class Sessions
     internal static void Start(Feature feature)
     {
         s_feature = feature;
+        GameEvents.LinkSessionStats(true);
         SessionWriter.Start();
         Recover();
         foreach (var subscribe in s_subscriptions) subscribe(feature);
@@ -155,6 +156,7 @@ internal static class Sessions
         }
         SessionWriter.Flush(wait: true);
         SessionWriter.Stop();
+        GameEvents.LinkSessionStats(false);
         s_live = null;
         s_feature = null;
         s_index = null;
@@ -212,7 +214,7 @@ internal static class Sessions
         };
         s_live = new Live(header);
         // The zone the character is in: its change came before the character appeared.
-        Keep("zone", Fields(("scene", GameState.Scene), ("kind", ZoneKind(GameState.Scene, GameState.Kind, false)), ("monolith", false), ("name", ZoneName(GameState.Scene))));
+        Keep("zone", Fields(("scene", GameState.Scene), ("kind", GameState.ZoneKind(GameState.Scene, GameState.Kind, false)), ("monolith", false), ("name", ZoneName(GameState.Scene))));
         Log.Info($"Sessions: recording ({ModeText()})");
     }
 
@@ -233,7 +235,7 @@ internal static class Sessions
             End("normal");
             return;
         }
-        Keep("zone", Fields(("scene", change.Scene), ("kind", ZoneKind(change.Scene, change.Kind, change.Monolith)), ("monolith", change.Monolith),
+        Keep("zone", Fields(("scene", change.Scene), ("kind", GameState.ZoneKind(change.Scene, change.Kind, change.Monolith)), ("monolith", change.Monolith),
             ("name", ZoneName(change.Scene))));
     }
 
@@ -246,15 +248,6 @@ internal static class Sessions
     /// dungeon for combat scenes named Dun… (Dun1Q10), other for the rest (campaign zones). The record keeps the scene,
     /// so a later build can tell them apart again.
     /// </summary>
-    internal static string ZoneKind(string scene, SceneKind kind, bool monolith) => kind switch
-    {
-        SceneKind.Menu => "menu",
-        SceneKind.NonCombat => "town",
-        SceneKind.Combat when monolith || scene.StartsWith("M_", StringComparison.Ordinal) => "echo",
-        SceneKind.Combat when scene.StartsWith("Dun", StringComparison.Ordinal) => "dungeon",
-        _ => "other",
-    };
-
     /// <summary>Keeps one record in the current session: totals, the batch and Records, then SessionRecordKept. Past the
     /// size limit only the totals.</summary>
     internal static void Keep(string kind, IReadOnlyDictionary<string, object> fields)
@@ -448,7 +441,7 @@ internal static class Sessions
         live.LastT = last;
         s_live = live;
         double now = Now(live);
-        if (live.Cut) live.Totals.Continue(ZoneKind(GameState.Scene, GameState.Kind, false), now);
+        if (live.Cut) live.Totals.Continue(GameState.ZoneKind(GameState.Scene, GameState.Kind, false), now);
         string reason = s_stoppedOpen ? "restart" : "reload";
         s_stoppedOpen = false;
         Keep("gap", Fields(("from", SessionFiles.Seconds(last)), ("to", now), ("reason", reason)));

@@ -213,6 +213,13 @@ internal static class Menu
         {
             HotkeyConflicts.Invalidate();
             MenuTree.Invalidate();
+            // Until the first-start choice is made, every open in a character goes to it.
+            if (ModulesPage.FirstStartPage is { } modules)
+            {
+                MenuRoutes.Show(modules);
+                // The toast asked for this: it has been seen.
+                Toasts.Dismiss("modules");
+            }
             TreeView.Reveal(MenuRoutes.Page);
         }
         Visible = visible;
@@ -329,7 +336,6 @@ internal static class Menu
     /// <summary>Why a feature isn't running, as a sentence.</summary>
     public static string Reason(Feature feature)
     {
-        if (feature.Record.TurnedOff) return $"{feature.Name} is turned off. Its settings are kept.";
         string detail = feature.Status.Detail.TrimEnd('.');
         return feature.State switch
         {

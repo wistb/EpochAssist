@@ -83,6 +83,7 @@ internal static class Diagnostics
             Mods = overlap.ModLines.ToList(),
             Overlaps = overlap.OverlapLines.ToList(),
             KnownOverlaps = overlap.KnownLines.ToList(),
+            NotLoaded = Modules.All.Where(m => !Modules.Loaded(m.Id)).Select(m => m.Name).ToList(),
         };
     }
 

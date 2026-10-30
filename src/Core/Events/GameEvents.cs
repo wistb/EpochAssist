@@ -69,9 +69,15 @@ internal static partial class GameEvents
         s_feature = feature;
         s_sceneStamp = GameState.SceneChangedAt;
         ResetPlayer();
-        SessionStats.LevelProgress = LevelProgress;
-        SessionStats.FactionProgress = FactionProgress;
-        SessionStats.LiveFactionIds = RankedFactions;
+    }
+
+    /// <summary>Gives session figures the live level and faction readings while the Sessions module runs (its start and
+    /// stop), and takes them back.</summary>
+    internal static void LinkSessionStats(bool on)
+    {
+        SessionStats.LevelProgress = on ? LevelProgress : null;
+        SessionStats.FactionProgress = on ? FactionProgress : null;
+        SessionStats.LiveFactionIds = on ? RankedFactions : null;
     }
 
     internal static void Stop()
@@ -84,9 +90,7 @@ internal static partial class GameEvents
         s_zoneSubscription = null;
         s_deathSubscription = null;
         s_feature = null;
-        SessionStats.LevelProgress = null;
-        SessionStats.FactionProgress = null;
-        SessionStats.LiveFactionIds = null;
+        LinkSessionStats(false);
     }
 
     /// <summary>The player changed or left (Player.Reset): cached components and every baseline go.</summary>

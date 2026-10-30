@@ -78,15 +78,15 @@ internal static class Hotkeys
     public static CaptureTarget? CapturingTarget { get; private set; }
     public static bool CaptureActive => Capturing != null || CapturingTarget != null;
 
-    /// <summary>Every Hotkey setting of every registered group.</summary>
+    /// <summary>Every Hotkey setting that shows (core and loaded modules').</summary>
     public static IReadOnlyList<Hotkey> Bindings
     {
         get
         {
-            if (s_bindingGroups != SettingsRegistry.Groups.Count)
+            if (s_bindingGroups != SettingsRegistry.Generation)
             {
-                s_bindings = SettingsRegistry.Groups.SelectMany(g => g.All).OfType<Hotkey>().ToArray();
-                s_bindingGroups = SettingsRegistry.Groups.Count;
+                s_bindings = SettingsRegistry.Shown.SelectMany(SettingsRegistry.ShownSettings).OfType<Hotkey>().ToArray();
+                s_bindingGroups = SettingsRegistry.Generation;
             }
             return s_bindings;
         }

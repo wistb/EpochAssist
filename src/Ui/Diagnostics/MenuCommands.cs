@@ -73,8 +73,8 @@ internal static class MenuCommands
             {
                 string state = NodeState(node);
                 string master = node.Entry.Switch is { } s ? (s.Value ? "on" : "off") : "none";
-                string on = node.Feature is { } f ? (f.CanTurnOff ? (FeatureSwitches.IsOn(f) ? "yes" : "no") : "fixed") : "fixed";
-                lines.Add($"  node {node.Path} {RowText.Quote(node.Title)} state={state} switch={master} on={on}{(node.Leaf && shown?.Node == node ? " selected" : string.Empty)}");
+                // Every node is loaded: an unloaded module has none.
+                lines.Add($"  node {node.Path} {RowText.Quote(node.Title)} state={state} switch={master} on=loaded{(node.Leaf && shown?.Node == node ? " selected" : string.Empty)}");
                 foreach (var group in node.Entry.Groups)
                 {
                     lines.Add($"    group {RowText.Quote(group.Title)}");
@@ -86,6 +86,9 @@ internal static class MenuCommands
                     lines.Add($"    page {page.Path} {RowText.Quote(page.Page.Title)}{(shown == page ? " selected" : string.Empty)}");
             }
         }
+        lines.Add("modules: " + string.Join(", ", Modules.All.Select(m =>
+            $"{m.Id} {(Modules.Loaded(m.Id) ? "loaded" : "not loaded")}{(Modules.RestartNeeded(m.Id) && !Modules.Pending ? " (restart to apply)" : string.Empty)}")));
+        lines.Add("prompt: " + (Modules.Pending ? "open" : "answered"));
         return string.Join("\n", lines);
     }
 
@@ -103,7 +106,7 @@ internal static class MenuCommands
         var node = page.Node;
         string status = Status(page);
         string master = page.Page.Switch is { } s ? (s.Value ? "on" : "off") : "none";
-        string banner = page.Node.Feature is { Record.TurnedOff: true } ? "turned-off" : page.Problem != null ? "problem" : "none";
+        string banner = page.Problem != null ? "problem" : "none";
         var lines = new List<string> { $"ok menu {verb} {page.Path} {RowText.Quote(page.Page.Title)} status={status} switch={master} banner={banner}" };
         if (page.Problem != null) lines.Add($"  warn {RowText.Quote(page.Problem)}");
         if (page.Page.Block != null) lines.Add($"  block {RowText.Quote(page.Page.Block)}");

@@ -5,7 +5,7 @@ namespace EpochAssist.Core;
 // the figures on the mini HUD (their own section, the Session tab's Mini HUD page).
 internal static class SessionSettings
 {
-    public static readonly Section Section = Config.Group.Section("sessions", "Sessions");
+    public static readonly Section Section = Config.Group.Section("sessions", "Sessions", module: "sessions");
     public static readonly Toggle History = new(Section, "SessionHistory", "Keep session history", true)
     {
         Help = "Records zones, XP, gold, drops, deaths, echoes, monolith picks, level-ups and faction favour, reputation and memory amber of each play session in UserData/EpochAssist/sessions. Nothing leaves your computer.",
@@ -23,7 +23,7 @@ internal static class SessionSettings
         Step = 1f, Help = "Past it, the session keeps its totals but no more detail.",
     };
 
-    public static readonly Section Dashboard = Config.Group.Section("sessiondash", "Session dashboard");
+    public static readonly Section Dashboard = Config.Group.Section("sessiondash", "Session dashboard", module: "sessions");
     public static readonly Toggle FocusFavour = Focus("Favour", true);
     public static readonly Toggle FocusReputation = Focus("Reputation", true);
     public static readonly Toggle FocusAmber = Focus("Amber", true, "Memory amber");
@@ -39,7 +39,7 @@ internal static class SessionSettings
 
     // The current session's figures on the mini HUD (Session tab › Mini HUD). Figure choices are stored as numbers:
     // 0 hidden, 1 total, 2 per hour, 3 both; figures without a rate offer hidden and shown (1).
-    public static readonly Section Hud = Config.Group.Section("sessionhud", "Mini HUD");
+    public static readonly Section Hud = Config.Group.Section("sessionhud", "Mini HUD", module: "sessions");
     // No help: the HUD previews behind the menu, so each choice shows what it does. What doesn't apply to the look is
     // hidden instead of explained.
     public static readonly Toggle HudShow = new(Hud, "SessionHudShow", "Show on the mini HUD", false);
@@ -59,7 +59,7 @@ internal static class SessionSettings
     private static bool NotInPill() => HudLook.Value != 1;
 
     // Each figure's colour on the mini HUD and the Session tab: empty is the game's own (the dashboard's role colours).
-    public static readonly Section Colours = Config.Group.Section("sessioncolours", "Colours");
+    public static readonly Section Colours = Config.Group.Section("sessioncolours", "Colours", module: "sessions");
     public static readonly Toggle HudColours = new(Colours, "SessionHudColours", "Colours", true);
     public static readonly ColorSetting ColourXp = Colour("Xp", "XP", "xp");
     public static readonly ColorSetting ColourGold = Colour("Gold", "Gold", "gold");

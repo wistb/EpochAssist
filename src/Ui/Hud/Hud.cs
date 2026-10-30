@@ -45,14 +45,19 @@ internal static class Hud
 
     /// <summary>Whether a screen point (top-left origin) is on the pill or the open panel; InputGate blocks clicks there.</summary>
     public static bool HitTest(Vector2 screenPoint) =>
-        Shown && (s_pillScreen.Contains(screenPoint) || (s_panelOpen && s_panelScreen.Contains(screenPoint)) || s_statsScreen.Contains(screenPoint));
+        (Shown && (s_pillScreen.Contains(screenPoint) || (s_panelOpen && s_panelScreen.Contains(screenPoint)) || s_statsScreen.Contains(screenPoint)))
+        || Toasts.DismissAreas.Any(r => r.Contains(screenPoint));
 
     private static IEnumerable<Feature> StatusFeatures => FeatureHost.All.Where(f => f.StatusName != null && HudSettings.ShowsSection(f.Id));
 
     // A feature that isn't running keeps its section, greyed; with no section at all (or all switched off) and no session
     // figures there is no pill. It stays up while the menu is open, as a preview that takes no clicks, so a hint can show
     // beside it while settings change.
-    private static bool Shown => HudSettings.HudEnabled.Value && Player.Exists && (StatusFeatures.Any() || SessionHud.Shown);
+    private static bool Shown => HudSettings.HudEnabled.Value && Player.Exists && HasParts && (StatusFeatures.Any() || SessionHud.Shown);
+
+    /// <summary>A loaded module gives the mini HUD a part (a feature with a status, or the session figures); without one
+    /// the mini HUD and its settings page don't show.</summary>
+    public static bool HasParts => FeatureHost.All.Any(f => f.StatusName != null) || Modules.Loaded("sessions");
 
     public static void OnUpdate()
     {
@@ -61,13 +66,13 @@ internal static class Hud
 
     public static void OnGUI()
     {
+        // Built here, inside OnGUI, before Shown: the session figures are measured with the theme's styles.
+        GUISkin? skin = HasParts ? Theme.Skin : null;
         if (!Shown)
         {
             s_pillScreen = s_panelScreen = s_statsScreen = Rect.zero;
             return;
         }
-
-        GUISkin? skin = Theme.Skin;
         if (skin == null) return;
 
         GUISkin previousSkin = GUI.skin;

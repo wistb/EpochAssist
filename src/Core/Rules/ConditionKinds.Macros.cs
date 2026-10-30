@@ -337,11 +337,11 @@ internal static partial class ConditionKinds
     /// <summary>The cursor point skills aim at, once a frame (the owner sets it); null without one.</summary>
     public static Func<UnityEngine.Vector3?>? CursorPoint { get; set; }
 
-    // The zone's kind as the session code tells it (GF-67), its "other" read as campaign; null without a scene.
+    // The zone's kind as session records tell it, its "other" read as campaign; null without a scene.
     private static string? ZoneKind()
     {
         if (GameState.Scene.Length == 0) return null;
-        string kind = Sessions.ZoneKind(GameState.Scene, GameState.Kind, false);
+        string kind = GameState.ZoneKind(GameState.Scene, GameState.Kind, false);
         return kind switch { "other" => "campaign", "menu" => null, _ => kind };
     }
 

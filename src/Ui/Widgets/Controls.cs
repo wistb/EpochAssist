@@ -93,6 +93,9 @@ internal static class Controls
 
     /// <summary>A conflict with another mod: orange, whatever the theme, so it reads as a warning next to the state colours.</summary>
     public static readonly Color ConflictColor = new(1f, 0.514f, 0.169f);
+    /// <summary>Amber for an alert or something needing attention (a change waiting for a restart, a module a game update
+    /// left unavailable, the Stash page's marks), apart from the theme's own state colours and the same in every theme.</summary>
+    public static readonly Color AlertColor = new(1f, 0.69f, 0.2f);
     private static readonly Color s_conflict = ConflictColor;
 
     /// <summary>The "Mod conflict: <mods>" pill's width.</summary>
@@ -134,22 +137,22 @@ internal static class Controls
 
     private const float StatePillMax = 130f;
 
-    /// <summary>A state pill's width for its text (with room for the shape), at most 130 px.</summary>
-    public static float StatePillWidth(string text) =>
-        Mathf.Min(StatePillMax, TextCache.Width(text, Widgets.Style(() => Theme.FieldText, GUI.skin.label)) + 26f);
+    /// <summary>A state pill's width for its text (with room for the shape), at most 130 px unless full.</summary>
+    public static float StatePillWidth(string text, bool full = false) =>
+        Mathf.Min(full ? float.MaxValue : StatePillMax, TextCache.Width(text, Widgets.Style(() => Theme.FieldText, GUI.skin.label)) + 26f);
 
     /// <summary>
     /// A live value or state as a small pill, left-aligned in the rect: a faint tint of the state's colour, its shape,
     /// and the text in that colour lightened enough to read on the tint.
     /// </summary>
-    public static void StatePill(Rect at, string text, StatusState state)
+    public static void StatePill(Rect at, string text, StatusState state, bool full = false, Color? tint = null)
     {
         if (Event.current.type != EventType.Repaint) return;
-        float w = Mathf.Min(StatePillWidth(text), at.width);
+        float w = Mathf.Min(StatePillWidth(text, full), at.width);
         if (w < 20f) return;
         GUIStyle style = Widgets.Style(() => Theme.FieldText, GUI.skin.label);
         var pill = new Rect(at.x, at.y + 3f, w, at.height - 6f);
-        Color colour = Theme.StateColor(state);
+        Color colour = tint ?? Theme.StateColor(state);
         if (Widgets.Themed)
         {
             Color previous = GUI.color;
@@ -157,7 +160,7 @@ internal static class Controls
             Theme.DrawSliced(pill, Theme.Flat, Theme.ChipRadius);
             GUI.color = previous;
         }
-        Color readable = Theme.StateText(state);
+        Color readable = tint is { } own ? Theme.LightText(own) : Theme.StateText(state);
         // The icon centred on the pill's own middle, on whole pixels.
         const float icon = 10f;
         var iconRect = Menu.PixelSnap(new Rect(pill.x + 7f, pill.center.y - icon / 2f, icon, icon));

@@ -16,6 +16,8 @@ internal static class MenuRoutes
     public const string Overview = Diagnostics + "/overview";
     public const string Profiles = General + "/profiles";
     public const string About = General + "/about";
+    public const string Modules = General + "/modules";
+    public const string Features = Diagnostics + "/features";
 
     // The old Settings tabs, by index: Mini HUD, Appearance, Keybinds, Diagnostics › Overview, Profiles.
     private static readonly string[] s_settingsTabs = { MiniHud, General + "/appearance", General + "/keybinds", Overview, Profiles };

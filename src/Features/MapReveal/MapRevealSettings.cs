@@ -5,7 +5,7 @@ namespace EpochAssist.Features;
 internal static class MapRevealSettings
 {
     // Stored ids are a contract. Renaming or retyping one raises the version and adds a migration for it.
-    public static readonly SettingsGroup Group = new("EpochAssist_MapReveal", "Map Reveal", version: 1) { ActionKey = "mapreveal" };
+    public static readonly SettingsGroup Group = new("EpochAssist_MapReveal", "Map Reveal", version: 1) { ActionKey = "mapreveal", Module = "mapreveal" };
 
     public static readonly Section Main = Group.Section("main", "Map Reveal");
     // Off until the player turns it on. The quick label offers it on the HUD panel.

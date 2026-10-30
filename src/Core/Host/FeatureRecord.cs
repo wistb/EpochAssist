@@ -12,8 +12,6 @@ internal sealed class FeatureRecord
     public DateTime? LastErrorAt { get; set; }
     // The need that kept or took the feature out of Running, or null.
     public string? BlockedBy { get; set; }
-    // Stopped because the player turned the whole feature off; cleared when it starts.
-    public bool TurnedOff { get; set; }
     public List<string> PatchFailures { get; } = new();
     // Optional requirement groups the game lacks.
     public HashSet<string> MissingGroups { get; } = new();

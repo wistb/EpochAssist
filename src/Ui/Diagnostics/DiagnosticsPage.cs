@@ -5,8 +5,8 @@ using static EpochAssist.Ui.Widgets;
 namespace EpochAssist.Ui;
 
 /// <summary>
-/// Diagnostics, General › Diagnostics in the menu: the mod's build and mode with the log level (Overview), each feature's
-/// state with its switch (Modules), other mods and where they overlap ours (Mods), crash reports (Reports), and a copy of
+/// Diagnostics, General › Diagnostics in the menu: the mod's build and mode with the log level (Overview), every core part
+/// and module with its state, unloaded modules included (Features), other mods and where they overlap ours (Mods), crash reports (Reports), and a copy of
 /// it all as scrubbed text for a bug report.
 /// The feature owns the copy and open actions; the pages are the menu's blocks.
 /// </summary>
@@ -63,7 +63,11 @@ internal static class DiagnosticsPage
     public static void Register()
     {
         MenuBlocks.Register("diagnostics.overview", (rect, _) => Overview(rect), _ => OverviewLines(Snapshot()).Select(Plain), (_, width) => OverviewHeight(width));
-        MenuBlocks.Register("diagnostics.features", (rect, _) => Page(rect, Features), _ => Snapshot().Features.Select(f => $"feature {f.Id} {RowText.Quote(f.StateText)}"));
+        MenuBlocks.Register("diagnostics.features", (rect, _) => Page(rect, Features), _ =>
+        {
+            var snapshot = Snapshot();
+            return snapshot.Features.Select(f => $"feature {f.Id} {RowText.Quote(f.StateText)}").Concat(snapshot.NotLoaded.Select(m => $"module {RowText.Quote(m)} \"not loaded\""));
+        });
         MenuBlocks.Register("diagnostics.reports", (rect, _) => Page(rect, ReportsCard), _ => Reports.List().Select(r => $"report {RowText.Quote(r.File)}"));
         MenuBlocks.Register("diagnostics.mods", (rect, _) => Page(rect, ModsCard), _ => ModsLines(Overlap()).Where(l => !l.Note).Select(l => $"{l.Kind} {RowText.Quote(l.Text)}"));
         // The Mods page's switches are drawn in its block, not as setting rows, so search is told about them here.
@@ -154,11 +158,26 @@ internal static class DiagnosticsPage
         }
     }
 
-    // ---- Modules: one row each, with its switch where it can be turned off ----
+    // ---- Features: one row per core part and loaded module, then the modules this start didn't load ----
 
     private static void Features()
     {
-        foreach (var feature in Snapshot().Features) FeatureRow(feature);
+        var snapshot = Snapshot();
+        foreach (var feature in snapshot.Features) FeatureRow(feature);
+        foreach (string module in snapshot.NotLoaded) NotLoadedRow(module);
+    }
+
+    // Read-only: loading is chosen on Config › General › Modules.
+    private static void NotLoadedRow(string name)
+    {
+        Rect row = GUILayoutUtility.GetRect(10f, RowLayout.ControlHeight + 2f, GUILayout.ExpandWidth(true));
+        if (Event.current.type == EventType.Repaint)
+        {
+            Menu.DrawState(new Rect(row.x, Mathf.Round(row.center.y - 4f), 8f, 8f), StatusState.Off, Theme.StateColor(StatusState.Off));
+            Widgets.Paint(new Rect(row.x + 16f, row.y, 160f, RowLayout.ControlHeight), name, Style(() => Theme.Label, GUI.skin.label));
+            Widgets.Paint(new Rect(row.x + 180f, row.y, row.width - 180f, RowLayout.ControlHeight), "Not loaded", Style(() => Theme.FieldDim, GUI.skin.label));
+        }
+        GUILayout.Space(6f);
     }
 
     // Newest first, each with its own copy button. The note and Clear share the top row, Clear at the right in line with
@@ -383,26 +402,11 @@ internal static class DiagnosticsPage
             Widgets.Paint(new Rect(x + 16f, row.y, 160f, RowLayout.ControlHeight), selfTest ? "Compat self-test (dev)" : f.Name, Style(() => Theme.Label, GUI.skin.label));
             Widgets.Paint(new Rect(x + 180f, row.y, row.width - 330f, RowLayout.ControlHeight), Colored(Capitalized(f.StateText), Theme.LightText(color)), Style(() => Theme.Label, GUI.skin.label));
         }
-        float right = row.xMax;
-        if (feature != null && feature.CanTurnOff)
-        {
-            bool on = FeatureSwitches.IsOn(feature);
-            right -= Controls.SwitchWidth;
-            if (Controls.Switch(new Rect(right, row.y, Controls.SwitchWidth, RowLayout.ControlHeight), on, "feature." + f.Id, $"Turn {f.Name} on or off")  != on)
-                Actions.Run($"feature.toggle.{f.Id}", "menu features");
-        }
-        else if (Event.current.type == EventType.Repaint)
-        {
-            GUIStyle dim = Style(() => Theme.FieldDim, GUI.skin.label);
-            float w = TextCache.Width("always on", dim) + dim.padding.horizontal;
-            right -= w;
-            Widgets.Paint(new Rect(right, row.y, w, RowLayout.ControlHeight), "always on", dim);
-        }
-        // A restart can't bring back what the game no longer has, or a feature turned off or waiting for another.
+        // A restart can't bring back what the game no longer has, or a feature waiting for another.
         if (feature != null && feature.State == FeatureState.Faulted)
         {
             float w = Controls.ButtonWidth("Restart");
-            right -= w + 8f;
+            float right = row.xMax - w;
             if (Controls.Button(new Rect(right, row.y, w, RowLayout.ControlHeight), "Restart", "restart." + f.Id)) Actions.Run($"feature.restart.{f.Id}", "menu features");
         }
         if (selfTest) Hint("Nothing is wrong: this test asks for game members that don't exist, to show how a missing member is reported.");

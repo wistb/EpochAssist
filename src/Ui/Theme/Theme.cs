@@ -75,6 +75,9 @@ internal static partial class Theme
     /// <summary>A white badge, tinted when drawn: the state badges' shape in any colour (the conflict pill's orange).</summary>
     public static Texture2D BadgeTint = null!;
 
+    /// <summary>The themed skin exists (Skin builds it inside OnGUI); safe to ask outside OnGUI.</summary>
+    public static bool Built => s_skin != null;
+
     /// <summary>The themed skin, or null to draw with the default one.</summary>
     public static GUISkin? Skin
     {

@@ -44,9 +44,6 @@ internal abstract class Feature
     /// tree. Null for none.</summary>
     public virtual MenuEntry? ConfigMenu => null;
 
-    /// <summary>The player can turn the whole feature off: it has an entry outside General.</summary>
-    public bool CanTurnOff => Menu != null && Menu.Folder != MenuEntry.General;
-
     /// <summary>A non-null name puts the feature on the HUD pill, showing its Status.</summary>
     public virtual string? StatusName => null;
 

@@ -42,6 +42,9 @@ internal sealed class MenuEntry
     /// <summary>A folder in the tab's tree to sit in (General); null for none. A folder's entries sit together, at its
     /// first entry's place.</summary>
     public string? Folder { get; init; }
+    /// <summary>The module that owns this entry; the tree skips it while that module isn't loaded. For entries declared
+    /// outside a feature (a feature's own entry goes with it).</summary>
+    public string? Module { get; init; }
     /// <summary>The feature's master switch, shown by the node's dot; it must have a QuickLabel (it runs that action).</summary>
     public Toggle? Switch { get; init; }
     /// <summary>When false, the pages' rows draw dimmed and take no input.</summary>
@@ -108,6 +111,8 @@ internal sealed class MenuPage
     public bool SharesInput { get; init; }
     /// <summary>Whether the title row offers Reset; null for "when the page has settings".</summary>
     public bool? Resettable { get; init; }
+    /// <summary>Whether the page is in the tree at all, read when the tree builds (the loaded modules); null for always.</summary>
+    public Func<bool>? VisibleWhen { get; init; }
     /// <summary>False: not listed under its node in the tree; reached from a tree item that opens it (a slot macro's
     /// pages), search, the bridge and page keys.</summary>
     public bool InTree { get; init; } = true;

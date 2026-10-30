@@ -56,6 +56,8 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
     public IReadOnlyList<string> Mods { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> Overlaps { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> KnownOverlaps { get; init; } = Array.Empty<string>();
+    /// <summary>Names of the modules this start didn't load, in catalogue order.</summary>
+    public IReadOnlyList<string> NotLoaded { get; init; } = Array.Empty<string>();
 
     public string ChangesText => $"edits {Edits.Count}, patched methods {PatchedMethods}, textures {Textures}";
 
@@ -83,6 +85,7 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
             text.Append('\n');
             foreach (string detail in feature.Details) text.Append(indent).Append(detail).Append('\n');
         }
+        foreach (string module in NotLoaded) text.Append("  ").Append(module).Append(": not loaded\n");
         text.Append("settings: ").Append(SettingsFailures.Count > 0 ? string.Join("; ", SettingsFailures) : "none").Append('\n');
         text.Append("profiles: ").Append(Profiles).Append('\n');
         text.Append($"Edits: {Edits.Count}\n");

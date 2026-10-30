@@ -52,6 +52,7 @@ internal static class Compat
             if (Array.IndexOf(feature.Needs, need.Model) < 0 || PartMissing(need)) missing.Add(new MissingMember($"{need.Model}: {need.Part} (model part)", need.Group));
         }
 #if DEV
+        if (Unavailable().Contains(feature.Id)) missing.Add(new MissingMember("DevSimulated.member (simulated)", null));
         foreach (string entry in Simulated)
         {
             int colon = entry.IndexOf(':');
@@ -74,6 +75,13 @@ internal static class Compat
 #if DEV
     /// <summary>Dev only: "feature id:group" entries reported as missing, to show what a lost model part does.</summary>
     internal static readonly HashSet<string> Simulated = new();
+
+    /// <summary>Dev only: the process variable listing feature ids (comma-separated) that miss a required member at their
+    /// next start, as after a game update. It outlives dev reloads, never the game.</summary>
+    internal const string UnavailableVariable = "EPOCHASSIST_DEV_UNAVAILABLE";
+
+    internal static HashSet<string> Unavailable() =>
+        (Environment.GetEnvironmentVariable(UnavailableVariable) ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
 #endif
 
     /// <summary>

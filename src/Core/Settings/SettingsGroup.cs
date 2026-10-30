@@ -5,16 +5,22 @@ namespace EpochAssist.Core;
 
 internal sealed class Section
 {
-    public Section(SettingsGroup group, string id, string title)
+    public Section(SettingsGroup group, string id, string title, string? module = null)
     {
         Group = group;
         Id = id;
         Title = title;
+        _module = module;
     }
+
+    private readonly string? _module;
 
     public SettingsGroup Group { get; }
     public string Id { get; }
     public string Title { get; }
+    /// <summary>The module that owns the section: its own (a module's sections in the General group), else its group's;
+    /// null = core.</summary>
+    public string? Module => _module ?? Group.Module;
     public List<Setting> Settings { get; } = new();
 
     public bool IsDefault => Settings.All(s => s.IsDefault);
@@ -50,6 +56,11 @@ internal sealed class SettingsGroup
     public string ActionKey { get; init; } = string.Empty;
     /// <summary>Values are always the global ones; profiles don't override, store, export or import them.</summary>
     public bool Shared { get; init; }
+    /// <summary>The module that owns the group (Modules); null = core. Registered either way, shown only while it is
+    /// loaded.</summary>
+    public string? Module { get; init; }
+    /// <summary>Drawn by a page of its own: never listed as ordinary settings rows, quick toggles or actions.</summary>
+    public bool Hidden { get; init; }
     /// <summary>Raise when a setting is renamed or changes type, and add a migration for the new version.</summary>
     public int Version { get; }
     /// <summary>What went wrong bringing the stored settings up to Version at the last registration; shown in the menu.</summary>
@@ -61,9 +72,10 @@ internal sealed class SettingsGroup
     /// declared across layers); ids not listed go after them in declaration order. Null: declaration order.</summary>
     public string[]? SectionOrder { get; init; }
 
-    public Section Section(string id, string title)
+    /// <summary>Adds a section; module names its owner when it isn't the group's (a module's section in General).</summary>
+    public Section Section(string id, string title, string? module = null)
     {
-        var section = new Section(this, id, title);
+        var section = new Section(this, id, title, module);
         int place = SectionOrder == null ? -1 : Array.IndexOf(SectionOrder, id);
         int before = place < 0 ? -1 : Sections.FindIndex(s => Array.IndexOf(SectionOrder!, s.Id) > place);
         if (before < 0) Sections.Add(section);

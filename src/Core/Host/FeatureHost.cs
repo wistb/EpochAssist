@@ -42,19 +42,36 @@ internal static partial class FeatureHost
         s_features.Clear();
         s_features.AddRange(order);
         s_orderProblems = problems;
-        FeatureSwitches.Declare(s_features);
-        foreach (var feature in s_features)
-        {
-            var target = feature;
-            Actions.Register("host", $"feature.restart.{feature.Id}", $"Restart {feature.Name}", () => Restart(target));
-            if (feature.CanTurnOff)
-                Actions.Register("host", $"feature.toggle.{feature.Id}", $"Turn {feature.Name} on or off", () => SetOn(target, !FeatureSwitches.IsOn(target), out _),
-                    () => FeatureSwitches.IsOn(target));
-        }
+        foreach (var feature in s_features) RegisterRestart(feature);
+        StartTogether(s_features);
+        // Other mods on our patch targets, or another autocaster: one toast per load. Nothing is turned off.
+        ModOverlap.CheckAfterStart();
+    }
+
+    /// <summary>Adds features after StartAll (modules chosen at the first-start prompt) and starts them now. The order is
+    /// sorted again over every feature; the ones already running keep running.</summary>
+    public static void Add(params Feature[] features)
+    {
+        Register(features);
+        var (order, problems) = UpdateOrder.Sort(s_features);
+        s_features.Clear();
+        s_features.AddRange(order);
+        s_orderProblems = problems;
+        foreach (var feature in features) RegisterRestart(feature);
+        StartTogether(features);
+    }
+
+    private static void RegisterRestart(Feature feature) =>
+        Actions.Register("host", $"feature.restart.{feature.Id}", $"Restart {feature.Name}", () => Restart(feature));
+
+    // Starts each in order; the unavailable ones share one toast at the end.
+    private static void StartTogether(IReadOnlyCollection<Feature> features)
+    {
+        var starting = features.ToHashSet();
         s_startingAll = true;
         try
         {
-            foreach (var feature in s_features) Start(feature);
+            foreach (var feature in s_features.Where(starting.Contains).ToList()) Start(feature);
         }
         finally
         {
@@ -66,8 +83,6 @@ internal static partial class FeatureHost
             Toasts.Show("host", $"{JoinNames(s_unavailable)} {verb} unavailable after a game update.", ToastKind.Warning);
             s_unavailable.Clear();
         }
-        // Other mods on our patch targets, or another autocaster: one toast per load. Nothing is turned off.
-        ModOverlap.CheckAfterStart();
     }
 
     public static void StopAll()
@@ -105,16 +120,6 @@ internal static partial class FeatureHost
                 Owned.Release(feature);
                 return;
             }
-            if (!FeatureSwitches.IsOn(feature))
-            {
-                feature.Record.State = FeatureState.Stopped;
-                feature.Record.TurnedOff = true;
-                feature.Record.BlockedBy = null;
-                feature.Record.LastError = "turned off";
-                Owned.Release(feature);
-                return;
-            }
-            feature.Record.TurnedOff = false;
             string? blocker = feature.Needs.FirstOrDefault(id => Find(id)?.State != FeatureState.Running);
             if (blocker != null)
             {
@@ -162,32 +167,6 @@ internal static partial class FeatureHost
         if (wasRunning) ShutdownQuietly(feature);
         Unpatch(feature);
         Owned.Release(feature);
-    }
-
-    /// <summary>Turns a whole feature on (and starts it) or off (and stops it), and stores the choice.</summary>
-    public static bool SetOn(Feature feature, bool on, out string reason)
-    {
-        if (FeatureSwitches.For(feature) is not { } toggle)
-        {
-            reason = $"{feature.Name} can't be turned off";
-            return false;
-        }
-        reason = string.Empty;
-        toggle.Value = on;
-        if (on)
-        {
-            Start(feature);
-        }
-        else
-        {
-            Stop(feature);
-            feature.Record.State = FeatureState.Stopped;
-            feature.Record.TurnedOff = true;
-            feature.Record.BlockedBy = null;
-            feature.Record.LastError = "turned off";
-        }
-        Log.Info($"{feature.Name} turned {(on ? "on" : "off")}");
-        return true;
     }
 
     public static void Restart(Feature feature)

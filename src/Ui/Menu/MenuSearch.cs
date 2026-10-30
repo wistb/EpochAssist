@@ -97,7 +97,7 @@ internal static class MenuSearch
                 if (!node.Leaf) index.Add(new Entry(new SearchHit(node, page, null), new[] { page.Page.Title }));
                 foreach (var row in Flatten(page.Rows))
                 {
-                    if (PageNode.SettingsOf(row).Any(s => s.Section.Group.Shared) || RowKinds.For(row) is not { } renderer) continue;
+                    if (PageNode.SettingsOf(row).Any(s => s.Section.Group.Shared || !SettingsRegistry.IsShown(s.Section)) || RowKinds.For(row) is not { } renderer) continue;
                     var texts = Safe.Call(() => renderer.Search(row).Where(t => !string.IsNullOrEmpty(t)).ToArray(), Array.Empty<string>(), row.Key + ".search");
                     if (texts.Length > 0) index.Add(new Entry(new SearchHit(node, page, row), texts));
                 }
@@ -118,7 +118,9 @@ internal static class MenuSearch
         if (q == s_query) return s_results;
         s_query = q;
         string[] words = MenuSearchText.Words(q);
-        s_results = words.Length == 0 ? new List<SearchHit>() : s_index.Where(e => e.Texts.Any(t => MenuSearchText.Matches(t, words))).Select(e => e.Hit).ToList();
+        // A row its page hides (a module's Mini HUD switch while the module isn't loaded) is no hit.
+        s_results = words.Length == 0 ? new List<SearchHit>()
+            : s_index.Where(e => e.Texts.Any(t => MenuSearchText.Matches(t, words)) && (e.Hit.Row == null || Safe.Visible(e.Hit.Row))).Select(e => e.Hit).ToList();
         return s_results;
     }
 
@@ -179,12 +181,12 @@ internal static class MenuSearch
         return s_sourceResults;
     }
 
-    /// <summary>A hit's path line: tab › folder › node › page, with (off) or (unavailable) for features in those states.</summary>
+    /// <summary>A hit's path line: tab › folder › node › page, with (unavailable) for a feature in that state.</summary>
     public static string PathLine(SearchHit hit)
     {
         string line = hit.Page != null && !hit.Node.Leaf ? $"{hit.Node.Crumb} › {hit.Page.Page.Title}" : hit.Node.Crumb;
         return hit.Node.Feature is { } feature ? line + StateNote(feature) : line;
     }
 
-    public static string StateNote(Feature feature) => feature.Record.TurnedOff ? " (off)" : feature.State == FeatureState.Unavailable ? " (unavailable)" : string.Empty;
+    public static string StateNote(Feature feature) => feature.State == FeatureState.Unavailable ? " (unavailable)" : string.Empty;
 }

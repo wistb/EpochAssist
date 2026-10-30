@@ -6,7 +6,7 @@ internal static class StashSettings
 {
     // Stored ids are a contract. Renaming or retyping one raises the version and adds a migration for it. Presets and the
     // per-stash choices are files, not settings, so profiles and share codes never carry them.
-    public static readonly SettingsGroup Group = new("EpochAssist_Stash", "Stash", version: 1) { ActionKey = "stash" };
+    public static readonly SettingsGroup Group = new("EpochAssist_Stash", "Stash", version: 1) { ActionKey = "stash", Module = "stash" };
 
     public static readonly Section Main = Group.Section("main", "Stash layouts");
     // On by default: the page only reads until a button that says what it sends is pressed.

@@ -45,15 +45,17 @@ internal static class SessionHud
     private static int s_version;
     private static readonly Dictionary<string, SessionCharts.Canvas> s_canvases = new();
 
-    // The current session's figures, or the sample's while the dashboard shows it (page images).
-    private static SessionStats? Stats => SessionSettings.HudShow.Value ? SessionsPage.Current.Stats() : null;
+    // The current session's figures, or the sample's while the dashboard shows it (page images); none while Sessions isn't
+    // loaded.
+    private static SessionStats? Stats => SessionSettings.HudShow.Value && Modules.Loaded("sessions") ? SessionsPage.Current.Stats() : null;
 
-    /// <summary>Whether there is anything to show: the switch is on and a session is recording.</summary>
+    /// <summary>Whether there is anything to show: Sessions is loaded, the switch is on and a session is recording.</summary>
     public static bool Shown
     {
         get
         {
-            if (Stats != null && Refresh()) return true;
+            // The figures are measured with the theme's styles, which a reload builds on its first drawn frame.
+            if (Theme.Built && Stats != null && Refresh()) return true;
             Release();
             return false;
         }

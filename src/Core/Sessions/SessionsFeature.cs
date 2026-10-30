@@ -4,8 +4,9 @@ using System.Text;
 namespace EpochAssist.Core;
 
 /// <summary>
-/// Session history (Sessions): records each character's play session from the bus and keeps it within its limits. Core,
-/// with its page in the Settings tab; the SessionHistory setting stops recording, the feature itself always runs.
+/// Session history (Sessions): records each character's play session from the bus and keeps it within its limits. A
+/// module, built only when chosen; its settings stay sections of the General group, and its pages (the Session tab and
+/// Config › Sessions) are the menu's own entries, shown while it is loaded. The SessionHistory setting stops recording.
 /// </summary>
 internal sealed class SessionsFeature : Feature
 {

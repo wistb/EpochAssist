@@ -5,7 +5,7 @@ namespace EpochAssist.Features;
 internal static class InteractSettings
 {
     // Stored ids are a contract. Renaming or retyping one raises the version and adds a migration for it.
-    public static readonly SettingsGroup Group = new("EpochAssist_Interact", "Proximity Interact", version: 1) { ActionKey = "interact" };
+    public static readonly SettingsGroup Group = new("EpochAssist_Interact", "Proximity Interact", version: 1) { ActionKey = "interact", Module = "interact" };
 
     public static readonly Section Main = Group.Section("main", "Proximity Interact");
     // Off until the player turns it on. The quick label offers it on the HUD panel.
