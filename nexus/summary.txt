@@ -1,1 +1,1 @@
-A collection of mods for Last Epoch. Macro suite, planner overlay, proximity interact, map reveal and more.
+A collection of mods for Last Epoch. Macro suite, planner overlay, stash presets, session stats, map mods and more.

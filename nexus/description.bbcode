@@ -1,5 +1,5 @@
 [center]{{image:logo}}
-[size=3]Macro suite, build planner overlay, map reveal, session tracking, and much more.[/size]
+[size=3]Macro suite, planner overlay, stash presets, session stats, map mods and more.[/size]
 [size=2][color=#8e96a4]Version {{version}} · a [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod · tested on Last Epoch {{game_version}}[/color][/size]
 
 [b][color=#ee5396]Using mods online is against Last Epoch's terms of service.[/color][/b]
@@ -43,6 +43,39 @@ Imported build marked across interfaces, with a built-in guide viewer.
 {{media:planner-filter}}
 {{media:planner-filter-rules}}
 [line]
+[size=5][b][color=#5ba8a4]Stash[/color][/b][/size]
+Create or use stash tab presets and easily apply them.
+[list]
+[*][b][color=#25be6a]Preset[/color][/b]: Epoch Assist layout: overflow, class idols and gear, idols by size, legendaries, exalted by slot, uniques by LP, sets, altars, corrupted; build uniques from Planner library.
+[*][b][color=#25be6a]Budget[/color][/b]: slider or typed amount; most useful tabs first; merged tabs stand in for groups until budget covers them all.
+[*][b][color=#25be6a]Own tabs[/color][/b]: Keep or Reuse each folder and tab; Fit items adds tabs for items already stored.
+[*][b][color=#25be6a]Apply[/color][/b]: one step at a time, or all after summary of changes and gold; step count known up front.
+[*][b][color=#25be6a]Items in wrong tab[/color][/b]: count per tab, outlines in stash window, target tab on hover. Items never moved.
+[*][b][color=#25be6a]Edit[/color][/b]: copy preset, drag folders and tabs, rename, recolour, remove with cost shown first, undo; save stash as preset.
+[/list]
+{{media:stash-page}}
+{{media:stash-apply}}
+[line]
+[size=5][b][color=#5ba8a4]Session[/color][/b][/size]
+Dashboard of each game session statistics.
+[list]
+[*][b][color=#25be6a]Focus[/color][/b]: chosen figures as tiles and charts: favour, reputation, memory amber, echoes, level, drops, XP, gold, deaths.
+[*][b][color=#25be6a]Live[/color][/b]: per-hour and last 10 minutes rates, time in and out of town, level progress, time to next level and faction rank.
+[*][b][color=#25be6a]Charts[/color][/b]: figure over session, timeline of zones, rare drops and deaths, drops by rarity, time by zone.
+[*][b][color=#25be6a]Tables[/color][/b]: factions with rank progress; echoes with clear time, gains, modifier, reward, corruption; deaths, monolith picks, loot filter drops.
+[*][b][color=#25be6a]Past sessions[/color][/b]: filter by character and range, per-hour trend, best marks, same dashboard per session; leave out of trends or delete.
+[*][b][color=#25be6a]New session[/color][/b]: ends session and starts next in place, for timed splits.
+[*][b][color=#25be6a]History[/color][/b]: kept in [font=Courier New]UserData/EpochAssist/sessions/[/font] within set limits, off in Config › Sessions › History; Export CSV writes two spreadsheet files. Nothing sent anywhere.
+[*][b][color=#25be6a]Mini HUD[/color][/b]: figures beside status pill as card, tiles or line in pill: session time, level, XP, gold, drops, echoes, favour, reputation, memory amber, deaths, each as total, per hour or both. Pace graphs, game colours, text and card size, labels on or off; hover for larger graph, three rates and breakdown.
+[*][b][color=#25be6a]Colours[/color][/b]: own colour per figure in Config › Sessions, game's by default; dashboard uses same.
+[/list]
+{{media:session-dashboard}}
+{{media:session-tables}}
+{{media:session-past}}
+{{media:session-hud}}
+{{media:session-hud-detail}}
+{{media:settings-session-hud}}
+[line]
 [size=5][b][color=#5ba8a4]Map Reveal[/color][/b][/size]
 Reveal entire map on overlay and minimap. Customize map appearance.
 [list]
@@ -66,25 +99,10 @@ Automatically interact with objects as they come into range.
 [/list]
 {{media:interact}}
 [line]
-[size=5][b][color=#5ba8a4]Session[/color][/b][/size]
-Dashboard of each play session and every past one on Session tab, in game colours.
-[list]
-[*][b][color=#25be6a]Focus[/color][/b]: chosen figures as tiles and charts: favour, reputation, memory amber, echoes, level, drops, XP, gold, deaths.
-[*][b][color=#25be6a]Live[/color][/b]: per-hour and last 10 minutes rates, time in and out of town, level progress, time to next level and faction rank.
-[*][b][color=#25be6a]Charts[/color][/b]: figure over session, timeline of zones, rare drops and deaths, drops by rarity, time by zone.
-[*][b][color=#25be6a]Tables[/color][/b]: factions with rank progress; echoes with clear time, gains, modifier, reward, corruption; deaths, monolith picks, loot filter drops.
-[*][b][color=#25be6a]Past sessions[/color][/b]: filter by character and range, per-hour trend, best marks, same dashboard per session; leave out of trends or delete.
-[*][b][color=#25be6a]New session[/color][/b]: ends session and starts next in place, for timed runs.
-[*][b][color=#25be6a]History[/color][/b]: kept in [font=Courier New]UserData/EpochAssist/sessions/[/font] within set limits, off under History; Export CSV writes two spreadsheet files. Nothing sent anywhere.
-[/list]
-{{media:session-dashboard}}
-{{media:session-tables}}
-{{media:session-past}}
-[line]
 [size=5][b][color=#5ba8a4]Config[/color][/b][/size]
 Highly configurable settings available via the Config tab. General options:
 [list]
-[*][b][color=#25be6a]Mini HUD[/color][/b]: macro state and slots while menu is closed; click for quick toggles. Notifications: own position, duration, count, kinds and order.
+[*][b][color=#25be6a]Mini HUD[/color][/b]: each feature's state and session figures while menu is closed, in order dragged to; click for quick toggles. Notifications: own position, duration, count, kinds and order.
 {{media:hud}}
 {{media:settings-hud}}
 [*][b][color=#25be6a]Appearance[/color][/b]: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts, animations. [b]Colour vision[/b]: rarity and danger colours kept apart for deuteranopia, protanopia, tritanopia in mod overlays.
