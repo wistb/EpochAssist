@@ -1716,6 +1716,8 @@ internal static partial class Planner
                 run.SkillTreeId = tree.treeID ?? string.Empty;
                 run.SkillWords = null;
             }
+            // The note's words follow the plan too (not in the build, or on the bar only).
+            if (run.SkillMarkedGuidance != guidance) run.SkillWords = null;
             run.SkillMarkedTree = tree.Pointer;
             run.SkillMarkedNodes = count;
             run.SkillMarkedGuidance = guidance;
@@ -1726,6 +1728,7 @@ internal static partial class Planner
             s_kept.Clear();
             var skill = SkillOf(guidance, run.SkillTreeId);
             bool notInBuild = skill != null && (skill.Tree.Flags & TreeFlags.SkillNotInBuild) != 0;
+            var shownStage = run.Build?.Stages[run.Stage];
             PlannerMark? next = null;
             // A skill the build doesn't use gets only the note unless its nodes are asked for: all of its tree is off the plan.
             if (skill != null && (!notInBuild || look.SkillOffPlan))
@@ -1742,18 +1745,21 @@ internal static partial class Planner
             }
             Marks.PulseOn(next);
             // The row of five above the tree, each slot in its state, as on the Skills & Specializations page.
-            MarkSlots(guidance, look, pass);
+            if (shownStage != null) MarkSlots(guidance, shownStage, look, pass);
             // Under the skill's name at the top left, clear of the specialisation slots; the tree's top edge when the name is gone.
             if (notInBuild)
             {
-                // The tree's centre node in the not-in-build colour; its slot above is already marked so.
+                // The tree's centre node in its slot's colour (not in the build, or partial for a skill the build has on
+                // the bar but doesn't specialise).
+                var state = shownStage != null ? SpecialisedState(skill!, shownStage) : GuidanceState.NotInBuild;
                 var root = tree.getNode(0);
-                if (Game.Alive(root)) MarkNode(root!.transform, new NodeGuide(GuidanceState.NotInBuild, 0, 0, 0, 0), look, pass);
+                if (Game.Alive(root)) MarkNode(root!.transform, new NodeGuide(state, 0, 0, 0, 0), look, pass);
                 // Under the skill level block ("Level n", its bar and "Minimum Specialized Level"), below the title.
                 Component? name = Game.Alive(page) ? page!.SkillLevel : null;
+                var colour = look.Of(state);
                 Keep(Game.Alive(name)
-                    ? Marks.Note(name!.transform, look.OffPlan, SkillWords(run, skill!), left: true, drop: SkillNoteDrop)
-                    : Marks.Note(tree.transform, look.OffPlan, SkillWords(run, skill!), top: true), pass);
+                    ? Marks.Note(name!.transform, colour, SkillWords(run, skill!, state), left: true, drop: SkillNoteDrop)
+                    : Marks.Note(tree.transform, colour, SkillWords(run, skill!, state), top: true), pass);
             }
             foreach (var mark in run.SkillMarks)
                 if (mark.Pass != pass) Drop(run, mark, run.SkillMarks);
@@ -1859,12 +1865,12 @@ internal static partial class Planner
         MarkPageIcon(page.masteryAbilityPanelIcon1, guidance, stage, allocation, look, pass);
         MarkPageIcon(page.masteryAbilityPanelIcon2, guidance, stage, allocation, look, pass);
         MarkPageIcon(page.masteryAbilityPanelIcon3, guidance, stage, allocation, look, pass);
-        MarkSlots(guidance, look, pass);
+        MarkSlots(guidance, stage, look, pass);
     }
 
-    // The five specialisation slots, each by the skill in it: in its planned slot, in another, or not in the build; an
-    // empty slot is to place while a planned skill is still to specialise. Searched only when the panel is (re)marked.
-    private static void MarkSlots(Guidance guidance, in MarkLook look, int pass)
+    // The five specialisation slots, each by the skill in it: in its planned slot with its tree complete, in another or
+    // still being taken, or not in the build; an empty slot is to place while a planned skill is still to specialise. Searched only when the panel is (re)marked.
+    private static void MarkSlots(Guidance guidance, Stage stage, in MarkLook look, int pass)
     {
         foreach (var obj in UnityEngine.Object.FindObjectsOfType(Il2CppType.Of<SpecialisedAbilityIcon>(), false))
         {
@@ -1874,9 +1880,7 @@ internal static partial class Planner
             GuidanceState? state = null;
             if (!string.IsNullOrEmpty(id))
             {
-                if (SkillOf(guidance, id) is { } skill)
-                    state = skill.State == GuidanceState.NotInBuild ? GuidanceState.NotInBuild
-                        : skill.PlannedSlot == skill.Slot ? GuidanceState.Matches : GuidanceState.Partial;
+                if (SkillOf(guidance, id) is { } skill) state = SpecialisedState(skill, stage);
             }
             else
             {
@@ -1905,8 +1909,8 @@ internal static partial class Planner
         if (string.IsNullOrEmpty(abilityId)) return null;
         if (SkillOf(guidance, abilityId) is { } skill)
         {
-            if (skill.State == GuidanceState.NotInBuild) return GuidanceState.NotInBuild;
-            return skill.Slot < 0 ? GuidanceState.ToPlace : skill.Slot == skill.PlannedSlot ? GuidanceState.Matches : GuidanceState.Partial;
+            if (skill.State == GuidanceState.NotInBuild) return SpecialisedState(skill, stage);
+            return skill.Slot < 0 ? GuidanceState.ToPlace : SpecialisedState(skill, stage);
         }
         int planned = Array.IndexOf(stage.Bar, abilityId), have = Array.IndexOf(allocation.Bar, abilityId);
         if (planned >= 0) return have == planned ? GuidanceState.Matches : have >= 0 ? GuidanceState.Partial : GuidanceState.ToPlace;
@@ -1923,6 +1927,16 @@ internal static partial class Planner
         run.ChoiceKey = int.MinValue;
         run.ChoiceMarkedGuidance = null;
     }
+
+    // A specialised skill: matching only in its planned slot with its tree complete (every planned node, nothing off
+    // plan); partial in another slot, with nodes still to take, or when the build has it on the bar but doesn't
+    // specialise it (it takes a slot another planned skill needs); not in the build otherwise.
+    private static GuidanceState SpecialisedState(SkillGuide skill, Stage stage) => skill.State == GuidanceState.NotInBuild
+        ? (OnPlannedBar(skill, stage) ? GuidanceState.Partial : GuidanceState.NotInBuild)
+        : skill.PlannedSlot == skill.Slot && skill.State == GuidanceState.Matches ? GuidanceState.Matches : GuidanceState.Partial;
+
+    // A skill the stage puts on the bar.
+    private static bool OnPlannedBar(SkillGuide skill, Stage stage) => Array.IndexOf(stage.Bar, skill.AbilityId) >= 0;
 
     // The guidance for a skill, planned or specialised; null for one that is neither.
     private static SkillGuide? SkillOf(Guidance guidance, string? abilityId)
@@ -1947,8 +1961,8 @@ internal static partial class Planner
     }
 
     // The "not in this build" words for the open tree, made once per tree.
-    private static string SkillWords(Run run, SkillGuide skill) =>
-        run.SkillWords ??= Words.SkillNotInBuild(SkillName(run.Feature, skill));
+    private static string SkillWords(Run run, SkillGuide skill, GuidanceState state) =>
+        run.SkillWords ??= state == GuidanceState.Partial ? Words.SkillNotSpecialised(SkillName(run.Feature, skill)) : Words.SkillNotInBuild(SkillName(run.Feature, skill));
 
     // Ability names only change with a game update.
     private static readonly Dictionary<string, string> s_skillNames = new();

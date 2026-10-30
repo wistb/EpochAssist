@@ -105,10 +105,16 @@ internal static partial class Planner
                 }
                 if (SkillOf(guidance, hint.AbilityId) is not { } skill) return null;
                 string name = SkillName(run.Feature, skill);
-                if (skill.State == GuidanceState.NotInBuild) return (title, Said(GuidanceState.NotInBuild, $"{name}."), GuidanceState.NotInBuild);
+                if (skill.State == GuidanceState.NotInBuild)
+                {
+                    if (SpecialisedState(skill, stage) != GuidanceState.Partial) return (title, Said(GuidanceState.NotInBuild, $"{name}."), GuidanceState.NotInBuild);
+                    var wanted = guidance.Skills.Where(s => s.State != GuidanceState.NotInBuild && s.Slot < 0).Select(s => SkillName(run.Feature, s)).ToList();
+                    string forOther = wanted.Count > 0 ? $" The slot is for {string.Join(" or ", wanted)}." : string.Empty;
+                    return (title, Said(GuidanceState.Partial, $"{name} is on the bar in this build, not specialised.{forOther}"), GuidanceState.Partial);
+                }
                 string tree = TreeWords(run, stage, skill.AbilityId);
                 return skill.PlannedSlot == skill.Slot
-                    ? (title, Said(GuidanceState.Matches, $"{name}.{tree}"), GuidanceState.Matches)
+                    ? (title, Said(SpecialisedState(skill, stage), $"{name}.{tree}"), SpecialisedState(skill, stage))
                     : (title, Said(GuidanceState.Partial, $"{name} goes in slot {skill.PlannedSlot + 1}.{tree}"), GuidanceState.Partial);
             }
             case HintKind.PageIcon when !string.IsNullOrEmpty(hint.AbilityId):
@@ -152,11 +158,17 @@ internal static partial class Planner
         int onBar = Array.IndexOf(have, id);
         if (SkillOf(guidance, id) is { } skill)
         {
-            if (skill.State == GuidanceState.NotInBuild) return ($"Specialised in slot {skill.Slot + 1}.", GuidanceState.NotInBuild);
+            if (skill.State == GuidanceState.NotInBuild)
+            {
+                int bar = Array.IndexOf(stage.Bar, id);
+                return bar >= 0
+                    ? ($"Bar slot {bar + 1}{(onBar >= 0 && onBar != bar ? $" (now in {onBar + 1})" : string.Empty)}; not specialised in this build (now in specialisation slot {skill.Slot + 1}).", GuidanceState.Partial)
+                    : ($"Specialised in slot {skill.Slot + 1}.", GuidanceState.NotInBuild);
+            }
             string tree = TreeWords(run, stage, id);
             if (skill.Slot < 0) return ($"Specialisation slot {skill.PlannedSlot + 1}.{tree}", GuidanceState.ToPlace);
             return skill.Slot == skill.PlannedSlot
-                ? ($"Specialisation slot {skill.Slot + 1}.{tree}", GuidanceState.Matches)
+                ? ($"Specialisation slot {skill.Slot + 1}.{tree}", SpecialisedState(skill, stage))
                 : ($"Specialisation slot {skill.PlannedSlot + 1} (now in {skill.Slot + 1}).{tree}", GuidanceState.Partial);
         }
         int planned = Array.IndexOf(stage.Bar, id);

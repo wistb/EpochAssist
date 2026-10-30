@@ -83,6 +83,7 @@ internal static partial class Planner
         public static string DifferentMastery(string mastery) => $"This build uses {mastery}; this character's mastery points show as not in build.";
 
         public static string SkillNotInBuild(string skill) => $"{skill} isn't in this build.";
+        public static string SkillNotSpecialised(string skill) => $"{skill} is on the bar in this build, not specialised.";
 
         public static string NoOrder(string site) => $"{site} gives no order for this tree; next steps aren't shown.";
 
