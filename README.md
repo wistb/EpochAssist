@@ -129,6 +129,8 @@ Macro suite, build planner overlay, map reveal, session tracking, and much more.
 
 Highly configurable settings available via the Config tab. General options:
 
+- **Modules**: Macros, Planner, Stash, Interact, Map Reveal and Sessions each load only when selected. Selection
+  applies at next start; unloaded modules show nowhere, patch nothing, cost no frame time and keep their settings.
 - **Mini HUD**: each feature's state and session figures while menu is closed, in order dragged to; click for quick
   toggles. Notifications: own position, duration, count, kinds and order.
   <details><summary>Screenshots</summary>
@@ -145,8 +147,8 @@ Highly configurable settings available via the Config tab. General options:
   ![Config: Appearance](nexus/media/appearance.png)
 
   </details>
-- **Diagnostics**: **Copy diagnostics** copies mod state for bug reports, without names or paths. **Mods** lists
-  other loaded mods and shared patch targets. Nothing sent anywhere.
+- **Diagnostics**: **Features** lists each part and module with its state. **Copy diagnostics** copies mod state for
+  bug reports, without names or paths. **Mods** lists other loaded mods and shared patch targets. Nothing sent anywhere.
   <details><summary>Screenshot</summary>
 
   ![Config: Diagnostics](nexus/media/diagnostics.png)
@@ -165,7 +167,7 @@ Highly configurable settings available via the Config tab. General options:
    once.
 2. Extract [release](https://github.com/wistb/EpochAssist/releases) zip into Last Epoch folder (next to
    `Last Epoch.exe`).
-3. In game, **F2** opens menu.
+3. In game, **F2** opens menu; first open in a character asks which modules to load.
 
 All data saved in `UserData/EpochAssist/` in game folder.
 
