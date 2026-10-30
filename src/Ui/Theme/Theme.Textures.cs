@@ -133,8 +133,8 @@ internal static partial class Theme
         return texture;
     }
 
-    private static Texture2D? s_logo;
-    private static string? s_logoSize;
+    private static Texture2D? s_logo, s_bigLogo;
+    private static string? s_logoSize, s_bigLogoSize;
     private static bool s_logoFailed;
 
     /// <summary>The wordmark for the top bar at the current UI scale, or null (the bar shows the name as text).</summary>
@@ -142,33 +142,37 @@ internal static partial class Theme
     {
         get
         {
-            if (s_skin != null && s_logoSize != LogoSize) LoadLogo();
+            if (s_skin != null && s_logoSize != LogoSize(1f)) s_logo = LoadLogo(s_logo, s_logoSize = LogoSize(1f));
             return Game.Alive(s_logo) ? s_logo : null;
         }
     }
 
-    private static string LogoSize
+    /// <summary>The wordmark at twice the top bar's size (the About page's header), or null.</summary>
+    public static Texture2D? BigLogo
     {
         get
         {
-            float scale = LookSettings.UiScale.Value;
-            // The next size up, drawn smaller: a smaller image stretched to fit blurs.
-            return scale <= 1f ? "1x" : scale <= 1.5f ? "1.5x" : scale <= 2f ? "2x" : "4x";
+            if (s_skin != null && s_bigLogoSize != LogoSize(2f)) s_bigLogo = LoadLogo(s_bigLogo, s_bigLogoSize = LogoSize(2f));
+            return Game.Alive(s_bigLogo) ? s_bigLogo : null;
         }
     }
 
-    // Picked by UI scale so it stays sharp; made with the skin and freed with it.
-    private static void LoadLogo()
+    private static string LogoSize(float size)
     {
-        string size = LogoSize;
-        s_logoSize = size;
-        if (s_logo != null)
+        float scale = LookSettings.UiScale.Value * size;
+        // The next size up, drawn smaller: a smaller image stretched to fit blurs.
+        return scale <= 1f ? "1x" : scale <= 1.5f ? "1.5x" : scale <= 2f ? "2x" : "4x";
+    }
+
+    // Picked by UI scale so it stays sharp; made with the skin and freed with it. Replaces the old one.
+    private static Texture2D? LoadLogo(Texture2D? old, string size)
+    {
+        if (old != null)
         {
-            s_textures.Remove(s_logo);
-            UnityEngine.Object.Destroy(s_logo);
-            s_logo = null;
+            s_textures.Remove(old);
+            UnityEngine.Object.Destroy(old);
         }
-        if (s_logoFailed) return;
+        if (s_logoFailed) return null;
         try
         {
             using var stream = typeof(Theme).Assembly.GetManifestResourceStream($"EpochAssist.Logo.logo-wordmark@{size}.png")
@@ -178,13 +182,13 @@ internal static partial class Theme
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
             s_textures.Add(texture);
             if (!ImageConversion.LoadImage(texture, new Il2CppStructArray<byte>(bytes.ToArray()), true)) throw new InvalidOperationException("the image couldn't be read");
-            s_logo = texture;
+            return texture;
         }
         catch (Exception e)
         {
             s_logoFailed = true;
-            s_logo = null;
             Log.Warn($"Menu logo unavailable, showing the name instead: {e.Message}");
+            return null;
         }
     }
 }

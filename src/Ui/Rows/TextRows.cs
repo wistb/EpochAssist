@@ -174,9 +174,14 @@ internal static class TextRows
 
         protected override void Draw(LiveText row, Rect rect, RowContext ctx)
         {
-            if (Event.current.type != EventType.Repaint) return;
             var (text, state) = Safe.Call(row.Value, (string.Empty, (StatusState?)null), row.Key);
             var parts = RowLayout.Lay(rect, rect.width - RowLayout.LabelWidth(rect.width) - RowLayout.Gap, null);
+            if (row.OnClick != null)
+            {
+                Link(row, text, parts);
+                return;
+            }
+            if (Event.current.type != EventType.Repaint) return;
             Color color = state is { } s ? Theme.StateColor(s) : Theme.Text;
             float x = parts.Label.x;
             if (state is { } shape && Widgets.Themed)
@@ -186,6 +191,25 @@ internal static class TextRows
             }
             Widgets.Paint(new Rect(x, parts.Label.y, parts.Label.xMax - x, parts.Label.height), row.Label, Widgets.Style(() => Theme.Label, GUI.skin.label));
             Widgets.Paint(parts.Control, Widgets.Themed ? Widgets.Colored(text, state != null ? Theme.LightText(color) : color) : text, Widgets.Style(() => Theme.Label, GUI.skin.label));
+        }
+
+        // Links are blue whatever the theme (Carbonfox's light blue; rich text draws it darker), so they read as links beside accent-coloured values.
+        private static readonly Color LinkColor = new(0.51f, 0.812f, 1f);
+
+        // A linked value: its own width takes the click, so the empty space after it stays plain.
+        private static void Link(LiveText row, string text, RowLayout.Parts parts)
+        {
+            GUIStyle style = Widgets.Style(() => Theme.Label, GUI.skin.label);
+            var hit = new Rect(parts.Control.x, parts.Control.y, Mathf.Min(parts.Control.width, TextCache.Width(text, style)), parts.Control.height);
+            bool clicked = GUI.Button(hit, GUIContent.none, GUIStyle.none);
+            if (Event.current.type == EventType.Repaint)
+            {
+                Widgets.Paint(parts.Label, row.Label, style);
+                bool hover = hit.Contains(Event.current.mousePosition);
+                Widgets.Paint(parts.Control, Widgets.Themed ? Widgets.Colored(text, hover ? Theme.LightText(LinkColor) : LinkColor) : text, style);
+            }
+            Popups.Tip(hit, row.Tip, row.Key);
+            if (Focus.Item(row.Key, hit) || clicked) Safe.Run(row.OnClick!, row.Key);
         }
 
         protected override IEnumerable<string> Search(LiveText row) => new[] { row.Label };

@@ -19,6 +19,7 @@ internal sealed class MenuFeature : Feature
         SessionsPage.Register();
         SessionsPast.Register();
         RolePreview.Register();
+        AboutPage.Register();
         ConsolePage.Register();
         MenuTree.Invalidate();
 

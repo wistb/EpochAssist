@@ -287,7 +287,8 @@ internal static partial class Theme
         Draw.LabelStyle = worldLabel;
 
         BuildMenu(skin, v);
-        LoadLogo();
+        s_logo = LoadLogo(s_logo, s_logoSize = LogoSize(1f));
+        s_bigLogo = LoadLogo(s_bigLogo, s_bigLogoSize = LogoSize(2f));
         s_skin = skin;
     }
 
@@ -318,8 +319,8 @@ internal static partial class Theme
             if (texture != null) UnityEngine.Object.Destroy(texture);
         }
         s_textures.Clear();
-        s_logo = null;
-        s_logoSize = null;
+        s_logo = s_bigLogo = null;
+        s_logoSize = s_bigLogoSize = null;
         if (s_skin != null) UnityEngine.Object.Destroy(s_skin);
         s_skin = null;
         s_failed = false;

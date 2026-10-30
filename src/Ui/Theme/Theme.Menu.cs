@@ -26,7 +26,7 @@ internal static partial class Theme
     public static GUIStyle TreeRow = null!, TreeNode = null!, TreeNumber = null!, TreeFilter = null!;
     public static GUIStyle Label = null!, FieldText = null!, FieldDim = null!, FieldHint = null!, Heading = null!, BannerText = null!, KeyText = null!;
     public static GUIStyle ButtonText = null!, PrimaryText = null!, DangerText = null!, OptionText = null!, OptionLit = null!, OptionHeading = null!, Tooltip = null!;
-    public static GUIStyle FooterLabel = null!, FooterHint = null!, LiveValue = null!, Glyph = null!;
+    public static GUIStyle FooterLabel = null!, FooterHint = null!, FooterLink = null!, FooterLinkLit = null!, LiveValue = null!, Glyph = null!;
     // Fills drawn by the menu: flat, so they meet the window's own edge cleanly.
     public static Texture2D Flat = null!, FieldBg = null!, FieldOpen = null!, InputBox = null!, InputFocus = null!, PopupBg = null!;
     public static Texture2D ButtonBg = null!, ButtonHover = null!, PrimaryBg = null!, PrimaryHover = null!, DangerBg = null!, DangerHover = null!, HighlightBg = null!, SelectionBg = null!, HoverBg = null!;
@@ -106,6 +106,10 @@ internal static partial class Theme
         TextColor(FooterLabel, v.Secondary);
         FooterHint = new GUIStyle(Label) { fontSize = v.FontCaption, fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleRight };
         TextColor(FooterHint, v.Dim);
+        // The footer's About, Feedback and Report a bug: as quiet as the hint, lit on hover.
+        FooterLink = new GUIStyle(FooterHint) { alignment = TextAnchor.MiddleLeft };
+        FooterLinkLit = new GUIStyle(FooterLink);
+        TextColor(FooterLinkLit, v.Secondary);
         LiveValue = new GUIStyle(Label) { alignment = TextAnchor.MiddleRight };
         Glyph = new GUIStyle(skin.label) { fontSize = v.FontBody + 1, fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleCenter, padding = Offset(0) };
         TextColor(Glyph, v.Secondary);

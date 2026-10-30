@@ -2,7 +2,7 @@ using EpochAssist.Core;
 
 namespace EpochAssist.Ui;
 
-// The menu's own entries, declared like a feature's: Config › General (Profiles, Keybinds, Mini HUD and Appearance),
+// The menu's own entries, declared like a feature's: Config › General (Profiles, Keybinds, Mini HUD, Appearance and About),
 // Config › Sessions (figure colours, the mini HUD figures, history and export), Config › Diagnostics and the Session tab
 // (current and past sessions). Section ids, order and stored values are the General group's, unchanged.
 internal static class SettingsContent
@@ -27,6 +27,7 @@ internal static class SettingsContent
                 Keybinds(),
                 MiniHud(),
                 Appearance(),
+                AboutPage.Page(),
             },
         },
         new MenuEntry(MenuCategory.Sessions, order: 0)

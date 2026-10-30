@@ -125,6 +125,9 @@ internal sealed class LiveText : MenuRow
 
     public string Label { get; }
     public Func<(string Text, StatusState? State)> Value { get; }
+    /// <summary>Makes the value a link: drawn in blue, lighter on hover, run on click.</summary>
+    public Action? OnClick { get; init; }
+    public string? Tip { get; init; }
     protected override string DefaultKey => "live." + MenuEntry.Slug(Label);
 }
 

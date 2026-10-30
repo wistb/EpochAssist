@@ -15,6 +15,7 @@ internal static class MenuRoutes
     public const string Console = Diagnostics + "/console";
     public const string Overview = Diagnostics + "/overview";
     public const string Profiles = General + "/profiles";
+    public const string About = General + "/about";
 
     // The old Settings tabs, by index: Mini HUD, Appearance, Keybinds, Diagnostics › Overview, Profiles.
     private static readonly string[] s_settingsTabs = { MiniHud, General + "/appearance", General + "/keybinds", Overview, Profiles };
@@ -26,6 +27,9 @@ internal static class MenuRoutes
 
     /// <summary>Raised when the page changes, for the page's fade and scroll.</summary>
     public static int Changes { get; private set; }
+
+    /// <summary>The page shown before the current one, for About's Back; null at first.</summary>
+    public static string? Previous { get; private set; }
 
     /// <summary>The page shown: the chosen one while it exists, otherwise the first.</summary>
     public static PageNode? Page
@@ -42,6 +46,7 @@ internal static class MenuRoutes
     public static void Reset()
     {
         s_path = string.Empty;
+        Previous = null;
         s_lastByNode.Clear();
         s_lastByTab.Clear();
         s_lastSettings = null;
@@ -50,7 +55,11 @@ internal static class MenuRoutes
     /// <summary>Shows a page (exact path).</summary>
     public static void Show(PageNode page)
     {
-        if (page.Path != s_path) Changes++;
+        if (page.Path != s_path)
+        {
+            Changes++;
+            if (s_path.Length > 0) Previous = s_path;
+        }
         s_path = page.Path;
         s_lastByNode[page.Node.Path] = page.Path;
         s_lastByTab[page.Node.Tab.Id] = page.Path;
