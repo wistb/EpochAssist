@@ -18,7 +18,7 @@ public static class BuildInfo
     public const string Author = "Crash";
     public const string Version = "0.1.0";
     /// <summary>The game version this build was tested against; the release script sets it, empty until then.</summary>
-    public const string TestedGameVersion = "";
+    public const string TestedGameVersion = "1.5.3";
 }
 
 /// <summary>

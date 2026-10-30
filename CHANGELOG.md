@@ -2,7 +2,9 @@
 
 Generated from the commit history by `tools/release.sh`
 
-## 0.1.0
+## 0.1.0 - 2026-10-30
+
+Tested on Last Epoch 1.5.3.
 
 First public release.
 
