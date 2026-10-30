@@ -113,6 +113,7 @@ internal static partial class DevCommands
         Add("events", EventCommands.EventsUsage, "Lists the last events on the bus, or the subscriptions and producers.", EventCommands.Events);
         Add("map", MapCommands.Usage, "Shows the minimap's zone map and reveal values, lists the game's map icons, reads the explored-volume record, or applies one reveal step.", MapCommands.Run);
         Add("planner", PlannerCommands.Usage, "Reads the character's trees and the open tree and skill panels, logs when they change, imports and checks the planner fixtures, or pastes a planner link through the import's one request.", PlannerCommands.Run);
+        Add("stash", StashCommands.Usage, "Reads the stash's folders and tabs (names, icons, colours, order, rules, items) and the tab prices; reads only.", StashCommands.Run);
         Add("interact", InteractCommands.Usage, "Lists what the game offers to use near the player, logs the game's own click path, or uses the nearest of a kind from in range (offline).", InteractCommands.Run);
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
         Add("gate", "gate", "Shows the enemy gate: open, enemies and weight in range, and the shared slot target's pick.", _ => Gate());
