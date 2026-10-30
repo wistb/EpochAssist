@@ -710,6 +710,24 @@ internal static partial class Planner
                 // A taken weaver node shows its frame as "BorderActive" inside "Border", under the bright frame drawn after
                 // it: the copy lines up with "Border" so it goes above that.
                 if (source.parent is { } nested && nested.name == BorderName && nested.TryCast<RectTransform>() is { } outer) source = outer;
+                // A specialisation slot's level diamond and its number are children of its "border": the copy goes inside
+                // the border, before them, so it tints the frame without covering the level.
+                if (source.name == SlotBorderName && source.childCount > 0 && source.gameObject.activeInHierarchy)
+                {
+                    rect.SetParent(source, false);
+                    rect.anchorMin = Vector2.zero;
+                    rect.anchorMax = Vector2.one;
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.offsetMin = rect.offsetMax = Vector2.zero;
+                    var innerScale = Vector3.one * FrameFit(parent, source);
+                    rect.localScale = innerScale;
+                    ring.sprite = WhiteFrame(border.sprite!) ?? border.sprite;
+                    ring.type = border.type == Image.Type.Sliced ? Image.Type.Sliced : Image.Type.Simple;
+                    ring.pixelsPerUnitMultiplier = border.pixelsPerUnitMultiplier;
+                    ring.preserveAspect = border.preserveAspect;
+                    rect.SetAsFirstSibling();
+                    return new PlannerMark { Object = go, Ring = ring, Colour = colour, BaseScale = innerScale, Parent = parent.Pointer, Node = parent };
+                }
                 rect.SetParent(source.parent, false);
                 rect.anchorMin = source.anchorMin;
                 rect.anchorMax = source.anchorMax;
