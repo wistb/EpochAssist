@@ -94,6 +94,9 @@ internal static class SessionsPage
 
     public static void Register()
     {
+        // The colour settings' default swatch: the figure's game colour as figures show it (brightened for dark cards),
+        // for the current session when there is one.
+        SessionSettings.GameColour = key => Readable(GameColour(key, Current.Stats()));
         MenuBlocks.Register(TimeBlock, (rect, d) => DrawTime(rect, (SessionDashboard)d!), d => TimeBridge((SessionDashboard)d!), (_, _) => TimeHeight);
         MenuBlocks.Register(FocusBlock, (rect, _) => DrawFocus(rect), _ => FocusBridge(), (_, width) => FocusHeight(width));
         MenuBlocks.Register(TilesBlock, (rect, d) => DrawTiles(rect, (SessionDashboard)d!), d => TilesBridge((SessionDashboard)d!), (d, width) => TilesHeight((SessionDashboard)d!, width));
@@ -343,7 +346,7 @@ internal static class SessionsPage
 
     // ---- Tile details ----
 
-    private static (long Gained, long Spent) Favour(SessionStats s)
+    internal static (long Gained, long Spent) Favour(SessionStats s)
     {
         long gained = 0, spent = 0;
         foreach (var f in s.Factions)
@@ -355,7 +358,7 @@ internal static class SessionsPage
         return (gained, spent);
     }
 
-    private static FactionFigures? Amber(SessionStats s) => s.Factions.FirstOrDefault(f => f.IsAmber);
+    internal static FactionFigures? Amber(SessionStats s) => s.Factions.FirstOrDefault(f => f.IsAmber);
 
     private static string FavourDetail(SessionStats s, bool live)
     {
@@ -466,7 +469,11 @@ internal static class SessionsPage
     /// corruption from their roles, drops in the magic item blue, deaths in the high danger red, echoes in the echo
     /// zone colour. Roles, so the Colour vision palettes reach them.
     /// </summary>
-    internal static Color MetricColour(string key, SessionStats? s = null) => key switch
+    internal static Color MetricColour(string key, SessionStats? s = null) =>
+        SessionSettings.ColourOf(key) is { } chosen && chosen.TryGetColor(out Color colour) ? colour : GameColour(key, s);
+
+    /// <summary>A figure's colour as the game draws it, before any colour set on Config › Sessions › Colours.</summary>
+    internal static Color GameColour(string key, SessionStats? s = null) => key switch
     {
         "favour" => s != null && TopFaction(s, f => f.FavourGained) is { } favour ? SessionStats.FavourColour(favour.Faction) ?? Theme.Accent : Theme.Accent,
         "rep" => s != null && TopFaction(s, f => f.ReputationGained) is { } rep ? SessionStats.ReputationColour(rep.Faction) ?? Theme.Accent : Theme.Accent,

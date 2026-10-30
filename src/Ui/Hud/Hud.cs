@@ -24,6 +24,7 @@ internal static class Hud
     // Screen-space areas from the last repaint, for blocking game clicks under the cursor.
     private static Rect s_pillScreen;
     private static Rect s_panelScreen;
+    private static Rect s_statsScreen;
 
     /// <summary>Pill and open panel together, in screen pixels; empty when hidden.</summary>
     public static Rect ScreenRect
@@ -31,9 +32,10 @@ internal static class Hud
         get
         {
             if (s_pillScreen.width <= 0f) return Rect.zero;
-            if (s_panelScreen.width <= 0f) return s_pillScreen;
-            return Rect.MinMaxRect(Mathf.Min(s_pillScreen.xMin, s_panelScreen.xMin), Mathf.Min(s_pillScreen.yMin, s_panelScreen.yMin),
-                Mathf.Max(s_pillScreen.xMax, s_panelScreen.xMax), Mathf.Max(s_pillScreen.yMax, s_panelScreen.yMax));
+            Rect all = s_pillScreen;
+            foreach (var r in new[] { s_panelScreen, s_statsScreen })
+                if (r.width > 0f) all = Rect.MinMaxRect(Mathf.Min(all.xMin, r.xMin), Mathf.Min(all.yMin, r.yMin), Mathf.Max(all.xMax, r.xMax), Mathf.Max(all.yMax, r.yMax));
+            return all;
         }
     }
 
@@ -43,13 +45,14 @@ internal static class Hud
 
     /// <summary>Whether a screen point (top-left origin) is on the pill or the open panel; InputGate blocks clicks there.</summary>
     public static bool HitTest(Vector2 screenPoint) =>
-        Shown && (s_pillScreen.Contains(screenPoint) || (s_panelOpen && s_panelScreen.Contains(screenPoint)));
+        Shown && (s_pillScreen.Contains(screenPoint) || (s_panelOpen && s_panelScreen.Contains(screenPoint)) || s_statsScreen.Contains(screenPoint));
 
     private static IEnumerable<Feature> StatusFeatures => FeatureHost.All.Where(f => f.StatusName != null && HudSettings.ShowsSection(f.Id));
 
-    // A feature that isn't running keeps its section, greyed; with no section at all (or all switched off) there is no pill.
-    // It stays up while the menu is open, as a preview that takes no clicks, so a hint can show beside it while settings change.
-    private static bool Shown => HudSettings.HudEnabled.Value && Player.Exists && StatusFeatures.Any();
+    // A feature that isn't running keeps its section, greyed; with no section at all (or all switched off) and no session
+    // figures there is no pill. It stays up while the menu is open, as a preview that takes no clicks, so a hint can show
+    // beside it while settings change.
+    private static bool Shown => HudSettings.HudEnabled.Value && Player.Exists && (StatusFeatures.Any() || SessionHud.Shown);
 
     public static void OnUpdate()
     {
@@ -60,7 +63,7 @@ internal static class Hud
     {
         if (!Shown)
         {
-            s_pillScreen = s_panelScreen = Rect.zero;
+            s_pillScreen = s_panelScreen = s_statsScreen = Rect.zero;
             return;
         }
 
@@ -84,63 +87,103 @@ internal static class Hud
         }
     }
 
-    // One section of the pill: where it sits relative to the pill, and what it shows.
-    private readonly record struct PillSection(Feature Feature, FeatureStatus Status, bool Running, GUIContent Label, float LabelWidth, Vector2 At);
+    // One section of the pill: where it sits relative to the pill, and what it shows. The session figures' section (In the
+    // pill look) has no feature.
+    private readonly record struct PillSection(Feature? Feature, FeatureStatus Status, bool Running, GUIContent Label, float LabelWidth, Vector2 At);
 
     private static void Draw(float scale)
     {
         float screenW = Screen.width / scale, screenH = Screen.height / scale;
         ScreenSpot spot = HudSettings.HudSpot;
 
-        var sections = Layout(screenW - Margin * 2f, out Vector2 size);
-        var pill = Offset(spot.Place(size, screenW, screenH, Margin), screenW, screenH);
+        bool stats = SessionHud.Shown;
+        var sections = Layout(screenW - Margin * 2f, stats && SessionHud.Inline, out Vector2 size);
+        bool pillShown = sections.Count > 0;
+        Vector2 statsSize = stats && !SessionHud.Inline ? SessionHud.Size(screenW - Margin * 2f) : Vector2.zero;
+        // The card or tiles and the pill are sections too: the first in the player's order sits at the HUD's place, the
+        // other next to it, lined up with its side (or centre) and away from the screen edge.
+        bool statsFirst = statsSize.x > 0f && (!pillShown || StatsFirst());
+        Vector2 firstSize = statsFirst ? statsSize : size;
+        var first = Offset(spot.Place(firstSize, screenW, screenH, Margin), screenW, screenH);
+        Rect Next(Vector2 next) => new(
+            spot.Horizontal < 0 ? first.x : spot.Horizontal > 0 ? first.xMax - next.x : first.center.x - next.x / 2f,
+            spot.Vertical > 0 ? first.y - 8f - next.y : first.yMax + 8f, next.x, next.y);
+        var pill = !pillShown ? Rect.zero : statsFirst ? Next(size) : first;
+        Rect statsRect = statsSize.x <= 0f ? Rect.zero : statsFirst ? first : Next(statsSize);
+        // The panel and hints open past the card.
+        Rect anchor = statsRect.width > 0f && pillShown ? Rect.MinMaxRect(Mathf.Min(pill.xMin, statsRect.xMin), Mathf.Min(pill.yMin, statsRect.yMin),
+            Mathf.Max(pill.xMax, statsRect.xMax), Mathf.Max(pill.yMax, statsRect.yMax)) : statsRect.width > 0f ? statsRect : pill;
 
-        var reasons = sections.Where(x => !x.Running).Select(x => new GUIContent(Menu.Reason(x.Feature))).ToList();
+        var reasons = sections.Where(x => !x.Running && x.Feature != null).Select(x => new GUIContent(Menu.Reason(x.Feature!))).ToList();
         float reasonsHeight = reasons.Sum(r => Theme.Hint.CalcHeight(r, PanelWidth - 24f) + 6f);
         float panelHeight = PanelChrome + reasonsHeight + HudSettings.PanelToggles.Count() * RowHeight;
         // The panel lines up with the pill's side (or centre) and opens away from the screen edge: up from the bottom.
-        float panelX = spot.Horizontal < 0 ? pill.x : spot.Horizontal > 0 ? pill.xMax - PanelWidth : pill.center.x - PanelWidth / 2f;
-        var panel = new Rect(panelX, spot.Vertical > 0 ? pill.y - 8f - panelHeight : pill.yMax + 8f, PanelWidth, panelHeight);
+        float panelX = spot.Horizontal < 0 ? anchor.x : spot.Horizontal > 0 ? anchor.xMax - PanelWidth : anchor.center.x - PanelWidth / 2f;
+        var panel = new Rect(panelX, spot.Vertical > 0 ? anchor.y - 8f - panelHeight : anchor.yMax + 8f, PanelWidth, panelHeight);
 
         Event e = Event.current;
-        if (s_panelOpen && e.type == EventType.MouseDown && !panel.Contains(e.mousePosition) && !pill.Contains(e.mousePosition))
+        if (s_panelOpen && e.type == EventType.MouseDown && !panel.Contains(e.mousePosition) && !pill.Contains(e.mousePosition) && !statsRect.Contains(e.mousePosition))
         {
             s_panelOpen = false;
         }
 
-        bool hover = pill.Contains(e.mousePosition) || (s_panelOpen && panel.Contains(e.mousePosition));
+        bool hover = pill.Contains(e.mousePosition) || statsRect.Contains(e.mousePosition) || (s_panelOpen && panel.Contains(e.mousePosition));
         Color previousColor = GUI.color;
         // The preview shows the opacity setting and takes no clicks.
         bool preview = Menu.Visible;
         GUI.color = new Color(1f, 1f, 1f, hover && !preview ? 1f : Mathf.Clamp(HudSettings.HudOpacity.Value, 0.2f, 1f));
         try
         {
-            DrawPill(pill, sections);
-            if (!preview && GUI.Button(pill, GUIContent.none, GUIStyle.none)) Actions.Run("hud.togglePanel", "HUD pill");
+            if (pillShown)
+            {
+                DrawPill(pill, sections, anchor, hover && !preview, spot.Vertical <= 0, !s_panelOpen);
+                if (!preview && GUI.Button(pill, GUIContent.none, GUIStyle.none)) Actions.Run("hud.togglePanel", "HUD pill");
+            }
+            // The card opens the quick panel too.
+            if (statsRect.width > 0f)
+            {
+                // A figure's expanded view opens away from the screen edge, never over the quick panel.
+                SessionHud.Draw(statsRect, anchor, hover && !preview, below: spot.Vertical <= 0, detail: !s_panelOpen);
+                if (!preview && GUI.Button(statsRect, GUIContent.none, GUIStyle.none)) Actions.Run("hud.togglePanel", "HUD session figures");
+            }
             if (s_panelOpen) DrawPanel(panel, reasons);
-            else if (HudHint.Text is { } hint) DrawHint(pill, spot, HudHint.Title, hint, HudHint.Accent);
+            else if (HudHint.Text is { } hint) DrawHint(anchor, spot, HudHint.Title, hint, HudHint.Accent);
         }
         finally
         {
             GUI.color = previousColor;
         }
 
-        s_pillScreen = Scaled(pill, scale);
+        // An empty pill is kept as the card, so the rest of the mod still sees the HUD's area.
+        s_pillScreen = Scaled(pillShown ? pill : statsRect, scale);
         s_panelScreen = s_panelOpen ? Scaled(panel, scale) : Rect.zero;
+        s_statsScreen = statsRect.width > 0f ? Scaled(statsRect, scale) : Rect.zero;
     }
 
-    // Sections in rows no wider than maxWidth; a section wider than that still gets a row of its own.
-    private static List<PillSection> Layout(float maxWidth, out Vector2 size)
+    // Whether the session card or tiles come before the pill's first section in the player's order.
+    private static bool StatsFirst()
+    {
+        var order = HudSettings.SectionOrder.Sort(StatusFeatures.Select(f => f.Id).Append(HudSettings.SessionSection), id => id);
+        return order.Count > 0 && order[0] == HudSettings.SessionSection;
+    }
+
+    // Sections in rows no wider than maxWidth, in the player's order; a section wider than that still gets a row of its
+    // own. The session figures, when they go in the pill, are a section too.
+    private static List<PillSection> Layout(float maxWidth, bool session, out Vector2 size)
     {
         var sections = new List<PillSection>();
         float x = 10f, width = 0f;
         int row = 0;
-        foreach (var feature in StatusFeatures)
+        var entries = StatusFeatures.Select(f => (Feature: (Feature?)f, Label: (GUIContent?)null)).ToList();
+        if (session) entries.Add((null, SessionHud.InlineText));
+        entries = HudSettings.SectionOrder.Sort(entries, x => x.Feature?.Id ?? HudSettings.SessionSection);
+        foreach (var (feature, sessionLabel) in entries)
         {
-            bool running = feature.State == FeatureState.Running;
-            FeatureStatus status = running ? feature.Status : FeatureStatus.Off(feature.Status.Detail);
+            bool running = feature == null || feature.State == FeatureState.Running;
+            FeatureStatus status = feature == null ? new FeatureStatus(StatusState.Active, string.Empty, null)
+                : running ? feature.Status : FeatureStatus.Off(feature.Status.Detail);
             // A badge reads as part of the label, so the section's width includes it.
-            var label = new GUIContent(feature.StatusBadge is { } badge ? $"{feature.StatusName} {badge}" : feature.StatusName);
+            var label = sessionLabel ?? new GUIContent(feature!.StatusBadge is { } badge ? $"{feature.StatusName} {badge}" : feature.StatusName);
             float labelWidth = Theme.PillLabel.CalcSize(label).x;
             float sectionWidth = 8f + 8f + labelWidth + (status.Slots is { Length: > 0 } slots ? 8f + slots.Length * PipSize + (slots.Length - 1) * 3f : 0f);
             float end = sectionWidth + (status.Slots != null ? 8f : 12f);
@@ -157,11 +200,16 @@ internal static class Hud
         return sections;
     }
 
-    private static void DrawPill(Rect pill, List<PillSection> sections)
+    // The session section (In the pill) draws itself, a segment per figure, with its hover view.
+    private static void DrawPill(Rect pill, List<PillSection> sections, Rect anchor, bool pointer, bool below, bool detail)
     {
         if (Event.current.type != EventType.Repaint) return;
 
-        bool hover = pill.Contains(Event.current.mousePosition);
+        // Over the session figures only the figure under the pointer lights, not the whole pill.
+        Vector2 mouse = Event.current.mousePosition;
+        bool overFigures = sections.Any(x => x.Feature == null
+            && new Rect(pill.x + x.At.x, pill.y + x.At.y, 8f + 8f + x.LabelWidth, PillRow).Contains(mouse));
+        bool hover = pill.Contains(mouse) && !overFigures;
         Theme.DrawSliced(pill, hover ? Theme.Pill.hover.background : Theme.Pill.normal.background, Theme.PillRadius);
 
         foreach (var section in sections)
@@ -173,7 +221,9 @@ internal static class Hud
             Menu.DrawState(new Rect(x, centerY - 4f, 8f, 8f), status.State, Theme.StateColor(status.State));
             x += 8f + 8f;
             Theme.PillLabel.normal.textColor = status.State != StatusState.Off ? Theme.Text : Theme.Dim;
-            Widgets.Paint(new Rect(x, centerY - PillRow / 2f, section.LabelWidth, PillRow), section.Label, Theme.PillLabel);
+            var labelAt = new Rect(x, centerY - PillRow / 2f, section.LabelWidth, PillRow);
+            if (section.Feature == null) SessionHud.DrawInline(labelAt, anchor, pointer, below, detail);
+            else Widgets.Paint(labelAt, section.Label, Theme.PillLabel);
             x += section.LabelWidth + 8f;
 
             int count = status.Slots?.Length ?? 0;

@@ -58,17 +58,17 @@ internal static class SessionCharts
     }
 
     /// <summary>
-    /// One series over 0..xMax and 0..yMax as a smoothed, anti-aliased line over a soft fill, with faint quarter lines;
-    /// spans in gaps are drawn thinner and fainter.
+    /// One series over 0..xMax and 0..yMax as a smoothed, anti-aliased line over a soft fill, with faint quarter lines
+    /// (none for a sparkline); spans in gaps are drawn thinner and fainter. Line scales the line's width and end dot.
     /// </summary>
     public static void Area(Rect r, Canvas canvas, int key, IReadOnlyList<(double T, double V)> points, double xMax, double yMax, Color colour,
-        IReadOnlyList<(double From, double To)> gaps)
+        IReadOnlyList<(double From, double To)> gaps, bool grid = true, float line = 1f)
     {
         if (Event.current.type != EventType.Repaint) return;
         var (w, h, scale) = Size(r);
-        if (Prepare(canvas, w, h, HashCode.Combine(key, w, h, colour, Theme.DividerColor)) is { } pixels)
+        if (Prepare(canvas, w, h, HashCode.Combine(key, w, h, colour, Theme.DividerColor, grid, line)) is { } pixels)
         {
-            Grid(pixels, w, h, scale);
+            if (grid) Grid(pixels, w, h, scale);
             if (points.Count >= 2 && xMax > 0d && yMax > 0d)
             {
                 var curve = Smooth(points, xMax, yMax, w, h, 3f * scale, scale);
@@ -89,10 +89,10 @@ internal static class SessionCharts
                     bool inGap = false;
                     foreach (var gap in gaps)
                         if (tMid >= gap.From && tMid <= gap.To) inGap = true;
-                    Stroke(cover, w, h, curve[i], curve[i + 1], inGap ? 0.5f * scale : 1f * scale, inGap ? 0.4f : 1f);
+                    Stroke(cover, w, h, curve[i], curve[i + 1], (inGap ? 0.5f : 1f) * line * scale, inGap ? 0.4f : 1f);
                 }
                 // A dot where the line ends: now, or the session's end.
-                Dot(cover, w, h, curve[^1], 2.5f * scale);
+                Dot(cover, w, h, curve[^1], 2.5f * Mathf.Clamp(line, 1f, 1.3f) * scale);
                 Composite(pixels, cover, colour);
             }
             Apply(canvas);
@@ -227,10 +227,13 @@ internal static class SessionCharts
         Redraws++;
     }
 
+    // The texture at its own pixel size on whole screen pixels: the menu and HUD are scaled, and a texture landing between
+    // pixels is softened by the bilinear filter.
     private static void Blit(Rect r, Canvas canvas)
     {
         if (canvas.Texture == null) return;
-        GUI.DrawTexture(r, canvas.Texture);
+        float scale = Mathf.Max(0.5f, Mathf.Abs(GUI.matrix.m00));
+        GUI.DrawTexture(new Rect(Mathf.Round(r.x * scale) / scale, Mathf.Round(r.y * scale) / scale, canvas.Width / scale, canvas.Height / scale), canvas.Texture);
         Primitives++;
     }
 

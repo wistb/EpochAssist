@@ -56,6 +56,15 @@ internal static class HudSettings
     /// <summary>Whether the feature's section is on the pill; features without a switch always are.</summary>
     public static bool ShowsSection(string featureId) => !s_sections.TryGetValue(featureId, out var toggle) || toggle.Value;
 
+    /// <summary>A section's show switch, or null when it always shows.</summary>
+    public static Toggle? SectionToggle(string featureId) => s_sections.TryGetValue(featureId, out var toggle) ? toggle : null;
+
+    // The pill's sections left to right (and row by row): set by dragging on the Mini HUD page.
+    public static readonly OrderSetting SectionOrder = new(Hud, "HudOrder", "Section order") { Fold = Sections };
+
+    /// <summary>The session figures' place in the order, when they go in the pill.</summary>
+    public const string SessionSection = "session";
+
     // One switch per quick toggle on the HUD panel, keyed by its action; a quick toggle that isn't loaded hides its row.
     private static Toggle Quick(string id, string actionId, string label) => new(Hud, "HudQuick" + id, label, true)
     {

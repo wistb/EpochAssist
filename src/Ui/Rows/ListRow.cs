@@ -4,12 +4,16 @@ using UnityEngine;
 namespace EpochAssist.Ui;
 
 // An ordered list of entries, each one line: its number, its inline controls side by side, then up, down and remove;
-// "+ Add" last. The rule editor builds on it.
+// "+ Add" last. An entry that can move can also be dragged by its number. The rule editor builds on it.
 internal static class ListRows
 {
     public static void Register() => RowKinds.Register<ListRow>(new Renderer());
 
     private const float LineHeight = 28f, NumberWidth = 22f, ButtonSize = 22f, Gap = 6f;
+
+    // The entry being dragged: its list's key, where it started and where it would land. One drag at a time.
+    private static string? s_dragKey;
+    private static int s_dragFrom, s_dragTo;
 
     private static IReadOnlyList<object> Items(ListRow row) => Safe.Call(row.Items, Array.Empty<object>(), row.Key);
     private static IReadOnlyList<MenuRow> RowsOf(ListRow row, object item) => Safe.Call(() => row.RowsOf(item), Array.Empty<MenuRow>(), row.Key + ".rows");
@@ -45,8 +49,9 @@ internal static class ListRows
 
     private sealed class Renderer : RowRenderer<ListRow>
     {
+        // The label, the entries, then "+ Add" when the list has one.
         protected override float Height(ListRow row, float width, RowContext ctx) =>
-            RowLayout.ControlHeight + 4f + LinesHeight(row) + RowLayout.ControlHeight + RowLayout.RowGap;
+            RowLayout.ControlHeight + 4f + LinesHeight(row) + (row.Add != null || row.AddPicked != null ? RowLayout.ControlHeight : 0f) + RowLayout.RowGap;
 
         protected override void Draw(ListRow row, Rect rect, RowContext ctx)
         {
@@ -55,16 +60,34 @@ internal static class ListRows
             float y = rect.y + RowLayout.ControlHeight + 4f;
             int? remove = null;
             (int From, int To)? move = null;
+            Event e = Event.current;
+            bool dragging = s_dragKey == row.Key && row.Move != null;
+            var lines = new List<Rect>(items.Count);
             for (int i = 0; i < items.Count; i++)
             {
                 var details = DetailsOf(row, items[i]);
                 var line = new Rect(rect.x, y, rect.width, RowLayout.ControlHeight);
                 y += details != null ? 2 * LineHeight : LineHeight;
-                if (Event.current.type == EventType.Repaint)
+                lines.Add(new Rect(line.x, line.y - 2f, line.width, (details != null ? LineHeight : 0f) + line.height + 4f));
+                var handle = new Rect(line.x, line.y, NumberWidth, line.height);
+                // Holding the grip's control keeps the drag's events (the release too) coming here, off the window as well.
+                int grip = row.Move != null ? GUIUtility.GetControlID(FocusType.Passive, handle) : 0;
+                if (row.Move != null && ctx.Enabled && e.type == EventType.MouseDown && e.button == 0 && handle.Contains(e.mousePosition) && items.Count > 1)
                 {
-                    float cardHeight = (details != null ? LineHeight : 0f) + line.height + 4f;
-                    Theme.Fill(new Rect(line.x, line.y - 2f, line.width, cardHeight), Widgets.Themed ? Theme.Values.Card : Color.clear);
-                    Widgets.Paint(new Rect(line.x, line.y, NumberWidth, line.height), (i + 1).ToString(), Widgets.Style(() => Theme.TreeNumber, GUI.skin.label));
+                    s_dragKey = row.Key;
+                    s_dragFrom = s_dragTo = i;
+                    dragging = true;
+                    GUIUtility.hotControl = grip;
+                    e.Use();
+                }
+                if (e.type == EventType.Repaint)
+                {
+                    bool held = dragging && i == s_dragFrom;
+                    Theme.Fill(lines[i], Widgets.Themed ? held ? Color.Lerp(Theme.Values.Card, Theme.Accent, 0.25f) : Theme.Values.Card : Color.clear);
+                    // The number turns into a grip under the pointer (and while held), where a drag can start.
+                    if (row.Move != null && items.Count > 1 && (held || (!dragging && handle.Contains(e.mousePosition))))
+                        Grip(handle, held ? Theme.Accent : Theme.Secondary);
+                    else Widgets.Paint(handle, (i + 1).ToString(), Widgets.Style(() => Theme.TreeNumber, GUI.skin.label));
                 }
                 float x = line.x + NumberWidth + 4f;
                 string prefix = $"{row.Key}.{i + 1}.";
@@ -94,10 +117,62 @@ internal static class ListRows
                     }
                 }
             }
+            if (dragging) Drag(row, lines, e);
             if (row.Add != null || row.AddPicked != null) DrawAdd(row, new Rect(rect.x, y, 0f, RowLayout.ControlHeight));
             // After drawing, so this frame's lines all drew the same list.
             if (move is { } m && row.Move != null) Safe.Call(() => { row.Move(m.From, m.To); return true; }, false, row.Key + ".move");
             if (remove is int r && row.Remove != null) Safe.Call(() => { row.Remove(r); return true; }, false, row.Key + ".remove");
+        }
+
+        // While an entry is dragged: the place under the pointer becomes its landing place, marked by a bar on that side
+        // of the entry there; letting go moves it there one step at a time (Move takes neighbouring steps).
+        private static void Drag(ListRow row, List<Rect> lines, Event e)
+        {
+            if (lines.Count == 0 || s_dragFrom >= lines.Count)
+            {
+                s_dragKey = null;
+                return;
+            }
+            float pointer = e.mousePosition.y;
+            int to = lines.Count - 1;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                if (pointer < lines[i].yMax)
+                {
+                    to = i;
+                    break;
+                }
+            }
+            s_dragTo = to;
+            if (e.type == EventType.MouseDrag) e.Use();
+            if (e.type == EventType.Repaint && s_dragTo != s_dragFrom)
+            {
+                var target = lines[s_dragTo];
+                float barY = s_dragTo > s_dragFrom ? target.yMax : target.y - 2f;
+                Theme.Fill(new Rect(target.x, barY, target.width, 2f), Theme.Accent);
+            }
+            if (e.rawType != EventType.MouseUp) return;
+            int from = s_dragFrom;
+            s_dragKey = null;
+            GUIUtility.hotControl = 0;
+            e.Use();
+            if (row.Move == null || to == from) return;
+            int step = to > from ? 1 : -1;
+            Safe.Call(() =>
+            {
+                for (int i = from; i != to; i += step) row.Move(i, i + step);
+                return true;
+            }, false, row.Key + ".drag");
+        }
+
+        // Two columns of three dots, centred in the number's place.
+        private static void Grip(Rect r, Color colour)
+        {
+            const float dot = 3f, gap = 3f;
+            float x0 = Mathf.Round(r.center.x - dot - gap / 2f), y0 = Mathf.Round(r.center.y - dot * 1.5f - gap);
+            for (int column = 0; column < 2; column++)
+                for (int line = 0; line < 3; line++)
+                    Theme.Tinted(new Rect(x0 + column * (dot + gap), y0 + line * (dot + gap), dot, dot), Theme.Dot, colour);
         }
 
         // "+ Add": adds at once, or opens a dropdown of choices; greyed with the reason when nothing can be added.

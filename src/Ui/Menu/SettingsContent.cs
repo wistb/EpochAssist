@@ -3,8 +3,8 @@ using EpochAssist.Core;
 namespace EpochAssist.Ui;
 
 // The menu's own entries, declared like a feature's: Config › General (Profiles, Keybinds, Mini HUD and Appearance),
-// Config › Diagnostics and the Session tab (current session, past sessions, history and
-// export). Section ids, order and stored values are the General group's, unchanged.
+// Config › Sessions (figure colours, the mini HUD figures, history and export), Config › Diagnostics and the Session tab
+// (current and past sessions). Section ids, order and stored values are the General group's, unchanged.
 internal static class SettingsContent
 {
     private static Section Section(string id) => Config.Group.Sections.First(s => s.Id == id);
@@ -25,7 +25,7 @@ internal static class SettingsContent
             {
                 new MenuPage("Profiles") { Block = "profiles", Resettable = false },
                 Keybinds(),
-                new MenuPage(HudSettings.Hud),
+                MiniHud(),
                 Appearance(),
             },
         },
@@ -41,11 +41,11 @@ internal static class SettingsContent
             Title = "Past sessions",
             Pages = { PastSessions() },
         },
-        new MenuEntry(MenuCategory.Sessions, order: 2)
+        // Session settings live in Config, after Map and before General; the Session tab keeps the dashboards.
+        new MenuEntry(MenuCategory.Combat, order: 60)
         {
-            Layout = MenuLayout.Wide,
-            Title = "History",
-            Pages = { SessionHistory() },
+            Title = "Sessions",
+            Pages = { SessionColours(), SessionMiniHud(), SessionHistory() },
         },
         new MenuEntry(MenuCategory.Combat, order: 81)
         {
@@ -116,13 +116,28 @@ internal static class SettingsContent
         foreach (var toggle in dev) toggle.Set(on);
     }
 
+    // Between the Session tab's dashboards and their settings on Config › Sessions, both ways.
+    private const string SessionTabPath = "session/current-session", SessionSettingsPath = "combat/sessions/colours";
+    private static ActionButton ToSessionSettings(string page) => new("Settings", "sessions.settings." + page)
+    {
+        OnClick = () => Menu.Open(SessionSettingsPath), Tip = "Opens Config › Sessions: colours, mini HUD figures and history",
+    };
+    private static ActionButton ToSessionTab(string page) => new("Session tab", "sessions.tab." + page)
+    {
+        OnClick = () => Menu.Open(SessionTabPath), Tip = "Opens the Session tab's dashboard",
+    };
+
     // The no-session hint, then the current session's dashboard.
     private static MenuPage CurrentSession()
     {
         var page = new MenuPage("Current session")
         {
             Resettable = false,
-            Actions = { new ActionButton("New session", "sessions.split") { VisibleWhen = () => Sessions.Current != null, Tip = "Ends this session and starts a new one here" } },
+            Actions =
+            {
+                new ActionButton("New session", "sessions.split") { VisibleWhen = () => Sessions.Current != null, Tip = "Ends this session and starts a new one here" },
+                ToSessionSettings("current"),
+            },
         };
         page.Rows.AddRange(SessionsPage.CurrentRows());
         return page;
@@ -131,7 +146,7 @@ internal static class SettingsContent
     // The past sessions list with its filters and trend; an opened session's dashboard in place of it, Esc going back.
     private static MenuPage PastSessions()
     {
-        var page = new MenuPage("Past sessions") { Resettable = false, Back = SessionsPast.Back };
+        var page = new MenuPage("Past sessions") { Resettable = false, Back = SessionsPast.Back, Actions = { ToSessionSettings("past") } };
         page.Rows.AddRange(SessionsPast.Rows());
         return page;
     }
@@ -141,6 +156,7 @@ internal static class SettingsContent
     {
         var page = new MenuPage("History")
         {
+            Actions = { ToSessionTab("history") },
             Rows =
             {
                 new LiveText("Now", () => (Sessions.NowText(), Sessions.Recording ? StatusState.Active : StatusState.Off)),
@@ -156,6 +172,98 @@ internal static class SettingsContent
         page.Rows.Add(new ValueChoice("Range", () => SessionExport.PageRange, i => SessionExport.PageRange = i, () => SessionExport.PageRanges));
         page.Rows.Add(new ActionButton("Export CSV", "sessions.export"));
         page.Rows.Add(new LiveText("Last export", () => SessionExport.LastText.Length == 0 ? ("none yet", null) : (SessionExport.LastText, SessionExport.LastOk ? StatusState.Active : StatusState.Paused)));
+        return page;
+    }
+
+    // The mini HUD's settings in their folds, with the pill's sections as one list in place of their switches: dragged
+    // (or moved) into order, each with its switch. The session figures join the list when they go in the pill.
+    private static MenuPage MiniHud()
+    {
+        var page = new MenuPage(HudSettings.Hud)
+        {
+            Actions =
+            {
+                new ActionButton("Session figures", "hud.sessionfigures")
+                {
+                    OnClick = () => Menu.Open("combat/sessions/mini-hud"), Tip = "Opens Config › Sessions › Mini HUD: the session figures by the pill",
+                },
+            },
+        };
+        string? fold = null;
+        foreach (var setting in HudSettings.Hud.Settings)
+        {
+            if (setting.Fold != fold)
+            {
+                fold = setting.Fold;
+                if (fold == HudSettings.SectionOrder.Fold)
+                {
+                    page.Rows.Add(new HeadingRow("Sections"));
+                    page.Rows.Add(SectionList());
+                }
+                else if (fold != null)
+                {
+                    var name = fold;
+                    page.Rows.Add(new HeadingRow(name) { VisibleWhen = () => HudSettings.Hud.Settings.Any(m => m.Fold == name && m.Visible) });
+                }
+            }
+            if (setting.Fold != HudSettings.SectionOrder.Fold) page.Rows.Add(new SettingRow(setting));
+        }
+        return page;
+    }
+
+    // The mini HUD's sections in their order: every feature with a status, and the session figures (in the pill, or as a
+    // card or tiles before or after it).
+    private static IReadOnlyList<string> SectionIds()
+    {
+        var ids = FeatureHost.All.Where(f => f.StatusName != null).Select(f => f.Id).ToList();
+        ids.Add(HudSettings.SessionSection);
+        return HudSettings.SectionOrder.Sort(ids, id => id);
+    }
+
+    private static ListRow SectionList() => new("Order", () => SectionIds().Cast<object>().ToList(), item =>
+    {
+        string id = (string)item;
+        var toggle = HudSettings.SectionToggle(id);
+        string name = id == HudSettings.SessionSection ? "Session figures" : FeatureHost.All.FirstOrDefault(f => f.Id == id)?.StatusName ?? id;
+        // Each section's switch: its own, the session figures' (the same one as on Session › Mini HUD), or locked on.
+        var show = id == HudSettings.SessionSection ? SessionSettings.HudShow : toggle;
+        return new MenuRow[]
+        {
+            new ValueText("Section", () => name) { Key = "name", Width = 160f },
+            show != null
+                ? new ValueToggle("Show", () => show.Value, v => show.Value = v) { Key = "show" }
+                : new ValueToggle("Show", () => true, _ => { }) { Key = "show", EnabledWhen = () => false },
+        };
+    })
+    {
+        Key = "hud.sections",
+        Move = (from, to) => HudSettings.SectionOrder.Move(SectionIds(), from, to),
+    };
+
+    // Each figure's colour, defaulting to the game's, behind the switch for colours at all.
+    private static MenuPage SessionColours() => new(SessionSettings.Colours) { Actions = { ToSessionTab("colours") } };
+
+    // The session figures on the mini HUD: switch, look and rate first, then a choice per figure. The pill's own place,
+    // offsets and opacity stay on Config › General › Mini HUD.
+    private static MenuPage SessionMiniHud()
+    {
+        var page = new MenuPage(SessionSettings.Hud)
+        {
+            Actions =
+            {
+                new ActionButton("Mini HUD settings", "sessions.hudsettings")
+                {
+                    OnClick = () => Menu.OpenSettingsTab(HudSettings.Hud), Tip = "Opens Config › General › Mini HUD: place, opacity and sections",
+                },
+                ToSessionTab("minihud"),
+            },
+        };
+        // Only while it stops the figures from showing.
+        page.Rows.Add(new HintRow(() => "Session history is off, so there are no figures to show. It's on History.") { VisibleWhen = () => !SessionSettings.History.Value });
+        var settings = SessionSettings.Hud.Settings;
+        page.Rows.AddRange(settings.Where(s => s.Fold == null).Select(s => new SettingRow(s)));
+        page.Rows.Add(new HeadingRow("Figures"));
+        page.Rows.AddRange(settings.Where(s => s.Fold != null).Select(s => new SettingRow(s)));
         return page;
     }
 

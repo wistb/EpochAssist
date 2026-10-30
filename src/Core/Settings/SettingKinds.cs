@@ -155,6 +155,8 @@ internal sealed class ColorSetting : Setting<string>
     public string EmptyLabel { get; init; } = "Default";
     /// <summary>The colour the empty value stands for (#RRGGBB), shown on its swatch; null shows the theme accent.</summary>
     public string? EmptyHex { get; init; }
+    /// <summary>The empty value's colour when it is only known while the game runs (a game colour); before EmptyHex.</summary>
+    public Func<Color?>? EmptyColour { get; init; }
     /// <summary>Headings for the swatches: each group starts at swatch index First. Code only, nothing stored.</summary>
     public (string Label, int First)[]? Groups { get; init; }
 

@@ -65,6 +65,8 @@ internal static class CoreCommands
             Pick pick when value.Length > 0 => Apply(() => pick.Value = value),
             ColorSetting color when value.Length == 0 || ColorSetting.TryParse(value.ToUpperInvariant(), out _) => Apply(() => color.Value = value.ToUpperInvariant()),
             TargetSetting targets => targets.SetText(value, out _),
+            // Comma-separated ids; empty (or "") is the natural order.
+            OrderSetting order => Apply(() => order.Value = value.Trim('"').Replace(" ", string.Empty)),
             _ => false,
         };
         // Outside Default the value went into the profile in use.
@@ -91,6 +93,7 @@ internal static class CoreCommands
         Pick pick => pick.Options?.Invoke() is { Count: > 0 } names ? string.Join(", ", names) : "a name",
         ColorSetting => "#RRGGBB, or nothing",
         TargetSetting => "a slot target document, such as {\"v\":1}",
+        OrderSetting => "ids joined by commas, such as macros,interact; nothing for the natural order",
         _ => "nothing",
     };
 
