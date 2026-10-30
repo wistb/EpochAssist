@@ -135,7 +135,7 @@ internal static class ProfilesPage
                 s_pending = () => Made(Profiles.Create(ProfilesFeature.NextName("Profile"), copy: false, out string reason), reason, "a copy of Default");
                 break;
             case 1:
-                s_pending = () => Made(Profiles.Create(ProfilesFeature.NextName(active.Name + " copy"), copy: true, out string reason), reason, $"a copy of {active.Name}");
+                s_pending = () => Made(Profiles.Create(ProfilesFeature.CopyName(active.Name), copy: true, out string reason), reason, $"a copy of {active.Name}");
                 break;
             case 2:
                 s_renaming = true;

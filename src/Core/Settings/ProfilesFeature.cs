@@ -21,7 +21,7 @@ internal sealed class ProfilesFeature : Feature
     {
         Diagnostics.ProfileStatus = Profiles.StatusText;
         Actions.Register(Id, "profiles.new", "New profile", () => Profiles.Create(NextName("Profile"), copy: false, out _));
-        Actions.Register(Id, "profiles.duplicate", "Duplicate profile", () => Profiles.Create(NextName(Profiles.Active.Name + " copy"), copy: true, out _));
+        Actions.Register(Id, "profiles.duplicate", "Duplicate profile", () => Profiles.Create(CopyName(Profiles.Active.Name), copy: true, out _));
     }
 
     /// <summary>The name, or the name with the first free number after it.</summary>
@@ -31,6 +31,18 @@ internal sealed class ProfilesFeature : Feature
         for (int n = 2; ; n++)
         {
             if (Profiles.Find($"{name} {n}") == null) return $"{name} {n}";
+        }
+    }
+
+    /// <summary>A copy's name, numbered as stash presets are: the name without a number (or "copy") it ends in, then the
+    /// first free number from 2 ("Default 2", "Default 3").</summary>
+    public static string CopyName(string name)
+    {
+        string stem = System.Text.RegularExpressions.Regex.Replace(name.Trim(), @"(\s+copy)*(\s+\d+)?$", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (stem.Length == 0) stem = name.Trim();
+        for (int n = 2; ; n++)
+        {
+            if (Profiles.Find($"{stem} {n}") == null) return $"{stem} {n}";
         }
     }
 
