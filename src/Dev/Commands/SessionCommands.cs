@@ -13,14 +13,19 @@ internal static class SessionCommands
 
     public static void Register(string owner)
     {
-        Commands.AddDevVerb("sessions", "show", owner, Show);
-        Commands.AddDevVerb("sessions", "fill", owner, Fill);
-        Commands.AddDevVerb("sessions", "flood", owner, Flood);
-        Commands.AddDevVerb("sessions", "stats", owner, Stats);
-        Commands.AddDevVerb("sessions", "keep", owner, KeepRecord);
-        Commands.AddDevVerb("sessions", "cost", owner, Cost);
-        Commands.AddDevVerb("sessions", "trends", owner, Trends);
-        Commands.AddDevVerb("sessions", "sample", owner, call =>
+        // Each verb answers "Sessions is not loaded" while it isn't; so does the command itself, unless the first-start
+        // choice may still load it (its own command then takes the name).
+        if (!Modules.Loaded("sessions") && !Modules.Pending)
+            Commands.Register(new Command("sessions", SessionsFeature.Usage, "Session history (not loaded).", CommandMark.Dev, owner, call => CommandResult.Error($"sessions: {Modules.NotLoaded("sessions")}")));
+        void AddVerb(string verb, Func<CommandCall, CommandResult> run) => Commands.AddDevVerb("sessions", verb, owner, DevCommands.WhenLoaded("sessions", "sessions", run));
+        AddVerb("show", Show);
+        AddVerb("fill", Fill);
+        AddVerb("flood", Flood);
+        AddVerb("stats", Stats);
+        AddVerb("keep", KeepRecord);
+        AddVerb("cost", Cost);
+        AddVerb("trends", Trends);
+        AddVerb("sample", call =>
         {
             // on | off | quiet: the Sample data switch from the bridge; quiet hides the switch and banner (page images).
             switch (call.Lower(2))
@@ -33,7 +38,7 @@ internal static class SessionCommands
             Ui.SessionsPage.Current.Reset();
             return CommandResult.Ok($"sessions sample: {call.Lower(2)}");
         });
-        Commands.AddDevVerb("sessions", "names", owner, _ =>
+        AddVerb("names", _ =>
         {
             // Each zone scene of the current session with the game's display name and echo name.
             var scenes = Sessions.Current?.Records.Where(r => r.Kind == "zone").Select(r => r.Text("scene") ?? string.Empty).Distinct().ToList() ?? new List<string>();
@@ -41,7 +46,7 @@ internal static class SessionCommands
             lines.AddRange(scenes.Select(s => GameData.SceneNamesOf(s) is var n ? $"  {s}: display {n.Display ?? "-"}, echo {n.Echo ?? "-"}" : s));
             return new CommandResult(DevOutput.Reply("sessions", lines));
         });
-        Commands.AddDevVerb("sessions", "delete", owner, call =>
+        AddVerb("delete", call =>
         {
             string id = Arg(call, 2);
             if (id.Length == 0) return CommandResult.Error("usage: sessions delete <id> [during-export]");
@@ -50,15 +55,15 @@ internal static class SessionCommands
             return Sessions.Delete(id, out string? reason) ? CommandResult.Ok($"sessions delete: deleted {Sessions.Label(id)}; {Sessions.HistoryText()}")
                 : CommandResult.Error($"sessions delete: {reason}");
         });
-        Commands.AddDevVerb("sessions", "rotate", owner, _ =>
+        AddVerb("rotate", _ =>
         {
             var removed = Sessions.RotateNow();
             return CommandResult.Ok($"sessions rotate: removed {removed.Count}{(removed.Count > 0 ? ": " + string.Join(", ", removed.Select(r => Sessions.Label(Path.GetFileNameWithoutExtension(r)))) : string.Empty)}; {Sessions.HistoryText()}");
         });
-        Commands.AddDevVerb("sessions", "crash", owner, _ =>
+        AddVerb("crash", _ =>
             Sessions.Crash() ? CommandResult.Ok("sessions crash: the session stays open without an end line; a new one starts while in game")
                 : CommandResult.Error("sessions crash: no session"));
-        Commands.AddDevVerb("sessions", "writer", owner, call =>
+        AddVerb("writer", call =>
         {
             switch (call.Lower(2))
             {

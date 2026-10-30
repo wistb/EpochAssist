@@ -6,12 +6,20 @@ namespace EpochAssist.Dev;
 internal static partial class DevCommands
 {
     // The dev overlays and logs as switches on General › Diagnostics › Debug, bound to the same state as their verbs.
-    private static IReadOnlyList<ValueToggle>? s_debugSwitches;
+    private static IReadOnlyList<ValueToggle>? s_debugSwitches, s_interactSwitches;
 
-    public static IReadOnlyList<ValueToggle> DebugSwitches() => s_debugSwitches ??= new[]
+    /// <summary>The dev switches; Interact's only while it is loaded.</summary>
+    public static IReadOnlyList<ValueToggle> DebugSwitches() =>
+        Modules.Loaded("interact") ? (s_interactSwitches ??= InteractSwitches().Concat(CoreSwitches()).ToArray()) : CoreSwitches();
+
+    private static ValueToggle[] InteractSwitches() => new[]
     {
         new ValueToggle("Object names and reach", () => InteractCommands.Drawing, InteractCommands.SetDraw),
         new ValueToggle("Click trace (log)", () => InteractTraceFeature.On, on => InteractTraceFeature.On = on),
+    };
+
+    private static IReadOnlyList<ValueToggle> CoreSwitches() => s_debugSwitches ??= new[]
+    {
         new ValueToggle("Dispatch log", () => Dispatcher.Trace != null, on => Dispatcher.Trace = on ? line => Log.Info($"dispatch: {line}") : null),
         new ValueToggle("Minimap markers", () => s_drawMinimap, on => SetDraw(ref s_drawMinimap, on)),
         new ValueToggle("Edge arrows for rares", () => s_drawArrows, on => SetDraw(ref s_drawArrows, on)),

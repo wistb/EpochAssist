@@ -18,7 +18,7 @@ internal static class DevWindow
     private static readonly List<Section> s_sections = new();
     private static readonly List<Section> s_shown = new();
     private static Rect s_rect = new(-1f, 140f, 300f, 60f);
-    private static GUIStyle? s_style;
+    private static GUIStyle? s_style, s_title;
     private static bool s_visible;
 
     public static void Add(Section section)
@@ -37,6 +37,7 @@ internal static class DevWindow
         s_sections.Clear();
         s_visible = false;
         s_style = null;
+        s_title = null;
     }
 
     public static void OnGUI()
@@ -53,8 +54,11 @@ internal static class DevWindow
         GUI.matrix = Matrix4x4.identity;
         // At the right of the screen to start, clear of the menu.
         if (s_rect.x < 0f) s_rect.x = Screen.width - s_rect.width - 24f;
-        // Solid, as the mod's popups are.
-        s_style ??= new GUIStyle(GUI.skin.window) { normal = { background = Theme.PopupBg, textColor = Color.white }, onNormal = { background = Theme.PopupBg } };
+        // Solid, as the mod's popups are. The theme may not be built yet (a section showing right after a reload), and a
+        // rebuild replaces its textures, so the style follows the current background.
+        _ = Theme.Skin;
+        if (s_style == null || s_style.normal.background != Theme.PopupBg)
+            s_style = new GUIStyle(GUI.skin.window) { normal = { background = Theme.PopupBg, textColor = Color.white }, onNormal = { background = Theme.PopupBg } };
         // Height follows the content each layout pass.
         s_rect = GUILayout.Window(WindowId, s_rect, (GUI.WindowFunction)Draw, "Dev", s_style, GUILayout.Width(300f));
         // Over the menu while the pointer is on it: windows otherwise stack by focus.
@@ -66,6 +70,9 @@ internal static class DevWindow
 
     private static void Draw(int id)
     {
+        // The menu's panel under everything, so the game never shows through the window.
+        if (Event.current.type == EventType.Repaint) Theme.DrawSliced(new Rect(0f, 0f, s_rect.width, s_rect.height), Theme.Panel.normal.background, Theme.PanelRadius);
+        if (Event.current.type == EventType.Repaint) GUI.Label(new Rect(0f, 2f, s_rect.width, 18f), "Dev", s_title ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, normal = { textColor = Color.white } });
         foreach (var section in s_shown)
         {
             GUILayout.Label(section.Title, GUI.skin.label);
@@ -115,10 +122,12 @@ internal sealed class DevWindowFeature : Feature
     {
         DevWindow.Start();
         StashDevSection.Register();
+        ModulesDevSection.Register();
     }
 
     public override void Update()
     {
+        if (!Modules.Loaded("stash")) return;
         StashReset.Frame();
         StashScramble.Frame();
     }

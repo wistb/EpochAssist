@@ -128,6 +128,7 @@ internal sealed class CrashTestFeature : Feature
 
     private static (string, StatusState?) SessionReadout()
     {
+        if (!Modules.Loaded("sessions")) return ("Sessions is not loaded", StatusState.Off);
         if (Sessions.Current is not { } session) return ("no session", StatusState.Off);
         var t = session.Totals;
         return ($"{Sessions.FormatDuration(t.Duration)}, {session.Records.Count} records, xp {t.Xp}, gold +{t.GoldGained}, drops {t.DropCount}, deaths {t.Deaths}", StatusState.Active);
@@ -167,7 +168,7 @@ internal sealed class CrashTestFeature : Feature
         Scheduler.Every(this, "tick", 1f, () => { });
         s_uiClient = Dispatcher.Register(new DispatchClient(this, PriorityClass.Skills, s_uiOn, Array.Empty<PauseRule>()));
         s_kept = 0;
-        Bus.Subscribe<SessionRecordKept>(this, _ => s_kept++);
+        if (Modules.Loaded("sessions")) Bus.Subscribe<SessionRecordKept>(this, _ => s_kept++);
         Bus.Subscribe<ZoneChange>(this, _ =>
         {
             if (s_handlerThrows <= 0) return;

@@ -357,9 +357,16 @@ internal static class StashCommands
         w.Restart();
         foreach (var (_, tab) in preset.AllTabs()) Stash.RulesOf(tab);
         lines.Add($"  rules of every preset tab: {w.Elapsed.TotalMilliseconds:F2} ms");
-        w.Restart();
-        Planner.LibraryUniques();
-        lines.Add($"  planner uniques: {w.Elapsed.TotalMilliseconds:F2} ms");
+        if (Modules.NotLoaded("planner") is { } why)
+        {
+            lines.Add($"  planner uniques: {why}");
+        }
+        else
+        {
+            w.Restart();
+            Planner.LibraryUniques();
+            lines.Add($"  planner uniques: {w.Elapsed.TotalMilliseconds:F2} ms");
+        }
         return new CommandResult(DevOutput.Reply("stash-time", lines));
     }
 
@@ -457,6 +464,12 @@ internal static class StashCommands
         void Add(Condition? c)
         {
             if (c == null) return;
+            // The Planner describes conditions; without it, only the kind.
+            if (!Modules.Loaded("planner"))
+            {
+                parts.Add(c.GetIl2CppType().Name);
+                return;
+            }
             try
             {
                 parts.Add(Planner.LootFilterGame.DescribeCondition(c));

@@ -13,7 +13,8 @@ internal static class StashDevSection
     private static string[] s_snapshots = Array.Empty<string>();
     private static float s_listedAt = -10f;
 
-    public static void Register() => DevWindow.Add(new DevWindow.Section("Stash", () => Stash.PageShown || StashReset.Running, Draw));
+    // Only while Stash is loaded; it reads the stash feature's state.
+    public static void Register() => DevWindow.Add(new DevWindow.Section("Stash", () => Modules.Loaded("stash") && (Stash.PageShown || StashReset.Running), Draw));
 
     private static void Draw()
     {

@@ -69,16 +69,17 @@ internal static partial class DevCommands
             return CommandResult.Ok($"focus: {focused ?? "none"} (page {Menu.Current}, region {Focus.Region ?? "none"})");
         });
         // The text keeps its case.
-        Add("toast", "toast <text>", "Shows a toast.", call =>
+        Add("toast", "toast [sticky] <text>", "Shows a toast; sticky stays until its × is clicked.", call =>
         {
-            Toasts.Show("dev", call.Rest(1), ToastKind.Info);
+            bool sticky = call.Lower(1) == "sticky";
+            Toasts.Show("dev", call.Rest(sticky ? 2 : 1), ToastKind.Info, sticky: sticky);
             return CommandResult.Ok("toast");
         });
         Add("toasts", "toasts", "Lists the toasts on screen.", _ =>
         {
             var shown = Toasts.Visible;
             return CommandResult.Ok($"toasts: {shown.Count} shown" + (shown.Count > 0 ? ": " : string.Empty)
-                + string.Join(", ", shown.Select(t => $"\"{t.Text}\" ({Time.unscaledTime - t.ShownAt:F1} s)")));
+                + string.Join(", ", shown.Select(t => $"\"{t.Text}\" ({Time.unscaledTime - t.ShownAt:F1} s{(t.Sticky ? ", until dismissed" : string.Empty)})")));
         });
         // All textures in the game too, so textures leaked by an earlier load show up across reloads; and every Harmony
         // patch, ours and other mods', so a batch of read-only commands can be shown to patch nothing.
@@ -102,8 +103,9 @@ internal static partial class DevCommands
             CommandResult.Ok($"profile: {Profiles.Describe()}"));
         Add("player", "player", "Shows how the player is found: the finder, the player objects, their components and actors.", _ =>
             CommandResult.Ok($"player: {PlayerFacts()}"));
-        Add("cond", ConditionCommands.CondUsage, "Lists, edits and checks condition lists by name.", ConditionCommands.Cond);
-        Add("why", ConditionCommands.WhyUsage, "Shows why each slot macro casts or waits: its conditions' values and results.", ConditionCommands.Why);
+        Add("cond", ConditionCommands.CondUsage, "Lists, edits and checks condition lists by name.", call =>
+            call.Lower(1) == "named" && Modules.NotLoaded("macros") is { } why ? CommandResult.Error($"cond named: {why}") : ConditionCommands.Cond(call));
+        Add("why", ConditionCommands.WhyUsage, "Shows why each slot macro casts or waits: its conditions' values and results.", WhenLoaded("macros", "why", ConditionCommands.Why));
         Add("model", ModelCommands.Usage, "Shows the player and world models, looks up game data, or simulates a missing model part.", ModelCommands.Run);
         Add("edits", ClientCommands.EditsUsage, "Applies, lists and removes test game edits (owned by the crash test feature), or writes a value past the registry.", ClientCommands.EditsCommand);
         Add("look", ClientCommands.LookUsage, "Outlines or tints the nearest enemies, recolours effects near the player, or changes an outline group's colour.", ClientCommands.LookCommand);
@@ -111,17 +113,23 @@ internal static partial class DevCommands
         Add("gameui", ClientCommands.GameUiUsage, "Hides or shows the game's own UI, as an edit.", ClientCommands.GameUiCommand);
         Add("ui", ClientCommands.UiUsage, "Presses a game prompt, respawn or quick move button through the dispatcher (offline only).", ClientCommands.UiCommand);
         Add("events", EventCommands.EventsUsage, "Lists the last events on the bus, or the subscriptions and producers.", EventCommands.Events);
-        Add("map", MapCommands.Usage, "Shows the minimap's zone map and reveal values, lists the game's map icons, reads the explored-volume record, or applies one reveal step.", MapCommands.Run);
-        Add("planner", PlannerCommands.Usage, "Reads the character's trees and the open tree and skill panels, logs when they change, imports and checks the planner fixtures, or pastes a planner link through the import's one request.", PlannerCommands.Run);
-        Add("stash", StashCommands.Usage, "Reads the stash's folders and tabs (names, icons, colours, order, rules, items) and the tab prices; reads only.", StashCommands.Run);
-        Add("interact", InteractCommands.Usage, "Lists what the game offers to use near the player, logs the game's own click path, or uses the nearest of a kind from in range (offline).", InteractCommands.Run);
+        Add("map", MapCommands.Usage, "Shows the minimap's zone map and reveal values, lists the game's map icons, reads the explored-volume record, or applies one reveal step.", WhenLoaded("mapreveal", "map", MapCommands.Run));
+        Add("planner", PlannerCommands.Usage, "Reads the character's trees and the open tree and skill panels, logs when they change, imports and checks the planner fixtures, or pastes a planner link through the import's one request.", WhenLoaded("planner", "planner", PlannerCommands.Run));
+        Add("stash", StashCommands.Usage, "Reads the stash's folders and tabs (names, icons, colours, order, rules, items) and the tab prices; reads only.", WhenLoaded("stash", "stash", StashCommands.Run));
+        Add("interact", InteractCommands.Usage, "Lists what the game offers to use near the player, logs the game's own click path, or uses the nearest of a kind from in range (offline).", WhenLoaded("interact", "interact", InteractCommands.Run));
         Add("jobs", EventCommands.JobsUsage, "Lists the scheduler's jobs and the automated presses per second; reset clears the press counts.", EventCommands.Jobs);
-        Add("gate", "gate", "Shows the enemy gate: open, enemies and weight in range, and the shared slot target's pick.", _ => Gate());
+        Add("modules", ModuleCommands.Usage, "Module loading tests: choices, a reload to apply, a reload as a fresh install or an upgrade, modules unavailable at the next reload, the first-start toast, the dev window section.", ModuleCommands.Run);
+        Add("gate", "gate", "Shows the enemy gate: open, enemies and weight in range, and the shared slot target's pick.", WhenLoaded("macros", "gate", _ => Gate()));
         Add("perf", "perf [timers on|off] | waste <feature-id> <ms>|off", "Shows the mod's frame time and what measuring it costs, turns the timers off, or makes a feature waste time each frame.", Perf);
         Commands.AddDevVerb("mods", "simulate", owner, ModsSimulate);
         SessionCommands.Register(owner);
         MacroCommands.Register(owner);
     }
+
+    /// <summary>A module's command: runs while the module is loaded, else answers "error verb: Module is not loaded"
+    /// (checked on each call, so a module loaded by the first-start answer works at once).</summary>
+    internal static Func<CommandCall, CommandResult> WhenLoaded(string module, string verb, Func<CommandCall, CommandResult> run) =>
+        call => Modules.NotLoaded(module) is { } why ? CommandResult.Error($"{verb}: {why}") : run(call);
 
     // mods simulate <name>|off: a pretend loaded mod (kind mod, file <name>.dll) until off or a reload, then the start
     // toast rule again.

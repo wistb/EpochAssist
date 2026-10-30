@@ -15,7 +15,8 @@ internal static class MacroCommands
 
     public static void Register(string owner)
     {
-        Commands.Register(new Command("macro", MacroUsage, "Lists the macro library or removes sets; shows the cast signal, enemy ailments, the hovered enemy and the XP tracker.", CommandMark.Dev, owner, Macro));
+        Commands.Register(new Command("macro", MacroUsage, "Lists the macro library or removes sets; shows the cast signal, enemy ailments, the hovered enemy and the XP tracker.", CommandMark.Dev, owner,
+            DevCommands.WhenLoaded("macros", "macro", Macro)));
         Commands.Register(new Command("dispatch", DispatchUsage,
             "Shows the dispatcher's presses per slot and client, clears them, logs every request outcome, lists held slots, or drinks one potion through a dev client.",
             CommandMark.Dev, owner, Dispatch));
