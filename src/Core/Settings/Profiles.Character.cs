@@ -166,7 +166,12 @@ internal static partial class Profiles
                 if (values.TryGetPropertyValue(setting.Id, out var value) && !setting.TryApplyOverride(value)) s_rejected.Add((group.Id, setting.Id));
             }
         }
-        if (s_rejected.Count > 0) Log.Warn($"Profile '{info.Name}': {s_rejected.Count} stored values don't fit their settings and use Default's");
+        if (s_rejected.Count > 0)
+        {
+            // Named (group.setting), so a report says which; the values stay in the file.
+            var names = s_rejected.Take(12).Select(r => $"{r.Group}.{r.Id}");
+            Log.Warn($"Profile '{info.Name}': {s_rejected.Count} stored values don't fit their settings and use Default's: {string.Join(", ", names)}{(s_rejected.Count > 12 ? " and more" : string.Empty)}");
+        }
         s_active = info;
         InProfile = true;
         if (migrated) MarkDirtyNow();

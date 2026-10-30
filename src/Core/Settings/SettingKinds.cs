@@ -64,8 +64,10 @@ internal sealed class Number : Setting<float>
         value = 0f;
         // Parsed text holds any number; a value made in memory holds the float it was made from.
         double number = json.TryGetValue(out double d) ? d : json.TryGetValue(out float f) ? f : double.NaN;
-        if (double.IsNaN(number) || number < Min || number > Max) return false;
+        if (double.IsNaN(number)) return false;
+        // Compared as the float it becomes: a maximum of 5.6f is 5.5999999 as a double, so stored text "5.6" is in range.
         value = (float)number;
+        if (value < Min || value > Max) return false;
         return Mathf.Approximately(Snap(value), value);
     }
 }
@@ -127,13 +129,14 @@ internal sealed class Choice<T> : Setting<T> where T : notnull
         return index >= 0 ? Options[index].Label : value.ToString() ?? string.Empty;
     }
 
-    // An int as a number, a game enum by name; only one of the options.
+    // An int as a number, a string as itself, a game enum by name; only one of the options.
     protected override JsonNode? Write(T value) => value is Enum ? JsonValue.Create(value.ToString()) : JsonValue.Create(value);
 
     protected override bool TryRead(JsonValue json, out T value)
     {
         value = default!;
         object? read = typeof(T) == typeof(int) ? (json.TryGetValue(out int number) ? number : null)
+            : typeof(T) == typeof(string) ? (json.TryGetValue(out string? text) ? text : null)
             : typeof(T).IsEnum && json.TryGetValue(out string? name) && Enum.TryParse(typeof(T), name, out object? parsed) ? parsed : null;
         if (read is not T candidate || !Options.Any(o => EqualityComparer<T>.Default.Equals(o.Value, candidate))) return false;
         value = candidate;
