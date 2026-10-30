@@ -111,8 +111,9 @@ internal static partial class DevCommands
             if (call.Args.Length < 5 || !float.TryParse(call.Args[1], out float x) || !float.TryParse(call.Args[2], out float y)
                 || !float.TryParse(call.Args[3], out float w) || !float.TryParse(call.Args[4], out float h) || w < 1f || h < 1f)
                 throw new ArgumentException("usage: shot rect <x> <y> <w> <h> [options], game-window pixels from the top left");
+            // Matte works here when the area holds only the menu or the HUD layer (a HUD hover view beside the HUD's own
+            // area): the backdrop goes under both, and anything of the game's in the area comes out solid.
             var area = ParseShotOptions(call.Args.Skip(5).ToArray());
-            if (area.Matte) throw new ArgumentException("matte needs the menu, the HUD or game UI");
             return StartCapture(new Capture { Name = SafeName(area.Name ?? "rect"), Crop = new Rect(x, y, w, h), Pad = 0f }.With(area));
         }
         if (target.StartsWith('#'))
