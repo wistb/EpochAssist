@@ -172,6 +172,9 @@ internal static class SessionCommands
         int frames = int.TryParse(call.Lower(2), out int n) && n > 0 ? Math.Min(n, 10000) : 120;
         if (FeatureHost.Find("menu") is not { } menu) return CommandResult.Error("sessions cost: no menu feature");
         int start = UnityEngine.Time.frameCount, primitives = Ui.SessionCharts.Primitives, redraws = Ui.SessionCharts.Redraws;
+        int liveBuilds = SessionStats.LiveBuilds, hudBuilds = Ui.SessionHud.Builds;
+        double liveMs = SessionStats.LiveBuildMs;
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
         return new CommandResult("ok sessions cost: measuring")
         {
             Pending = () =>
@@ -183,10 +186,20 @@ internal static class SessionCommands
                 return $"ok sessions cost: {done} frames, menu {(Ui.Menu.Visible ? "open" : "closed")} on {page}: avg {f.AverageMs.ToString("F3", s_inv)} ms, worst {f.WorstMs.ToString("F3", s_inv)} ms, "
                     + $"last second {f.LastSecondMs.ToString("F3", s_inv)} ms; chart primitives {((Ui.SessionCharts.Primitives - primitives) / (double)done).ToString("F1", s_inv)} per frame, "
                     + $"texture redraws {Ui.SessionCharts.Redraws - redraws}, chart textures {Ui.SessionCharts.TextureCount}"
-                    + (FeatureHost.Find("events") is { } events ? $"; events feature (producers, the faction reader among them) avg {events.Record.Frames.AverageMs.ToString("F3", s_inv)} ms, worst {events.Record.Frames.WorstMs.ToString("F3", s_inv)} ms" : string.Empty);
+                    + (FeatureHost.Find("events") is { } events ? $"; events feature (producers, the faction reader among them) avg {events.Record.Frames.AverageMs.ToString("F3", s_inv)} ms, worst {events.Record.Frames.WorstMs.ToString("F3", s_inv)} ms" : string.Empty)
+                    + Feature("hud") + Feature("sessions")
+                    + $"; live figure builds {SessionStats.LiveBuilds - liveBuilds}"
+                    + (SessionStats.LiveBuilds > liveBuilds ? $" at {((SessionStats.LiveBuildMs - liveMs) / (SessionStats.LiveBuilds - liveBuilds)).ToString("F3", s_inv)} ms each" : string.Empty)
+                    + $", HUD text builds {Ui.SessionHud.Builds - hudBuilds}"
+                    + $"; main thread allocated {((GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024d / done).ToString("F1", s_inv)} KB per frame (whole managed side)";
             },
         };
     }
+
+    // "; hud avg 0.123 ms, worst 0.456 ms": a feature's frame time (update and drawing) over the last second.
+    private static string Feature(string id) => FeatureHost.Find(id) is { } f
+        ? $"; {id} avg {f.Record.Frames.AverageMs.ToString("F3", s_inv)} ms, worst {f.Record.Frames.WorstMs.ToString("F3", s_inv)} ms"
+        : string.Empty;
 
     // sessions trends [list | out <id> | in <id>]: the sessions left out of trends, as the page's toggle sets them.
     private static CommandResult Trends(CommandCall call)

@@ -228,6 +228,10 @@ internal sealed class SessionStats
     private static float s_liveAt = float.MinValue;
     private const float RefreshSeconds = 0.5f;
 
+    /// <summary>Live figure builds since load and their total time (dev `sessions cost`).</summary>
+    public static int LiveBuilds;
+    public static double LiveBuildMs;
+
     /// <summary>The current session's figures, refreshed at most every 0.5 s; null with no session. Built only when read.</summary>
     public static SessionStats? LiveStats()
     {
@@ -244,9 +248,12 @@ internal sealed class SessionStats
         }
         if (s_liveStats == null || Clock.Now - s_liveAt >= RefreshSeconds)
         {
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             foreach (var record in view.RecordsSince(s_live.Consumed)) s_live.Add(record);
             s_liveStats = s_live.At(view, live: true);
             s_liveAt = Clock.Now;
+            LiveBuilds++;
+            LiveBuildMs += (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / System.Diagnostics.Stopwatch.Frequency;
         }
         return s_liveStats;
     }
