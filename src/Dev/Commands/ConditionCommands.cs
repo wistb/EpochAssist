@@ -9,15 +9,21 @@ namespace EpochAssist.Dev;
 internal static class ConditionCommands
 {
     public const string CondUsage = "cond kinds | list [<list>] | add <list> <kind> [arg=value ...] [off] [unknown=true|false] [label=...] "
-        + "| set <list> <n> arg=value ... | remove <list> <n> | move <list> <from> <to> | clear <list> | doc <name> [<json>] | toggle <chord> | tallyfail on|off | bench [n]";
+        + "| set <list> <n> arg=value ... | remove <list> <n> | move <list> <from> <to> | clear <list> | doc <name> [<json>] | named <name> [ends] "
+        + "| toggle <chord> | tallyfail on|off | bench [n]";
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
-    public const string WhyUsage = "why [<slot 1-5>] | why macros | why macro <name>";
+    public const string WhyUsage = "why [<slot 1-5>] | why macros | why macro <name> | why named [<name>]";
 
     // why [slot]: every slot's verdict with each condition's value and result, from the slot macros.
     public static CommandResult Why(CommandCall call)
     {
+        if (call.Lower(1) == "named")
+        {
+            if (FeatureHost.Find("macros") is not { State: FeatureState.Running }) return CommandResult.Error("why: macros aren't running");
+            return new CommandResult(DevOutput.Reply("why", Features.Macros.ExplainNamed(call.Args.Length >= 2 ? call.Rest(2) : null)));
+        }
         if (call.Lower(1) is "macros" or "macro")
         {
             if (FeatureHost.Find("macros") is not { State: FeatureState.Running }) return CommandResult.Error("why: macros aren't running");
@@ -44,6 +50,7 @@ internal static class ConditionCommands
         "move" => Move(call),
         "clear" => Clear(call),
         "doc" => Doc(call),
+        "named" => Named(call),
         "toggle" => Toggle(call),
         "bench" => Bench(call),
         "tallyfail" when call.Lower(2) is "on" or "off" => TallyFail(call.Lower(2) == "on"),
@@ -67,6 +74,7 @@ internal static class ConditionCommands
         ArgKind.Slot => $"{arg.Name} slot 0–5, 0 = this slot ({arg.Default?.ToJsonString()})",
         ArgKind.Choice or ArgKind.Rarity => $"{arg.Name} {string.Join("|", arg.Options)} ({arg.Default?.ToJsonString()})",
         ArgKind.Buff => $"{arg.Name} buff id (none)",
+        ArgKind.Named => $"{arg.Name} named condition id (none)",
         _ => $"{arg.Name} key chord (not set)",
     };
 
@@ -251,6 +259,22 @@ internal static class ConditionCommands
             }
         }
         return null;
+    }
+
+    // cond named <name> [ends]: a named condition's start tree (or its ends tree) in the list format, by name with spaces.
+    private static CommandResult Named(CommandCall call)
+    {
+        if (call.Args.Length < 2) return CommandResult.Error($"cond named: usage {CondUsage}");
+        if (ConditionTargets.ByDocName("named") is not { } target) return CommandResult.Error("cond named: macros aren't running");
+        string name = call.Rest(2);
+        bool ends = name.EndsWith(" ends", StringComparison.OrdinalIgnoreCase) && Features.Macros.NamedKey(name) is { } k && k.EndsWith(NamedConditions.EndsSuffix, StringComparison.Ordinal);
+        if (Features.Macros.NamedKey(name) is not { } key) return CommandResult.Error($"cond named: no named condition \"{name}\"");
+        var lines = new List<string> { string.Empty };
+        AddList(lines, target, name, key);
+        string id = ends ? key[..^NamedConditions.EndsSuffix.Length] : key;
+        string sticky = Features.Macros.Named is { } named ? $", sticky {named.StickyText(id)}" : string.Empty;
+        lines[0] = $"ok cond named {name} ({key}): {target.Setting.List(key).Entries.Count} entries{sticky}";
+        return new CommandResult(DevOutput.Reply("cond", lines));
     }
 
     // cond doc <name> [<json>]: a setting's whole document, or replaces it (for tests of bad input).

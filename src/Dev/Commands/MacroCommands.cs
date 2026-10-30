@@ -11,7 +11,7 @@ internal static class MacroCommands
 
     private static readonly CultureInfo s_inv = CultureInfo.InvariantCulture;
 
-    public const string MacroUsage = "macro list | add <share code> | code <set id> | on|off <set id> | fire <name> | cancel | clear <set id|all> | bench <n [targets]|off> | casts | ailments | hovered | targets [hovered [seconds]|screen] | targetbench <n> [radius] | xp";
+    public const string MacroUsage = "macro list | add <share code> | code <set id> | on|off <set id> | fire <name> | cancel | clear <set id|all> | bench <n [targets|named]|off> | named uses <name> | casts | ailments | hovered | targets [hovered [seconds]|screen] | targetbench <n> [radius] | xp";
 
     public static void Register(string owner)
     {
@@ -117,13 +117,15 @@ internal static class MacroCommands
                 return CommandResult.Ok("macro add: " + Features.Macros.Import(call.Rest(2)));
             case "code" when call.Args.Length >= 2:
                 if (Features.MacroSettings.LibraryDoc.Doc.Find(call.Args[1]).Set is not { } shared) return CommandResult.Error($"macro code: no set {call.Args[1]}");
-                var (code, error) = ShareCode.Encode(shared);
+                var (code, error) = ShareCode.Encode(shared, Features.MacroSettings.NamedConditions.Doc);
                 return code != null ? CommandResult.Ok($"macro code {call.Args[1]} ({code.Length} chars, {(ShareCode.Compressed == true ? "deflate" : "uncompressed")}): {code}")
                     : CommandResult.Error($"macro code: {error}");
+            case "named" when call.Lower(2) == "uses" && call.Args.Length >= 3:
+                return new CommandResult(DevOutput.Reply("macro", Features.Macros.NamedUses(call.Rest(3))));
             case "fire" when call.Args.Length >= 2:
                 return new CommandResult(Features.Macros.DevFire(call.Rest(2)));
             case "bench" when call.Args.Length >= 2:
-                return new CommandResult(Features.Macros.Bench(call.Lower(2) == "off" ? 0 : int.TryParse(call.Lower(2), out int n) ? Math.Clamp(n, 0, 200) : 0, call.Lower(3) == "targets"));
+                return new CommandResult(Features.Macros.Bench(call.Lower(2) == "off" ? 0 : int.TryParse(call.Lower(2), out int n) ? Math.Clamp(n, 0, 200) : 0, call.Lower(3) == "targets", call.Lower(3) == "named"));
             case "on" or "off" when call.Args.Length >= 2:
                 bool on = call.Lower(1) == "on";
                 string id = call.Args[1];
