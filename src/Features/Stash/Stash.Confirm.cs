@@ -86,6 +86,9 @@ internal static partial class Stash
                 Widgets.Paint(new Rect(r.x + Pad + 10f, y, r.width - Pad * 2f - 10f, LineH), Controls.Fit(line, text, r.width - Pad * 2f - 10f), text);
                 y += LineH;
             }
+            // Listed for the dev bridge as the menu's own controls are.
+            Focus.Seen?.Invoke("stash/apply-all/run", _run);
+            Focus.Seen?.Invoke("stash/apply-all/cancel", _cancel);
             var mouse = Event.current.mousePosition;
             Theme.DrawSliced(_run, _run.Contains(mouse) ? Theme.PrimaryHover : Theme.PrimaryBg, Theme.ControlRadius);
             Widgets.Paint(_run, "Run all steps", Theme.PrimaryText);
