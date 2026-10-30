@@ -1,6 +1,6 @@
 # Epoch Assist
 
-Macro suite, build planner overlay, map reveal, session tracking, and much more. A
+Fully modular macro suite, build planner overlay, map reveal, session tracking, and much more. A
 [MelonLoader](https://github.com/LavaGang/MelonLoader) mod for Last Epoch.
 
 > Using mods online is against Last Epoch's terms of service.
