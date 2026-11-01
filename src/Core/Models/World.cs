@@ -23,6 +23,7 @@ internal static class World
     public const string ChestsOffline = "world: chests (offline)";
     public const string ChestsOnline = "world: chests (online)";
     public const string EnemyAilments = "world: enemy ailments";
+    public const string Invulnerable = "world: invulnerable";
     /// <summary>The game's own hovered enemy (the top enemy bar's actor), the same in both modes.</summary>
     public const string HoveredEnemy = "world: hovered enemy";
 

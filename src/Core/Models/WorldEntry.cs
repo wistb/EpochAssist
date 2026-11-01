@@ -33,6 +33,8 @@ internal sealed class WorldEntry
     public float? HealthFraction { get; internal set; }
     public float? Ward { get; internal set; }
     public bool Dead { get; internal set; }
+    /// <summary>Enemies: can't be damaged right now.</summary>
+    public bool Invulnerable { get; internal set; }
     /// <summary>An echo objective; null where the mode doesn't know (online).</summary>
     public bool? Objective { get; internal set; }
     /// <summary>Shrines and chests: used or opened; null where the mode doesn't say.</summary>

@@ -105,7 +105,9 @@ internal static partial class Targets
         return Game.Alive(s_actorInfo) ? s_actorInfo : null;
     }
 
-    private static bool IsLiveEnemy(WorldEntry entry) => entry.Kind == WorldKind.Enemy && !entry.Gone && !entry.Dead && entry.Active;
+    // Invulnerable enemies are never picked: a cast at one does nothing.
+    private static bool IsLiveEnemy(WorldEntry entry) =>
+        entry.Kind == WorldKind.Enemy && !entry.Gone && !entry.Dead && entry.Active && !entry.Invulnerable;
 
     /// <summary>Whether the entry's transform is the given one or one of its parents (colliders sit on child objects).</summary>
     public static bool IsOrParent(Transform? entry, Transform hit)

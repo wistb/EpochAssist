@@ -41,6 +41,10 @@ internal static class WorldSources
         Need<ActorSync>(nameof(ActorSync.SyncedMaxHealth), World.EnemyHealthOnline),
         Need<ActorSync>(nameof(ActorSync.SyncedCurrentWard), World.EnemyHealthOnline),
 
+        Need<Actor>(nameof(Actor.protection), World.Invulnerable),
+        Need<PrecalculatedStatsHolder>(nameof(PrecalculatedStatsHolder.IsInvulnerable), World.Invulnerable),
+        Need<ActorSync>(nameof(ActorSync.IsInvulnerable), World.Invulnerable),
+
         Need<ActorDisplayInformation>(nameof(ActorDisplayInformation.appliedMods), World.MonsterMods),
 
         Need<UIActorInfo>(nameof(UIActorInfo.ActorOnMouse), World.HoveredEnemy),
@@ -350,6 +354,17 @@ internal static class WorldSources
             ProtectionClass? protection = entry.WardSource;
             entry.Ward = protection != null && !protection.WasCollected ? protection.currentWard : null;
         }
+        if (entry.Kind == WorldKind.Enemy) entry.Invulnerable = World.Has("invulnerable") && Invulnerable(entry);
+    }
+
+    // An enemy with a sync object carries the flag there; otherwise the actor's protection holds it.
+    private static bool Invulnerable(WorldEntry entry)
+    {
+        if (entry.Sync != null) return entry.Sync.IsInvulnerable;
+        if (!Game.Alive(entry.Actor)) return false;
+        entry.WardSource ??= entry.Actor!.protection;
+        ProtectionClass? protection = entry.WardSource;
+        return protection != null && !protection.WasCollected && protection.IsInvulnerable;
     }
 
     private static void RefreshObject(WorldEntry entry)
