@@ -102,12 +102,25 @@ internal static partial class PlayerModel
         public override void Clear() { }
     }
 
+    private sealed class TogglesPart : Part
+    {
+        public readonly List<string> Value = new();
+        public TogglesPart() : base("skill toggles") { }
+        public override void Fill() => FillToggles(Value);
+        public override void Clear()
+        {
+            Value.Clear();
+            s_togglesScannedAt = float.NegativeInfinity;
+        }
+    }
+
     private static readonly VitalsPart s_vitals = new();
     private static readonly BuffsPart s_buffs = new();
     private static readonly BarPart s_bar = new();
     private static readonly FormPart s_form = new();
     private static readonly PotionsPart s_potions = new();
-    private static readonly Part[] s_parts = { s_vitals, s_buffs, s_bar, s_form, s_potions };
+    private static readonly TogglesPart s_toggles = new();
+    private static readonly Part[] s_parts = { s_vitals, s_buffs, s_bar, s_form, s_potions, s_toggles };
 
     private static Feature? s_feature;
     // Each part's declared groups, from the feature's requirements at start.

@@ -65,6 +65,9 @@ internal sealed class PlayerModelFeature : Feature
         Need<LocalTreeData>(nameof(LocalTreeData.playerAbilityList), PlayerModel.SkillBar),
         Need<PlayerAbilityList>(nameof(PlayerAbilityList.getAbility), PlayerModel.SkillBar),
 
+        Need<CreationReferences>(nameof(CreationReferences.thisAbility), PlayerModel.TogglesGroup),
+        Need<Ability>(nameof(Ability.playerAbilityID), PlayerModel.TogglesGroup),
+
         Need<PlayerChargeManager>(nameof(PlayerChargeManager.onCoooldown), PlayerModel.CooldownReady),
 
         Need<OfflinePlayerChargeManager>(nameof(OfflinePlayerChargeManager.abilities), PlayerModel.ChargesOffline),

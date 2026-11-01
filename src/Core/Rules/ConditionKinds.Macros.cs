@@ -86,6 +86,18 @@ internal static partial class ConditionKinds
             Words = a => $"{SkillWords(a)} ready",
             FailText = a => $"{SkillWords(a)} not ready",
         });
+        Add(new ConditionKind("skill.toggled", "skill", "Skill switched on")
+        {
+            Args = { ArgSpec.Skill("skill"), ArgSpec.Choice("is", "on", "on", "off") },
+            Parts = { new PartNeed("player", "skill toggles") },
+            Check = (_, a) =>
+            {
+                if (PlayerModel.Toggled(a.Text("skill")) is not bool on) return ConditionResult.Unknown(PlayerReason("skill toggles"));
+                return ConditionResult.Of(on == (a.Text("is") == "on"), note: on ? "on" : "off");
+            },
+            Words = a => $"{SkillWords(a)} switched {a.Text("is")}",
+            FailText = a => $"{SkillWords(a)} switched {(a.Text("is") == "on" ? "off" : "on")}",
+        });
         Add(new ConditionKind("skill.cooldown", "skill", "Skill cooldown")
         {
             Args = { ArgSpec.Skill("skill"), ArgSpec.Compare("below", "below", "above"), ArgSpec.Number("seconds", 1, 0, 120, 0.1f, " s"), To() },
