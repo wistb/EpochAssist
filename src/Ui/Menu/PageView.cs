@@ -267,7 +267,8 @@ internal static class PageView
             if (!Safe.Visible(button)) continue;
             float w = Controls.ButtonWidth(button.Label);
             right -= w;
-            if (Controls.Button(new Rect(right, r.center.y - 12f, w, 24f), button.Label, button.Key, button.Primary, TextRows.Tip(button))) ActionsFor(button);
+            // The button's own kind: primary, danger, and a prompt (a name to give, a delete to confirm) opened before it runs.
+            if (Controls.Button(new Rect(right, r.center.y - 12f, w, 24f), button, button.Key, TextRows.Tip(button))) ActionsFor(button);
             right -= 6f;
         }
         if (page.Page.Switch is { } toggle)

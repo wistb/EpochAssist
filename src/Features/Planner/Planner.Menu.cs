@@ -178,7 +178,7 @@ internal static partial class Planner
                 {
                     Delete(id);
                     return null;
-                }),
+                }) { Danger = true },
             },
         };
         return s_actions;

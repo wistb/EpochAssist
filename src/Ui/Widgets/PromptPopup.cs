@@ -132,7 +132,7 @@ internal sealed class PromptPopup : IPopup
             }
         }
         // Drawn only: the layer hands their clicks to HandleEvent.
-        Controls.Button(_ok, _prompt.Ok, "prompt.ok", primary: true);
+        Controls.Button(_ok, _prompt.Ok, "prompt.ok", primary: !_prompt.Danger, danger: _prompt.Danger);
         Controls.Button(_cancel, "Cancel", "prompt.cancel");
     }
 }

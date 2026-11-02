@@ -114,6 +114,8 @@ internal sealed record ButtonPrompt(Func<string> Question, string Ok, Func<strin
 {
     public bool Input { get; init; }
     public Func<string>? Initial { get; init; }
+    /// <summary>The answer removes something (a delete): its button is drawn muted red instead of the main colour.</summary>
+    public bool Danger { get; init; }
 }
 
 /// <summary>A live readout: a label and a value in its state's colour. Shown only while the feature runs.</summary>
