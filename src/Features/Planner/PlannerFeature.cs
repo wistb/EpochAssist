@@ -161,7 +161,6 @@ internal sealed class PlannerFeature : Feature
         Need(typeof(Il2CppLE.AssetBundles.SoftRefExtensions), nameof(Il2CppLE.AssetBundles.SoftRefExtensions.CreateLoadRefTypeless), Planner.GuideIconsGroup),
         Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.Status), Planner.GuideIconsGroup),
         Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.TypelessAssetOrNull), Planner.GuideIconsGroup),
-        Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.ExplicitDisposeInternal), Planner.GuideIconsGroup),
         Need<Il2CppLE.AssetBundles.LoadRef>(nameof(Il2CppLE.AssetBundles.LoadRef.AddSceneLifetimeReferenceTo), Planner.GuideIconsGroup),
         Need<PassivePanelManager>(nameof(PassivePanelManager.PassivePanelData), Planner.GuideIconsGroup),
         Need<PassivePanelData.ClassResources>(nameof(PassivePanelData.ClassResources.passiveTree), Planner.GuideIconsGroup),

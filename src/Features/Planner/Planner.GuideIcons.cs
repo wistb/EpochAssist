@@ -380,16 +380,9 @@ internal static partial class Planner
         s_iconsPending = 0;
     }
 
+    // A handle's hold on its asset is the reference on the holder: it goes with the holder. Disposing the handle as well
+    // let the game's own loads of the same sprite go too, and its windows showed blank icons.
     private static void Release(LoadRef? handle)
     {
-        if (handle == null) return;
-        try
-        {
-            handle.ExplicitDisposeInternal();
-        }
-        catch (Exception e)
-        {
-            Log.ErrorThrottled("planner:guide icons free", $"Planner: a guide icon couldn't be released: {e.Message}", 30);
-        }
     }
 }
