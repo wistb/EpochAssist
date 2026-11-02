@@ -36,7 +36,7 @@ internal sealed class DataEntry
 /// never throw: a failure, a missing group or a stopped data feature answers unknown. Only the game's read-only
 /// lookups are called.
 /// </summary>
-internal static class GameData
+internal static partial class GameData
 {
     public const string Affixes = "data: affixes";
     public const string MonsterMods = "data: monster mods";
@@ -78,6 +78,7 @@ internal static class GameData
         s_affixNames.Clear();
         s_affixValues.Clear();
         s_items.Clear();
+        ClearValues();
         s_allBuffs = null;
         s_classSkills.Clear();
         s_allMods = null;

@@ -30,6 +30,40 @@ internal static class StashSettings
         Help = "While the Stash page is open, the stash item under the pointer says which tab the game would file it into.",
     };
 
+    // Stash search: finding items by their numbers across every tab. Only read: items are never moved.
+    public static readonly Section Search = Group.Section("search", "Stash search");
+    public static readonly Toggle SearchEnabled = new(Search, "SearchEnabled", "Stash search", true)
+    {
+        QuickLabel = "Stash search", Help = "The Filter page in the Stash tab: find items by tier, value and roll across every stash tab.",
+    };
+    public static readonly Toggle SearchBadges = new(Search, "SearchBadges", "Show matched value", true)
+    {
+        Help = "Each result shows the number it matched on, beside its name or in its corner: the stat's value, a roll's quality, a tier, a count or a sum.",
+    };
+    public static readonly Toggle SearchHighlight = new(Search, "SearchHighlight", "Outline matches", true)
+    {
+        Help = "While a search shows results, matches in the stash window's open tab get an outline and the rest are dimmed.",
+    };
+
+    public static readonly Number SearchDim = new(Search, "SearchDim", "Dim other items", 0.6f, 0f, 1f)
+    {
+        Step = 0.05f, Slider = true, Percent = true,
+        Help = "How dark the open tab's other items get while matches are outlined.",
+    };
+    public static readonly Toggle SearchFilterButton = new(Search, "SearchFilterButton", "Filter button", true)
+    {
+        Help = "A Filter button beside the stash window's search box opens the Filter page.",
+    };
+    public static readonly Toggle SearchPanel = new(Search, "SearchPanel", "Filter panel", true)
+    {
+        Help = "A ~ search typed in the stash's search box also lists its matches in a panel beside Quick View, with tooltips and click to focus.",
+    };
+    public static readonly Toggle SearchBox = new(Search, "SearchBox", "~ searches", true)
+    {
+        Help = "Text in the stash's own search box that starts with ~ is read as a stash search: stats by name with values, "
+            + "tiers and roll quality, totals, brackets and counts, beside the game's own words. The game then shows the matches as it does its own.",
+    };
+
     /// <summary>Whether anything shows where items belong; with all three off the items aren't checked.</summary>
     public static bool AnyItemHints => ItemCounts.Value || ItemOutlines.Value || ItemLabels.Value;
 

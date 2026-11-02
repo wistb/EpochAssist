@@ -169,6 +169,7 @@ internal static class RowLayout
                 ValueChoice c => c.Label,
                 ValueNumber n => n.Label,
                 ValueToggle t => t.Label,
+                ValueRange r => r.Label,
                 LiveText l => l.Label,
                 _ => null,
             };

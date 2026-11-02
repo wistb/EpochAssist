@@ -37,6 +37,8 @@ internal static partial class Stash
     {
         bool outlines = StashSettings.ItemOutlines.Value, labels = StashSettings.ItemLabels.Value;
         if (Event.current.type != EventType.Repaint || !PageShown || !StashSettings.Enabled.Value || !(outlines || labels) || !StashWindowOpen) return;
+        // A search's outline and dim take the open tab while they show.
+        if (Modules.Loaded("stash") && StashSearchHighlight()) return;
         var places = ItemPlaces;
         if (places == null) return;
         if (!ReferenceEquals(places, s_placeSource))
@@ -69,6 +71,18 @@ internal static partial class Stash
         finally
         {
             GUI.matrix = matrix;
+        }
+    }
+
+    private static bool StashSearchHighlight()
+    {
+        try
+        {
+            return StashSearch.HighlightActive;
+        }
+        catch
+        {
+            return false;
         }
     }
 

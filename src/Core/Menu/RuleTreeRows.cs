@@ -23,6 +23,8 @@ internal sealed class TreeLine : MenuRow
     public Func<(string Value, StatusState State)?>? Live { get; init; }
     /// <summary>A group line's type (0 all of, 1 any of, 2 none of) and its setter; null for other lines.</summary>
     public Func<int>? Type { get; init; }
+    /// <summary>The type dropdown's words; null for <see cref="TypeLabels"/>.</summary>
+    public string[]? Labels { get; init; }
     public Action<int>? SetType { get; init; }
     public bool Opened { get; init; }
     /// <summary>Opens or closes the line's options; null for lines that have none (groups).</summary>
@@ -49,6 +51,8 @@ internal sealed class TreeAdd : MenuRow
     public string? SecondLabel { get; init; }
     public Action? Second { get; init; }
     public Func<string?>? SecondBlocked { get; init; }
+    /// <summary>Scores a choice against the typed words (0 hides it); null for the word-start match.</summary>
+    public Func<string, string[], int>? Ranker { get; init; }
     protected override string DefaultKey => "add";
 }
 

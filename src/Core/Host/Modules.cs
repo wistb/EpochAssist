@@ -25,6 +25,8 @@ internal sealed class Module
     public string Description { get; }
     public Func<Feature> Create { get; }
     public Action RegisterSettings { get; }
+    /// <summary>More features built and registered with this module.</summary>
+    public Func<Feature>[] Extra { get; init; } = Array.Empty<Func<Feature>>();
     /// <summary>Dev builds under the dev loader: dev features that read this module, built with it.</summary>
     public Func<Feature>[] DevFeatures { get; init; } = Array.Empty<Func<Feature>>();
 }
@@ -41,6 +43,7 @@ internal static class Modules
         new("planner", "Planner", "Imports Maxroll or Last Epoch Tools planners and displays them on game interfaces", () => new PlannerFeature(), PlannerSettings.Register),
         new("stash", "Stash", "Stash layout presets and application. Uses uniques in Planner if any planners are imported.", () => new StashFeature(), StashSettings.Register)
         {
+            Extra = new Func<Feature>[] { () => new StashSearchFeature() },
 #if DEV
             DevFeatures = new Func<Feature>[] { () => new StashTraceFeature() },
 #endif
@@ -137,10 +140,11 @@ internal static class Modules
         LoadedLate = null;
     }
 
-    // The module's feature and, under the dev loader, its dev features; their settings are registered already.
+    // The module's features and, under the dev loader, its dev features; their settings are registered already.
     private static Feature[] Build(Module module)
     {
         var features = new List<Feature> { module.Create() };
+        features.AddRange(module.Extra.Select(create => create()));
         if (Runtime.Hosted) features.AddRange(module.DevFeatures.Select(create => create()));
         foreach (var feature in features) feature.Record.SettingsRegistered = true;
         return features.ToArray();

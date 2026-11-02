@@ -67,6 +67,8 @@ Fully modular macro suite, build planner overlay, map reveal, session tracking, 
   - **Apply**: one step at a time, or all after summary of changes and gold; step count known up front.
   - **Items in wrong tab**: count per tab, outlines in stash window, target tab on hover. Items never moved.
   - **Edit**: copy preset, drag folders and tabs, rename, recolour, remove with cost shown first, undo; save stash as preset.
+  - **Search**: every tab by affix tier, value and roll quality, implicits, unique rolls and totals; stat groups (and, not, if, count, weighted sum); results beside stash window, click opens item's tab; saved searches and share codes. Items never moved.
+  - **Search box**: text starting with `~` in stash's own search box uses same search, e.g. `~fire res 30+ & helmet`, `~t6+ health q80`, `~2of(fire res 20+, cold res 20+, void res 20+)`; game's own words still work.
   <details><summary>Screenshots</summary>
 
   ![Stash: preset beside stash at a budget](nexus/media/stash-page.png)

@@ -127,6 +127,10 @@ internal sealed class DropdownPopup : IPopup
     private readonly Func<int, (Texture Texture, Rect Uv)?>? _previews;
     private readonly (float Width, Action<int, Rect> Draw)? _samples;
     private readonly Rect _anchor;
+    // Wide enough for most stat and item names; a longer one is cut at the edge.
+    private const float MaxWidth = 380f;
+    // Scores an option against the typed words (0 hides it); null keeps the word-start match in list order.
+    private readonly Func<string, string[], int>? _ranker;
     private string _filter = string.Empty;
     // What is listed: an option's index, or a heading (-1 - group).
     private readonly List<int> _rows = new();
@@ -136,8 +140,9 @@ internal sealed class DropdownPopup : IPopup
 
     public DropdownPopup(string key, Rect anchor, IReadOnlyList<string> options, int selected, Action<int> pick,
         (string Label, int First)[]? groups, IReadOnlyList<Color?>? swatches, Func<int, (Texture Texture, Rect Uv)?>? previews = null,
-        (float Width, Action<int, Rect> Draw)? samples = null)
+        (float Width, Action<int, Rect> Draw)? samples = null, Func<string, string[], int>? ranker = null)
     {
+        _ranker = ranker;
         Key = key;
         _anchor = anchor;
         _options = options;
@@ -162,6 +167,11 @@ internal sealed class DropdownPopup : IPopup
     {
         _rows.Clear();
         string[] words = _filter.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 0 && _ranker != null)
+        {
+            Ranked(words);
+            return;
+        }
         int group = -1;
         for (int i = 0; i < _options.Count; i++)
         {
@@ -182,12 +192,33 @@ internal sealed class DropdownPopup : IPopup
         Measure();
     }
 
+    // With a ranker: each group's matching options, best first, under the group's heading; groups keep their order.
+    private void Ranked(string[] words)
+    {
+        var scored = new List<(int Index, int Group, int Score)>();
+        for (int i = 0; i < _options.Count; i++)
+        {
+            int score = Safe.Call(() => _ranker!(_options[i], words), 0, "dropdown.rank");
+            if (score <= 0) continue;
+            int g = _groups != null ? Array.FindLastIndex(_groups, x => x.First <= i) : -1;
+            scored.Add((i, g, score));
+        }
+        foreach (var group in scored.GroupBy(x => x.Group).OrderBy(x => x.Key))
+        {
+            if (group.Key >= 0) _rows.Add(-1 - group.Key);
+            foreach (var (index, _, _) in group.OrderByDescending(x => x.Score).ThenBy(x => x.Index)) _rows.Add(index);
+        }
+        _highlight = _rows.FirstOrDefault(x => x >= 0, -1);
+        _scroll = 0f;
+        Measure();
+    }
+
     private void Measure()
     {
         GUIStyle text = Widgets.Style(() => Theme.OptionText, GUI.skin.label);
         float widest = 0f;
         foreach (string option in _options) widest = Mathf.Max(widest, TextCache.Width(option, text));
-        float width = Mathf.Clamp(Mathf.Ceil(widest + text.padding.horizontal + (_swatches != null ? 18f : _previews != null ? Dropdown.PreviewSize + 6f : _samples is { } s ? s.Width + 10f : 0f)) + Pad * 2f, _anchor.width, 260f);
+        float width = Mathf.Clamp(Mathf.Ceil(widest + text.padding.horizontal + (_swatches != null ? 18f : _previews != null ? Dropdown.PreviewSize + 6f : _samples is { } s ? s.Width + 10f : 0f)) + Pad * 2f, _anchor.width, MaxWidth);
         float list = Mathf.Min(ContentHeight, VisibleRows * ItemHeight);
         _rect = Popups.Place(new Vector2(width, ListTop + Mathf.Max(list, ItemHeight) + Pad), _anchor);
     }

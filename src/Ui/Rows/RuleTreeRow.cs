@@ -16,6 +16,7 @@ internal static class RuleTreeRowKinds
         RowKinds.Register<TreeAdd>(new AddRenderer());
         RowKinds.Register<Indented>(new IndentedRenderer());
         RowKinds.Register<ValueTextField>(new TextFieldRenderer());
+        RowKinds.Register<ValueRange>(new RangeRenderer());
     }
 
     // The remove button: the theme's cross glyph on a small square, as list rows draw theirs.
@@ -87,8 +88,10 @@ internal static class RuleTreeRowKinds
             if (row.Type != null && row.SetType != null)
             {
                 int type = Safe.Call(row.Type, 0, row.Key + ".type");
-                Dropdown.Draw(new Rect(x, r.y, 96f, r.height), row.Key + ".type", TreeLine.TypeLabels, type, i => Safe.Run(() => row.SetType(i), row.Key + ".settype"));
-                x += 104f;
+                var labels = row.Labels ?? TreeLine.TypeLabels;
+                float typeWidth = row.Labels != null ? Dropdown.WidthFor(labels) : 96f;
+                Dropdown.Draw(new Rect(x, r.y, typeWidth, r.height), row.Key + ".type", labels, type, i => Safe.Run(() => row.SetType(i), row.Key + ".settype"));
+                x += typeWidth + 8f;
                 if (live is var (gv, gs)) Controls.StatePill(new Rect(x, r.y, right - x, r.height), gv, gs);
             }
             else
@@ -120,7 +123,8 @@ internal static class RuleTreeRowKinds
         protected override RowText Bridge(TreeLine row, RowContext ctx)
         {
             string on = row.On != null ? (Safe.Call(row.On, false, row.Key + ".on") ? "on" : "off") : "none";
-            string words = row.Type != null ? TreeLine.TypeLabels[Math.Clamp(Safe.Call(row.Type, 0, row.Key + ".type"), 0, 2)] : Safe.Call(row.Words, string.Empty, row.Key + ".words");
+            var labels = row.Labels ?? TreeLine.TypeLabels;
+            string words = row.Type != null ? labels[Math.Clamp(Safe.Call(row.Type, 0, row.Key + ".type"), 0, labels.Length - 1)] : Safe.Call(row.Words, string.Empty, row.Key + ".words");
             var live = row.Live != null ? Safe.Call(row.Live, null, row.Key + ".live") : null;
             string kind = row.Number != null ? "step" : "line";
             string value = live is var (v, s) ? $"{v} {s.ToString().ToLowerInvariant()}" : "-";
@@ -148,7 +152,7 @@ internal static class RuleTreeRowKinds
                 var choices = Safe.Call(row.Choices, Array.Empty<string>(), key + ".choices");
                 var groups = row.Groups != null ? Safe.Call(row.Groups, null, key + ".groups") : null;
                 if (Popups.Current is DropdownPopup open && open.Key == key) Popups.Close();
-                else Popups.Open(new DropdownPopup(key, Popups.ToWindow(button), choices, -1, i => Safe.Run(() => row.Picked(i), key + ".picked"), groups, null));
+                else Popups.Open(new DropdownPopup(key, Popups.ToWindow(button), choices, -1, i => Safe.Run(() => row.Picked(i), key + ".picked"), groups, null, ranker: row.Ranker));
             }
             GUI.enabled = enabled;
             if (blocked != null) Popups.Tip(button, blocked);
@@ -225,5 +229,81 @@ internal static class RuleTreeRowKinds
 
         protected override RowText Bridge(ValueTextField row, RowContext ctx) =>
             new("text", row.Label, Safe.Call(row.Get, string.Empty, row.Key + ".get"), ctx.Enabled);
+    }
+
+    // Two number fields, min and max, where empty is no bound. While a field has focus it keeps what was typed ("-",
+    // "1."), and takes the number when one parses; leaving it shows the stored value again.
+    private sealed class RangeRenderer : RowRenderer<ValueRange>
+    {
+        private const float FieldWidth = 64f, DashWidth = 16f;
+        private static readonly Dictionary<string, string> s_typed = new();
+
+        private static float Width(ValueRange row) => FieldWidth * 2f + DashWidth + (row.Unit.Length > 0 ? 28f : 0f);
+
+        protected override float Height(ValueRange row, float width, RowContext ctx) =>
+            ctx.Inline ? RowLayout.ControlHeight : RowLayout.Height(width, Width(row), Safe.Call(() => row.Hint?.Invoke(), null, row.Key + ".hint"));
+
+        protected override float InlineWidth(ValueRange row) => Width(row);
+
+        protected override void Draw(ValueRange row, Rect rect, RowContext ctx)
+        {
+            string? hint = ctx.Inline ? null : Safe.Call(() => row.Hint?.Invoke(), null, row.Key + ".hint");
+            var parts = RowLayout.Lay(rect, Width(row), hint);
+            Rect control = ctx.Inline ? new Rect(rect.x, rect.y, Width(row), RowLayout.ControlHeight) : parts.Control;
+            if (!ctx.Inline) RowLayout.Label(parts.Label, row.Label, ctx, row.Tip);
+            var (min, max) = Safe.Call(row.Get, ((double?)null, (double?)null), row.Key + ".get");
+            float unit = row.Unit.Length > 0 ? 14f : 0f;
+            var minRect = new Rect(control.x, control.y, FieldWidth, RowLayout.ControlHeight);
+            var maxRect = new Rect(minRect.xMax + unit + DashWidth, control.y, FieldWidth, RowLayout.ControlHeight);
+            string key = ctx.Prefix + row.Key;
+            var newMin = Field(minRect, key + ".min", min, "min");
+            if (row.Unit.Length > 0) Unit(new Rect(minRect.xMax, control.y, unit, minRect.height), row.Unit);
+            Dash(new Rect(minRect.xMax + unit, control.y, DashWidth, minRect.height));
+            var newMax = Field(maxRect, key + ".max", max, "max");
+            if (row.Unit.Length > 0) Unit(new Rect(maxRect.xMax, control.y, unit, maxRect.height), row.Unit);
+            if (newMin.Changed || newMax.Changed)
+                Safe.Run(() => row.Set(newMin.Changed ? newMin.Value : min, newMax.Changed ? newMax.Value : max), row.Key + ".set");
+            if (!ctx.Inline && hint != null) RowLayout.Hint(parts.Hint, hint);
+        }
+
+        private static (bool Changed, double? Value) Field(Rect r, string key, double? value, string placeholder)
+        {
+            string control = "field." + key;
+            bool focused = GUI.GetNameOfFocusedControl() == control;
+            string shown = focused && s_typed.TryGetValue(key, out var typed) ? typed : ValueRange.Format(value);
+            if (!focused) s_typed.Remove(key);
+            GUI.SetNextControlName(control);
+            GUIStyle style = Widgets.Style(() => Theme.TreeFilter, GUI.skin.textField);
+            string next = GUI.TextField(r, shown, 12, style);
+            if (Event.current.type == EventType.Repaint && next.Length == 0 && !focused)
+                Widgets.Paint(new Rect(r.x + 6f, r.y, r.width - 6f, r.height), Widgets.Themed ? Widgets.Colored(placeholder, Theme.Faint) : placeholder, Widgets.Style(() => Theme.FieldHint, GUI.skin.label));
+            if (Focus.Item(key, r)) GUI.FocusControl(control);
+            if (next == shown) return (false, value);
+            s_typed[key] = next;
+            if (next.Trim().Length == 0) return (true, null);
+            return ValueRange.Parse(next) is double v ? (true, v) : (false, value);
+        }
+
+        private static void Dash(Rect r)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            GUIStyle dim = Widgets.Style(() => Theme.FieldHint, GUI.skin.label);
+            Widgets.Paint(new Rect(r.x + 4f, r.y, r.width, r.height), "–", dim);
+        }
+
+        private static void Unit(Rect r, string unit)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            GUIStyle dim = Widgets.Style(() => Theme.FieldHint, GUI.skin.label);
+            Widgets.Paint(new Rect(r.x + 2f, r.y, r.width, r.height), unit, dim);
+        }
+
+        protected override IEnumerable<string> Search(ValueRange row) => new[] { row.Label };
+
+        protected override RowText Bridge(ValueRange row, RowContext ctx)
+        {
+            var (min, max) = Safe.Call(row.Get, ((double?)null, (double?)null), row.Key + ".get");
+            return new RowText("range", row.Label, ValueRange.Text(min, max), ctx.Enabled && Safe.Enabled(row));
+        }
     }
 }

@@ -54,6 +54,44 @@ internal static class ShareCode
             var both = new JsonObject { ["set"] = MacroDoc.SetJson(set), ["named"] = new JsonObject { ["v"] = ConditionDoc.FormatVersion, ["lists"] = lists } };
             json = both.ToJsonString();
         }
+        string code = Pack(Tag, version, json);
+        return code.Length > MaxLength ? (null, $"set too large to share ({code.Length} characters)") : (code, null);
+    }
+
+    /// <summary>Reads a code: the set, or not a share code, made by a newer Epoch Assist, or damaged or incomplete.</summary>
+    public static ShareDecode Decode(string text)
+    {
+        var (version, json, error) = Unpack(Tag, Version, text);
+        if (error != null) return ShareDecode.Fail(error);
+        JsonNode? node;
+        try
+        {
+            node = JsonNode.Parse(json!);
+        }
+        catch (Exception)
+        {
+            return ShareDecode.Fail(Damaged);
+        }
+        ConditionDoc? named = null;
+        if (version == 2)
+        {
+            if (node is not JsonObject both || both["set"] is not JsonObject setNode) return ShareDecode.Fail(Damaged);
+            named = ConditionDoc.Parse(both["named"], out _);
+            if (named == null) return ShareDecode.Fail(Damaged);
+            if (named.ReadOnly) return ShareDecode.Fail(Newer);
+            node = setNode;
+        }
+        var set = MacroDoc.ParseSet(node);
+        if (set.Raw != null) return ShareDecode.Fail(Damaged);
+        return new ShareDecode(set, null, MacroDoc.UnknownParts(set)) { Named = named };
+    }
+
+    /// <summary>
+    /// Any document as one line: tag + version + ":" + base64url(deflate(UTF-8 JSON)) + "." + CRC-32 (8 hex), or "u" +
+    /// base64url of the JSON when deflate isn't available. Macro sets and stash searches use it with their own tags.
+    /// </summary>
+    public static string Pack(string tag, int version, string json)
+    {
         byte[] bytes = Encoding.UTF8.GetBytes(json);
         string crc = Crc32(bytes).ToString("x8");
         string payload;
@@ -70,22 +108,22 @@ internal static class ShareCode
             payload = "u" + Base64Url(bytes);
             Compressed = false;
         }
-        string code = $"{Tag}{version}:{payload}.{crc}";
-        return code.Length > MaxLength ? (null, $"set too large to share ({code.Length} characters)") : (code, null);
+        return $"{tag}{version}:{payload}.{crc}";
     }
 
-    /// <summary>Reads a code: the set, or not a share code, made by a newer Epoch Assist, or damaged or incomplete.</summary>
-    public static ShareDecode Decode(string text)
+    /// <summary>Reads a packed line: its version and JSON text, or not a share code, made by a newer Epoch Assist, or
+    /// damaged or incomplete.</summary>
+    public static (int Version, string? Json, string? Error) Unpack(string tag, int newest, string text)
     {
         text = text.Trim();
-        if (!text.StartsWith(Tag, StringComparison.Ordinal)) return ShareDecode.Fail(NotACode);
+        if (!text.StartsWith(tag, StringComparison.Ordinal)) return (0, null, NotACode);
         int colon = text.IndexOf(':');
-        if (colon < 0 || !int.TryParse(text[Tag.Length..colon], out int version)) return ShareDecode.Fail(NotACode);
-        if (version > Version) return ShareDecode.Fail(Newer);
-        if (version < 1) return ShareDecode.Fail(NotACode);
+        if (colon < 0 || !int.TryParse(text[tag.Length..colon], out int version)) return (0, null, NotACode);
+        if (version > newest) return (version, null, Newer);
+        if (version < 1) return (version, null, NotACode);
         string rest = text[(colon + 1)..];
         int dot = rest.LastIndexOf('.');
-        if (dot < 0 || rest.Length - dot - 1 != 8) return ShareDecode.Fail(Damaged);
+        if (dot < 0 || rest.Length - dot - 1 != 8) return (version, null, Damaged);
         string payload = rest[..dot], crcText = rest[(dot + 1)..];
         byte[] bytes;
         try
@@ -105,30 +143,17 @@ internal static class ShareCode
         }
         catch (Exception)
         {
-            return ShareDecode.Fail(Damaged);
+            return (version, null, Damaged);
         }
-        if (!uint.TryParse(crcText, System.Globalization.NumberStyles.HexNumber, null, out uint crc) || Crc32(bytes) != crc) return ShareDecode.Fail(Damaged);
-        JsonNode? node;
+        if (!uint.TryParse(crcText, System.Globalization.NumberStyles.HexNumber, null, out uint crc) || Crc32(bytes) != crc) return (version, null, Damaged);
         try
         {
-            node = JsonNode.Parse(Encoding.UTF8.GetString(bytes));
+            return (version, Encoding.UTF8.GetString(bytes), null);
         }
         catch (Exception)
         {
-            return ShareDecode.Fail(Damaged);
+            return (version, null, Damaged);
         }
-        ConditionDoc? named = null;
-        if (version == 2)
-        {
-            if (node is not JsonObject both || both["set"] is not JsonObject setNode) return ShareDecode.Fail(Damaged);
-            named = ConditionDoc.Parse(both["named"], out _);
-            if (named == null) return ShareDecode.Fail(Damaged);
-            if (named.ReadOnly) return ShareDecode.Fail(Newer);
-            node = setNode;
-        }
-        var set = MacroDoc.ParseSet(node);
-        if (set.Raw != null) return ShareDecode.Fail(Damaged);
-        return new ShareDecode(set, null, MacroDoc.UnknownParts(set)) { Named = named };
     }
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
