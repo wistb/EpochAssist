@@ -88,6 +88,14 @@ internal static class DevBridge
 
     public static void Reset()
     {
+        // A batch cut off by a mod reload (a build landing while it runs) says so, so tools/shot.sh returns instead of
+        // waiting for a result the reloaded mod never writes.
+        if (s_batchActive)
+        {
+            ReloadAfterBatch = false;
+            Report($"error batch cut off by a mod reload; {s_queue.Count} step(s) not run{(s_pending is { } p ? $", \"{p.Line}\" unfinished" : string.Empty)}");
+            Finish();
+        }
         s_queue.Clear();
         s_results.Clear();
         s_pending = null;
