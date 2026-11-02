@@ -14,7 +14,8 @@ internal static class StashCommands
     public const string Usage = "stash layout | stash costs | stash open|close | stash ui | stash trace on|off | stash presets | stash key"
         + " | stash preview|steps [preset] [budget|max] [full] | stash next [--client] | stash choice <tabId|f:folderId> keep|reuse|reuse-if-empty"
         + " | stash fill [preset] | stash test <tabId> <item#> | stash save-preset <name> | stash budget <gold|max> | stash fill-cells <cells>|reset | stash overlay | stash bag | stash scramble | stash leave | stash reset [snapshot] [character] (saved copy: back to a tools/devloader/stash-saves.sh snapshot and in again)"
-        + " | stash probe-call buy|new-folder|configure-tab|configure-folder|rules|reorder-tab … (saved copy)";
+        + " | stash probe-call buy|new-folder|configure-tab|configure-folder|rules|reorder-tab … (saved copy)"
+        + " | stash search [<json>|<code>|<saved name>|off|go <n>|panel|time|drop <group>|restore|save <name>|load <name>|code|saved] | stash why [n|all [every]|<tab> <x> <y>] | stash picker <query> | stash item <tab> [x y]|hovered | stash affixes <property> | stash press tab|folder <id> [onclick|pointer] [vert|row] | stash box [set <text>|text <text>|clear] | stash tip <tab> <x> <y> [slot] [compare]|close | stash tree quickview|bottom|<name> | stash syntax [read <text>|last] | stash tipstate";
 
     public static CommandResult Run(CommandCall call) => call.Lower(1) switch
     {
@@ -44,8 +45,215 @@ internal static class StashCommands
         "scramble" => StashScramble.Start() is { } why ? CommandResult.Error("stash scramble: " + why) : CommandResult.Ok("stash scramble: started"),
         "burst" => Burst(call),
         "probe-call" => StashProbe.Run(call),
+        "search" => Search(call),
+        "item" => StashItemDump.Run(call),
+        "why" => Why(call),
+        "picker" => Picker(call),
+        "affixes" => StashItemDump.Affixes(call),
+        "press" => StashItemDump.Press(call),
+        "box" => StashItemDump.Box(call),
+        "tip" => StashItemDump.Tip(call),
+        "tree" => StashItemDump.Tree(call),
+        "audit" => new CommandResult(DevOutput.Reply("stash-audit", StashSearch.Audit())),
+        "tipstate" => CommandResult.Ok("ok stash tipstate:\n" + ItemTooltip.State()),
+        "syntax" => StashItemDump.Syntax(call),
         _ => CommandResult.Error($"stash: usage {Usage}"),
     };
+
+    // stash search [<json> | off]: sets or clears the active search as the page would, or prints its state.
+    private static CommandResult Search(CommandCall call)
+    {
+        var feature = FeatureHost.Find("stashsearch");
+        if (feature == null) return CommandResult.Ok("stash search: not loaded");
+        string arg = call.Rest(2).Trim();
+        if (arg.Equals("off", StringComparison.OrdinalIgnoreCase))
+        {
+            StashSearch.Load(new StashSearch.SearchDoc());
+            return CommandResult.Ok("stash search: off");
+        }
+        if (call.Lower(2) == "drop" || call.Lower(2) == "restore")
+        {
+            // Simulates a game update that lost a group's members: the feature's own groups, or the data feature's values.
+            var search = FeatureHost.Find("stashsearch");
+            var data = FeatureHost.Find("data");
+            if (search == null || data == null) return CommandResult.Error("stash search drop: features not found");
+            if (call.Lower(2) == "restore")
+            {
+                foreach (string g in new[] { StashSearch.PanelGroup, StashSearch.TooltipGroup, StashSearch.GoGroup, StashSearch.BoxGroup, StashSearch.IconsGroup }) search.MissingGroups.Remove(g);
+                data.MissingGroups.Remove(GameData.Values);
+                return CommandResult.Ok("stash search restore: every group back (facts are read again by the next pass only for new items; reload for a clean read)");
+            }
+            string group = call.Rest(3).Trim();
+            if (group == GameData.Values) data.MissingGroups.Add(group);
+            else if (group is StashSearch.PanelGroup or StashSearch.TooltipGroup or StashSearch.GoGroup or StashSearch.BoxGroup or StashSearch.IconsGroup) search.MissingGroups.Add(group);
+            else return CommandResult.Error($"stash search drop: one of \"{StashSearch.PanelGroup}\", \"{StashSearch.TooltipGroup}\", \"{StashSearch.GoGroup}\", \"{StashSearch.BoxGroup}\", \"{StashSearch.IconsGroup}\", \"{GameData.Values}\"");
+            return CommandResult.Ok($"stash search drop: {group} missing until restore");
+        }
+        if (call.Lower(2) == "time")
+        {
+            var (items, scanTotal, scanMax, scanFrames) = StashSearch.ScanCost;
+            var (checks, matchTotal, matchMax, matchFrames) = StashSearch.MatchCost;
+            // A full re-check of the cache now, timed in one go, for the cost of a query change.
+            double full = 0;
+            if (StashSearch.Active is { } doc)
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                foreach (var place in StashSearch.Places)
+                    if (StashSearch.FactsOf(place.Key) is { } f) StashSearch.Match(doc, f);
+                full = sw.Elapsed.TotalMilliseconds;
+            }
+            return CommandResult.Ok($"stash search time: scan {items} items read, {scanTotal:0.00} ms in {scanFrames} frames, max {scanMax:0.000} ms a frame; "
+                + $"match {checks} checks, {matchTotal:0.00} ms in {matchFrames} frames, max {matchMax:0.000} ms a frame; whole cache once {full:0.000} ms for {StashSearch.Places.Count} places"
+                + (FeatureHost.Find("stashsearch") is { } fs ? $"; feature frames avg {fs.Record.Frames.AverageMs:0.000} ms, worst {fs.Record.Frames.WorstMs:0.000} ms, last second {fs.Record.Frames.LastSecondMs:0.000} ms, budget {fs.BudgetMs:0.0} ms" : string.Empty));
+        }
+        if (call.Lower(2) == "save")
+        {
+            string name = call.Rest(3).Trim().Trim('"');
+            var error = StashSearch.SaveAs(StashSearch.Editing, name, out var saved);
+            if (error != null) return CommandResult.Error("stash search save: " + error);
+            StashSearch.Load(saved!, saved);
+            return CommandResult.Ok($"stash search save: \"{saved!.Name}\" ({StashSearch.Saved.Count} saved, {StashSearch.Recent.Count} recent)");
+        }
+        if (call.Lower(2) == "load")
+        {
+            string name = call.Rest(3).Trim().Trim('"');
+            if (StashSearch.FindSaved(name) is not { } saved) return CommandResult.Error($"stash search load: no saved search \"{name}\" (saved: {string.Join(", ", StashSearch.Saved.Select(d => d.Name))})");
+            StashSearch.Load(saved, saved);
+            return CommandResult.Ok($"stash search load: \"{saved.Name}\", {saved.Groups.Count} groups, {saved.RowCount} rows");
+        }
+        if (call.Lower(2) == "code")
+        {
+            var (code, error) = StashSearch.CodeOf(StashSearch.Editing);
+            return code != null ? CommandResult.Ok($"stash search code: {code.Length} chars {code}") : CommandResult.Error("stash search code: " + error);
+        }
+        if (call.Lower(2) == "saved")
+        {
+            var list = new List<string> { $"ok stash search saved: {StashSearch.Saved.Count} saved, {StashSearch.Recent.Count} recent, current {StashSearch.CurrentSaved?.Name ?? "none"}" };
+            list.AddRange(StashSearch.Saved.Select(d => $"  saved \"{d.Name}\": {d.ToJson()}"));
+            list.AddRange(StashSearch.Recent.Select(d => $"  recent {StashSearch.Describe(d)}"));
+            return new CommandResult(DevOutput.Reply("stash-search-saved", list));
+        }
+        if (arg.StartsWith(StashSearch.CodeTag, StringComparison.Ordinal))
+        {
+            if (StashSearch.FromCode(arg, out string? codeError) is not { } fromCode) return CommandResult.Error("stash search: " + codeError);
+            StashSearch.Load(fromCode);
+            return CommandResult.Ok($"stash search: from code, {fromCode.Groups.Count} groups, {fromCode.RowCount} rows, name \"{fromCode.Name}\"");
+        }
+        if (call.Lower(2) == "repack")
+        {
+            // Packing check: a code unpacked and packed again comes out the same, whatever its tag.
+            string code = call.Rest(3).Trim();
+            int colon = code.IndexOf(':');
+            string tag = colon > 1 ? code[..(colon - 1)] : string.Empty;
+            var (version, json, error) = ShareCode.Unpack(tag, 9, code);
+            if (error != null) return CommandResult.Error("stash search repack: " + error);
+            string again = ShareCode.Pack(tag, version, json!);
+            return CommandResult.Ok($"stash search repack: {tag}{version}, {json!.Length} JSON chars, {(again == code ? "identical" : "DIFFERS")}");
+        }
+        if (call.Lower(2) == "panel") return CommandResult.Ok("stash search panel: " + StashSearch.PanelState() + $"; highlight {StashSearch.HighlightActive}; go: {StashSearch.GoLog}");
+        if (call.Lower(2) == "go")
+        {
+            var results = StashSearch.Grouped().SelectMany(f => f.Tabs).SelectMany(t => t.Items).ToList();
+            if (!int.TryParse(call.Lower(3), out int n) || n < 1 || n > results.Count) return CommandResult.Error($"stash search go: result 1–{results.Count}");
+            return CommandResult.Ok($"stash search go {n}: {StashSearch.GoTo(results[n - 1].Place)} (stash search panel prints the steps)");
+        }
+        if (arg.StartsWith("{"))
+        {
+            var doc = StashSearch.Parse(arg, out string? error);
+            if (doc == null) return CommandResult.Error("stash search: " + error);
+            StashSearch.Load(doc);
+            var notes = doc.Problems();
+            return CommandResult.Ok($"stash search: set, {doc.Groups.Count} groups, {doc.RowCount} rows{(doc.IsEmpty ? ", empty (lists nothing)" : string.Empty)}{(notes.Count > 0 ? "; " + string.Join("; ", notes) : string.Empty)}");
+        }
+        if (arg.Length > 0 && StashSearch.FindSaved(arg.Trim('"')) is { } named)
+        {
+            StashSearch.Load(named, named);
+            return CommandResult.Ok($"stash search: saved \"{named.Name}\"");
+        }
+        if (arg.Length > 0) return CommandResult.Error("stash search <json|code|saved name> | off");
+        var status = feature.Status;
+        var active = StashSearch.Active;
+        var lines = new List<string>
+        {
+            $"ok stash search: {feature.State}, {status.State} \"{status.Detail}\", facts {StashSearch.FactsCount} read, places {StashSearch.Places.Count}, pass {(StashSearch.FactsQueued > 0 ? "running" : "idle")}",
+            active == null ? "  no active search" : $"  generation {StashSearch.Generation}, {(StashSearch.Matching ? "searching" : "done")}, {StashSearch.ResultCount} matches",
+        };
+        if (active != null) lines.Add("  " + active.ToJson());
+        foreach (var folder in StashSearch.Grouped())
+        {
+            lines.Add($"  folder \"{folder.Folder.Name}\" · {folder.Count}");
+            foreach (var tab in folder.Tabs)
+                lines.Add($"    tab {tab.Tab.Id} \"{tab.Tab.Name}\" · {tab.Items.Count}: " + string.Join(", ", tab.Items.Select(r => $"({r.Place.X},{r.Place.Y}){(r.Badge != null ? " " + r.Badge : string.Empty)}")));
+        }
+        return new CommandResult(DevOutput.Reply("stash-search", lines));
+    }
+
+    // stash picker <query>: the picker's first ten entries for a query, with heading and score, best first per heading
+    // order as the list shows them.
+    private static CommandResult Picker(CommandCall call)
+    {
+        string query = call.Rest(2).Trim().Trim('"');
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return CommandResult.Error("stash picker <query>");
+        var entries = StashSearch.Catalogue();
+        var ranked = entries.Select((e, i) => (Entry: e, Index: i, Score: StashSearch.Rank(e, words))).Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score).ThenBy(x => x.Index).ToList();
+        var lines = new List<string> { $"ok stash picker \"{query}\": {ranked.Count} of {entries.Count} (best overall; the list groups them under headings)" };
+        foreach (var x in ranked.Take(10)) lines.Add($"  {x.Score,5} {x.Entry.Heading}: {x.Entry.Text} [{x.Entry.Ref.Source}:{x.Entry.Ref.Id}]");
+        return new CommandResult(DevOutput.Reply("stash-picker", lines));
+    }
+
+    // stash why [n | all | <tab> <x> <y>]: the active search against one result, every item, or the item in a cell.
+    private static CommandResult Why(CommandCall call)
+    {
+        var doc = StashSearch.Active;
+        if (doc == null) return CommandResult.Ok("stash why: no active search");
+        var results = StashSearch.Grouped().SelectMany(f => f.Tabs).SelectMany(t => t.Items).ToList();
+        var lines = new List<string>();
+        void One(StashSearch.ItemPlace place)
+        {
+            var facts = StashSearch.FactsOf(place.Key);
+            lines.Add($"tab {place.TabId} ({place.X},{place.Y}) \"{facts?.Name}\"");
+            if (facts == null) lines.Add("  not read yet");
+            else lines.AddRange(StashSearch.Why(doc, facts).Select(l => "  " + l));
+        }
+        if (call.Lower(2) == "all")
+        {
+            int matched = 0;
+            foreach (var place in StashSearch.Places.OrderBy(p => p.TabId).ThenBy(p => p.Y).ThenBy(p => p.X))
+            {
+                var facts = StashSearch.FactsOf(place.Key);
+                if (facts == null) continue;
+                var (match, badge) = StashSearch.Match(doc, facts);
+                if (match) matched++;
+                if (match || call.Lower(3) == "every") lines.Add($"{(match ? "MATCH" : "no   ")} tab {place.TabId} ({place.X},{place.Y}) \"{facts.Name}\"{(badge != null ? " badge " + badge : string.Empty)}");
+            }
+            lines.Insert(0, $"ok stash why all: {matched} of {StashSearch.Places.Count} places match (add 'every' for the rest)");
+        }
+        else if (int.TryParse(call.Lower(2), out int a) && int.TryParse(call.Lower(3), out int x) && int.TryParse(call.Lower(4), out int y))
+        {
+            var place = StashSearch.Places.FirstOrDefault(p => p.TabId == a && p.X == x && p.Y == y);
+            if (place.Key == null) return CommandResult.Error($"stash why: nothing at ({x},{y}) in tab {a}");
+            lines.Add("ok stash why:");
+            One(place);
+        }
+        else if (int.TryParse(call.Lower(2), out int n))
+        {
+            if (n < 1 || n > results.Count) return CommandResult.Error($"stash why: result 1–{results.Count}");
+            lines.Add($"ok stash why: result {n}");
+            One(results[n - 1].Place);
+        }
+        else
+        {
+            lines.Add($"ok stash why: {results.Count} results");
+            for (int i = 0; i < results.Count; i++)
+            {
+                var r = results[i];
+                lines.Add($"  {i + 1}. tab {r.Place.TabId} ({r.Place.X},{r.Place.Y}) \"{StashSearch.FactsOf(r.Place.Key)?.Name}\"{(r.Badge != null ? " badge " + r.Badge : string.Empty)}");
+            }
+        }
+        return new CommandResult(DevOutput.Reply("stash-why", lines));
+    }
 
     private static CommandResult PresetList()
     {

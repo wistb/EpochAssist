@@ -22,7 +22,7 @@ internal sealed class StashTraceFeature : Feature
 
     public override Type[] PatchClasses => new[]
     {
-        typeof(PlayerSyncPatch), typeof(ClientCopyPatch), typeof(ServerCommandsPatch), typeof(ContainersPatch), typeof(ManagerPatch), typeof(LegacyUiPatch),
+        typeof(PlayerSyncPatch), typeof(ClientCopyPatch), typeof(ServerCommandsPatch), typeof(ContainersPatch), typeof(ManagerPatch), typeof(LegacyUiPatch), typeof(SearchPatch),
     };
 
     public override IReadOnlyDictionary<Type, string> PatchGroups { get; } = new Dictionary<Type, string>
@@ -33,6 +33,7 @@ internal sealed class StashTraceFeature : Feature
         [typeof(ContainersPatch)] = "trace: stash containers",
         [typeof(ManagerPatch)] = "trace: stash manager",
         [typeof(LegacyUiPatch)] = "trace: stash legacy controls",
+        [typeof(SearchPatch)] = "trace: stash search box",
     };
 
     public override void Shutdown() => On = false;
@@ -106,6 +107,34 @@ internal sealed class StashTraceFeature : Feature
     }
 
     [HarmonyPatch]
+    // The game's own search box: which calls a search makes, and with what text (each method once per text).
+    [HarmonyPatch]
+    private static class SearchPatch
+    {
+        private static readonly HashSet<string> s_seen = new();
+
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            var asm = typeof(StashTabbedUIControls).Assembly;
+            foreach (string name in new[] { "ItemSearchExpression", "ItemSearchMacro", "ItemSearchRegex", "ItemSearchAffixRegex", "ItemContainerUIWithSearch", "StashTabbedUIControls", "ItemContainerUI", "StashItemContainerUI" })
+            {
+                var type = asm.GetTypes().FirstOrDefault(t => t.Name == name);
+                if (type == null) continue;
+                foreach (var m in Named(type, n => n.Contains("Search") || n.Contains("Match") || n == "TryGet" || n.Contains("Filter")))
+                    if (!m.Name.StartsWith("get_") && !m.Name.StartsWith("set_") && !m.Name.StartsWith("_")) yield return m;
+            }
+        }
+
+        private static void Prefix(MethodBase __originalMethod, object[] __args)
+        {
+            if (!On) return;
+            string text = __args?.OfType<string>().FirstOrDefault() ?? string.Empty;
+            if (s_seen.Count > 2000) s_seen.Clear();
+            if (s_seen.Add($"{__originalMethod.DeclaringType?.Name}.{__originalMethod.Name}|{text}")) Trace(__originalMethod, __args);
+        }
+
+    }
+
     private static class LegacyUiPatch
     {
         private static IEnumerable<MethodBase> TargetMethods() => Named(typeof(StashTabbedUIControls), n => n.StartsWith("Handle", StringComparison.Ordinal) || n.StartsWith("Set", StringComparison.Ordinal) || n == "MoveTab" || n.StartsWith("OnTab", StringComparison.Ordinal) || n.StartsWith("OnCategory", StringComparison.Ordinal));
