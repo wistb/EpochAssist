@@ -301,13 +301,34 @@ internal static partial class StashSearch
         }
         // Lines on implicits and unique rolls that no affix shares: only their own picker entry finds them.
         var lone = new Dictionary<string, int>();
+        var loneFacts = new Dictionary<string, StatFact>();
         var affixIds = Catalogue().Where(e => e.Ref.Source == StatSource.Affix).Select(e => e.Ref.Id).ToList();
         foreach (var item in items)
             foreach (var st in item.Stats.Where(st => st.Ref.Source is StatSource.Implicit or StatSource.UniqueRoll))
-                if (!affixIds.Any(id => SameStat(id, st))) lone[st.Text] = lone.TryGetValue(st.Text, out int c) ? c + 1 : 1;
+                if (!affixIds.Any(id => SameStat(id, st)))
+                {
+                    lone[st.Text] = lone.TryGetValue(st.Text, out int c) ? c + 1 : 1;
+                    loneFacts.TryAdd(st.Text, st);
+                }
         lines.Insert(0, $"audit: {checkedStats} affix stats × {items.Count} items: {misses} missed, {extra} extra; {lone.Count} implicit/unique lines no affix shares");
         lines.Add("implicit/unique lines no affix shares (found only by their own entry or a total):");
-        foreach (var l in lone.OrderByDescending(l => l.Value).Take(40)) lines.Add($"  {l.Key} ×{l.Value}");
+        foreach (var l in lone.OrderByDescending(l => l.Value))
+        {
+            var st = loneFacts[l.Key];
+            string Sig((int P, int M, int T, byte S) x) => $"p{x.P} m{x.M} t{x.T} s{x.S}";
+            var mine = st.Numbers.Select(n => (n.Property, n.ModType, n.Tags, n.SpecialTag)).ToArray();
+            lines.Add($"  {l.Key} ×{l.Value}  [{string.Join(" + ", mine.Select(Sig))}]");
+            // Near misses: a one-number affix differing from a one-number line in a single part (type, tags or special).
+            if (mine.Length == 1)
+                foreach (var id in affixIds)
+                {
+                    if (!s_affixStats.TryGetValue(id, out var sign)) { SameStat(id, st); s_affixStats.TryGetValue(id, out sign); }
+                    if (sign is not { Length: 1 } || sign[0].Item1 != mine[0].Item1) continue;
+                    int diff = (sign[0].Item2 != mine[0].Item2 ? 1 : 0) + (sign[0].Item3 != mine[0].Item3 ? 1 : 0) + (sign[0].Item4 != mine[0].Item4 ? 1 : 0);
+                    if (diff == 1) lines.Add($"      NEAR affix {id} \"{EntryOf(new StatRef(StatSource.Affix, id))?.Text}\" [{Sig(sign[0])}]");
+                }
+
+        }
         return lines;
     }
 
