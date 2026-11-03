@@ -188,6 +188,21 @@ internal static partial class Macros
     internal static ActionButton Button(string label, string key, Action click, Func<bool>? enabled = null, string? tip = null) =>
         new(label, "macros." + key) { OnClick = click, EnabledWhen = enabled, Tip = tip };
 
+    // A Delete that asks first, its Yes in red; the question names what goes.
+    internal static ActionButton DeleteButton(Func<string> question, Action delete, Func<bool>? enabled = null) =>
+        new("Delete", "macros.delete")
+        {
+            EnabledWhen = enabled,
+            Tip = "Asks first; Undo brings it back",
+            Prompt = new ButtonPrompt(question, "Delete", _ =>
+            {
+                delete();
+                return null;
+            }) { Danger = true },
+        };
+
+    private static string NameOr(string? name) => name is { Length: > 0 } ? name : "(no name)";
+
     private static void Edit(string key)
     {
         if (key == SlotsKey) return;
@@ -537,7 +552,10 @@ internal static partial class Macros
                     "The set shows and runs for every class"),
             Button("Move up", "up", () => MoveSet(setId, -1), () => editable && NeighbourSet(setId, -1) != null),
             Button("Move down", "down", () => MoveSet(setId, 1), () => editable && NeighbourSet(setId, 1) != null),
-            Button("Delete", "delete", () => DeleteSet(setId), () => editable, "Undo brings it back"),
+            DeleteButton(() => S.LibraryDoc.Doc.Find(setId).Set is { } set
+                    ? $"Delete set \"{NameOr(set.Name)}\"{(set.Macros.Count > 0 ? $" and its {set.Macros.Count} macro{(set.Macros.Count == 1 ? string.Empty : "s")}" : string.Empty)}? Undo brings it back."
+                    : "Delete this set? Undo brings it back.",
+                () => DeleteSet(setId), () => editable),
         };
     }
 
@@ -552,7 +570,8 @@ internal static partial class Macros
             Button("Duplicate", "duplicate", () => DuplicateMacro(setId, macroId), () => editable && S.LibraryDoc.Doc.Find(setId).Set is { Full: false }),
             Button("Move up", "up", () => MoveMacro(setId, macroId, -1), () => editable && CanMoveMacro(setId, macroId, -1)),
             Button("Move down", "down", () => MoveMacro(setId, macroId, 1), () => editable && CanMoveMacro(setId, macroId, 1)),
-            Button("Delete", "delete", () => DeleteMacro(setId, macroId), () => editable, "Undo brings it back"),
+            DeleteButton(() => $"Delete macro \"{NameOr(S.LibraryDoc.Doc.Find(setId, macroId).Macro?.Name)}\"? Undo brings it back.",
+                () => DeleteMacro(setId, macroId), () => editable),
         };
     }
 

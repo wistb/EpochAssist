@@ -51,7 +51,18 @@ internal static partial class Macros
         return new[]
         {
             Button("Edit", "edit", () => Edit(key)),
-            Button("Delete", "delete", () => DeleteNamed(id), () => editable, "Undo brings it back"),
+            DeleteButton(() =>
+                {
+                    int uses = UsesCount(id);
+                    string used = uses > 0 ? $" It's used in {uses} place{(uses == 1 ? string.Empty : "s")}." : string.Empty;
+                    return $"Delete named condition \"{NamedConditions.Name(S.NamedConditions.Doc, id)}\"?{used} Undo brings it back.";
+                },
+                () =>
+                {
+                    // Asked here already, so a used one doesn't ask again in its page.
+                    s_deleting = id;
+                    DeleteNamed(id);
+                }, () => editable),
         };
     }
 
