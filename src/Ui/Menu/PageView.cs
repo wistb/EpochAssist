@@ -249,6 +249,19 @@ internal static class PageView
         bool pill = page.Page.ConflictPill ?? ReferenceEquals(page.Node.Entry.Pages.FirstOrDefault(), page.Page);
         float conflict = pill ? ConflictTag.Draw(page.Node.Feature, x, r.center.y, "conflict.page") : 0f;
         if (conflict > 0f) x += conflict + 10f;
+        // The page's own switch, named, left beside the title and before the status it turns on and off; as the footer's
+        // switches, the whole item flips, label and switch.
+        if (page.Page.Switch is { } toggle)
+        {
+            GUIStyle label = Widgets.Style(() => Theme.Label, GUI.skin.label);
+            string text = toggle.QuickLabel ?? toggle.Label;
+            float w = Controls.SwitchWidth + 6f + TextCache.Width(text, label);
+            var sw = new Rect(x, r.center.y - 12f, w, 24f);
+            if (Controls.Switch(sw, toggle.Value, "switch", toggle.Help ?? toggle.Label) != toggle.Value) SettingRows.Flip(toggle, "menu page switch");
+            if (Event.current.type == EventType.Repaint)
+                Widgets.Paint(new Rect(x + Controls.SwitchWidth + 6f, sw.y, w - Controls.SwitchWidth - 6f, sw.height), text, label);
+            x += w + 12f;
+        }
 
         float right = r.xMax;
         if (page.Resettable && page.Sections.Any(s => !s.IsDefault))
@@ -269,13 +282,6 @@ internal static class PageView
             right -= w;
             // The button's own kind: primary, danger, and a prompt (a name to give, a delete to confirm) opened before it runs.
             if (Controls.Button(new Rect(right, r.center.y - 12f, w, 24f), button, button.Key, TextRows.Tip(button))) ActionsFor(button);
-            right -= 6f;
-        }
-        if (page.Page.Switch is { } toggle)
-        {
-            right -= Controls.SwitchWidth;
-            var sw = new Rect(right, r.center.y - 12f, Controls.SwitchWidth, 24f);
-            if (Controls.Switch(sw, toggle.Value, "switch", toggle.Label) != toggle.Value) SettingRows.Flip(toggle, "menu page switch");
             right -= 6f;
         }
         // The tag goes in what's left: whole, else the state alone ("waiting"), else not at all, never under a button.
