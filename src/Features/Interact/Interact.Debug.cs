@@ -17,7 +17,7 @@ internal static partial class Interact
         if (!S.ShowReach.Value || s_run is not { } run || Event.current?.type != EventType.Repaint) return;
         if (Player.Transform is not { } player || !Game.Alive(player)) return;
         var at = player.position;
-        if (KindOn(Keys) || KindOn(Materials) || KindOn(Filtered)) Draw.WorldCircle(at, Math.Min(S.Reach.Value, ItemReach) - ReachMargin, RingColor(S.ItemRingColor), 2f);
+        if (KindOn(Keys) || KindOn(WovenEchoes) || KindOn(Materials) || KindOn(Filtered)) Draw.WorldCircle(at, Math.Min(S.Reach.Value, ItemReach) - ReachMargin, RingColor(S.ItemRingColor), 2f);
         float objects = 0f;
         foreach (var kind in Kinds)
         {

@@ -56,13 +56,17 @@ internal static class InteractSettings
     {
         Help = "Dungeon, arena and other keys.",
     };
+    public static readonly Toggle WovenEchoes = new(Pickup, "WovenEchoes", "Woven echoes", false)
+    {
+        Help = "Woven echo items, for the Weaver's echoes.",
+    };
     public static readonly Toggle Materials = new(Pickup, "Materials", "Materials", false)
     {
         Help = "Affix shards, runes and glyphs.",
     };
     public static readonly Toggle FilterShown = new(Pickup, "FilterShown", "Loot filter items", false)
     {
-        Help = "What your filter shows. Materials and keys have their own switches.",
+        Help = "What your filter shows. Materials, keys and woven echoes have their own switches.",
     };
 
     public static readonly Section Pace = Group.Section("reach", "Reach and pace");
@@ -91,6 +95,7 @@ internal static class InteractSettings
     public static readonly Toggle HudRifts = Counted("HudRifts", "Unstable rifts");
     public static readonly Toggle HudCrystals = Counted("HudCrystals", "Blood crystals");
     public static readonly Toggle HudKeys = Counted("HudKeys", "Keys");
+    public static readonly Toggle HudWovenEchoes = Counted("HudWovenEchoes", "Woven echoes");
     public static readonly Toggle HudMaterials = Counted("HudMaterials", "Materials");
     public static readonly Toggle HudFilter = Counted("HudFilter", "Loot filter items");
 

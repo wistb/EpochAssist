@@ -91,6 +91,7 @@ internal sealed class InteractFeature : Feature
                     KindRow(S.Crystals, Interact.Crystals),
                     new HeadingRow("Pick up"),
                     KindRow(S.Keys, Interact.Keys),
+                    KindRow(S.WovenEchoes, Interact.WovenEchoes),
                     KindRow(S.Materials, Interact.Materials),
                     KindRow(S.FilterShown, Interact.Filtered),
                     new HintRow(() => "No loot filter is active, so this picks up nothing.")
@@ -108,7 +109,7 @@ internal sealed class InteractFeature : Feature
                     new HeadingRow("Counted on the mini HUD") { VisibleWhen = () => S.HudCount.Value },
                     new SettingRow(S.HudShrines), new SettingRow(S.HudChests), new SettingRow(S.HudRunePrisons),
                     new SettingRow(S.HudForges), new SettingRow(S.HudRifts), new SettingRow(S.HudCrystals),
-                    new SettingRow(S.HudKeys), new SettingRow(S.HudMaterials), new SettingRow(S.HudFilter),
+                    new SettingRow(S.HudKeys), new SettingRow(S.HudWovenEchoes), new SettingRow(S.HudMaterials), new SettingRow(S.HudFilter),
                     new HeadingRow("Notifications"),
                     new SettingRow(S.NotifyEach),
                     new HeadingRow("Counts"),

@@ -322,7 +322,7 @@ internal static partial class Interact
     {
         run.HasBest = false;
         if (KindOn(Shrines) || KindOn(Chests) || KindOn(RunePrisons) || KindOn(Forges) || KindOn(Rifts) || KindOn(Crystals)) OfferObjects(run, player);
-        if (!run.ItemsHeld && (KindOn(Keys) || KindOn(Materials) || KindOn(Filtered))) OfferItems(run, player);
+        if (!run.ItemsHeld && (KindOn(Keys) || KindOn(WovenEchoes) || KindOn(Materials) || KindOn(Filtered))) OfferItems(run, player);
     }
 
     // Nearest wins; within a centimetre, the one that came into reach first.

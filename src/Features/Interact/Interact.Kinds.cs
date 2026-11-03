@@ -46,14 +46,15 @@ internal static partial class Interact
     public static readonly InteractKind Rifts = new("rifts", "Unstable rifts", "Unstable rift", S.Rifts, S.HudRifts, ObjectsGroup, false);
     public static readonly InteractKind Crystals = new("crystals", "Blood crystals", "Blood crystal", S.Crystals, S.HudCrystals, ObjectsGroup, false);
     public static readonly InteractKind Keys = new("keys", "Keys", "Key", S.Keys, S.HudKeys, ItemsGroup, true);
+    public static readonly InteractKind WovenEchoes = new("wovenechoes", "Woven echoes", "Woven echo", S.WovenEchoes, S.HudWovenEchoes, ItemsGroup, true);
     public static readonly InteractKind Materials = new("materials", "Materials", "Material", S.Materials, S.HudMaterials, ItemsGroup, true);
     public static readonly InteractKind Filtered = new("filter", "Loot filter items", "Item", S.FilterShown, S.HudFilter, FilterGroup, true);
 
-    public static readonly InteractKind[] Kinds = { Shrines, Chests, RunePrisons, Forges, Rifts, Crystals, Keys, Materials, Filtered };
+    public static readonly InteractKind[] Kinds = { Shrines, Chests, RunePrisons, Forges, Rifts, Crystals, Keys, WovenEchoes, Materials, Filtered };
 
-    // Base types the game gives crafting materials and keys (affix shards, runes, glyphs; keys). The loot filter never
-    // judges these, so only their own switches pick them up.
-    private const int ShardType = 101, RuneType = 102, GlyphType = 103, KeyType = 104;
+    // Base types the game gives crafting materials, keys and woven echoes (affix shards, runes, glyphs; keys; woven
+    // echoes). The loot filter never judges these, so only their own switches pick them up.
+    private const int ShardType = 101, RuneType = 102, GlyphType = 103, KeyType = 104, WovenEchoType = 107;
 
     // Echo chests aren't world-model chests: caches, echo reward chests and cemetery reward chests are told apart by
     // the name of the listener or one of its parents in the game's own click listener list.
@@ -72,7 +73,8 @@ internal static partial class Interact
     // walks the character to anything farther.
     public const float ReachMargin = 0.1f;
 
-    /// <summary>The kind of a ground item from its base type: keys or materials, else null (left to the filter switch).</summary>
+    /// <summary>The kind of a ground item from its base type: keys, woven echoes or materials, else null (left to the filter
+    /// switch).</summary>
     public static InteractKind? ItemKind(ItemDataUnpacked? item)
     {
         if (item == null) return null;
@@ -80,6 +82,7 @@ internal static partial class Interact
         {
             ShardType or RuneType or GlyphType => Materials,
             KeyType => Keys,
+            WovenEchoType => WovenEchoes,
             _ => null,
         };
     }
