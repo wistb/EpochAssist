@@ -18,15 +18,17 @@ internal static partial class Macros
     private const int MaxPressesPerStep = 3;
 
     // Why a macro didn't start at the last check (the first gate that failed), for the state text and `why`.
-    internal enum Gate { None, Off, Invalid, Class, Trigger, Movement, Wait, Landing, NotReady, Tree, Blocked, Passed }
+    internal enum Gate { None, Off, Invalid, Class, Trigger, Movement, Wait, Landing, NotReady, Tree, NoTarget, Blocked, Passed }
 
-    // One macro's last start check: the gate it stopped at, its tree state, and the skill that wasn't ready.
+    // One macro's last start check: the gate it stopped at, its tree state, the skill that wasn't ready and why no
+    // cast had a target.
     internal sealed class MacroCheck
     {
         public readonly TreeState Tree = new();
         public Gate Gate;
         public float WaitLeft;
         public string? Skill;
+        public string? NoTarget;
         public int Frame = -1;
     }
 
@@ -496,6 +498,7 @@ internal static partial class Macros
         var check = CheckOf(engine, macro);
         check.Frame = Time.frameCount;
         check.Skill = null;
+        check.NoTarget = null;
         return check.Gate = CheckGates(engine, set, macro, now, check);
     }
 
@@ -528,7 +531,27 @@ internal static partial class Macros
             }
         }
         var verdict = Conditions.Check(macro.All, ContextOf(macro), check.Tree);
-        return verdict.Passed ? Gate.Passed : Gate.Tree;
+        if (!verdict.Passed) return Gate.Tree;
+        // A macro whose every cast would be skipped for want of a target does nothing, so it doesn't start: started, it
+        // would pass again next frame and the macros after it would never get a turn.
+        return (check.NoTarget = NothingToAim(macro)) != null ? Gate.NoTarget : Gate.Passed;
+    }
+
+    // Why every cast of the macro would be skipped for want of a target, or null when some step has work to do.
+    private static string? NothingToAim(Macro macro)
+    {
+        string? reason = null;
+        var steps = macro.Actions;
+        for (int i = 0; i < steps.Count; i++)
+        {
+            var step = steps[i];
+            if (!step.On || step.Step is "wait" or "waitUntil") continue;
+            if (step.Step != "cast" || step.Raw != null || step.Invalid != null || step.Target.Else != "skip") return null;
+            var aimed = AimAt(step.Target);
+            if (!aimed.NoTarget) return null;
+            reason ??= aimed.Words ?? "nothing qualifies";
+        }
+        return reason;
     }
 
     // Whether a switched-on cast step casts the skill (no allocation, for the start check).
@@ -686,6 +709,7 @@ internal static partial class Macros
         Gate.Landing => ("waiting: last drink landing", StatusState.Holding),
         Gate.NotReady => ($"waiting: {ConditionKinds.SkillName(check.Skill ?? string.Empty)} not ready", StatusState.Holding),
         Gate.Tree => ("waiting on " + Conditions.FailingWords(macro.All, check.Tree), StatusState.Holding),
+        Gate.NoTarget => ($"waiting: no target ({check.NoTarget})", StatusState.Holding),
         Gate.Off => ("off", StatusState.Off),
         Gate.Invalid => ("invalid", StatusState.Waiting),
         _ => ("waiting", StatusState.Waiting),
