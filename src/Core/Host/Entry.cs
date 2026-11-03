@@ -16,7 +16,7 @@ public static class BuildInfo
 {
     public const string Name = "Epoch Assist";
     public const string Author = "Crash";
-    public const string Version = "0.1.0";
+    public const string Version = "0.2.0";
     /// <summary>The game version this build was tested against; the release script sets it, empty until then.</summary>
     public const string TestedGameVersion = "1.5.3";
 }

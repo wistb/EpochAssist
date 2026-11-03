@@ -2,6 +2,27 @@
 
 Generated from the commit history by `tools/release.sh`
 
+## 0.2.0 - 2026-11-02
+
+Tested on Last Epoch 1.5.3.
+
+### Added
+
+- New "Skill switched on" condition, so a macro can keep a toggle skill such as Aura of Decay on.
+- Delete and Save buttons at a page's top ask first; deleting confirms with a red button
+- Filter page in Stash tab finds items by affix tier, value and roll quality across every stash tab; ~ searches work in stash's own search box
+- Copy diagnostics adds movement hiccups (stops, swerves, turns while moving) and what the mod did just before them
+- Deleting a macro, set or named condition in the library asks first
+- Interact picks up items much faster, about 5 a second
+- Interact can pick up woven echoes, with a switch of its own
+
+### Fixed
+
+- Macro targets never pick an invulnerable enemy; a cast that only finds one skips instead of aiming at it.
+- Planner guide no longer blanks the game's own icons when it lets go of its skill icons
+- Esc closes the menu on Stash tab pages
+- An aimed macro with nothing in range no longer stops the macros after it.
+
 ## 0.1.0 - 2026-10-30
 
 Tested on Last Epoch 1.5.3.
