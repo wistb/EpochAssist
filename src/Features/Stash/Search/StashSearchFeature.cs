@@ -92,7 +92,8 @@ internal sealed class StashSearchFeature : Feature
 
     private static MenuEntry MakeMenu()
     {
-        var page = new MenuPage("Filter") { Block = StashSearch.PageBlock, Resettable = false, SharesInput = true };
+        // The Wide layout hides the tree and the entry's switch dot with it, so the page shows the switch in its title row.
+        var page = new MenuPage("Filter") { Block = StashSearch.PageBlock, Resettable = false, SharesInput = true, Switch = S.SearchEnabled };
         page.Actions.AddRange(StashSearch.PageButtons());
         return new MenuEntry(MenuCategory.Stash, order: 1)
         {
