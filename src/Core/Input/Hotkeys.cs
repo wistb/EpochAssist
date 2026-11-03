@@ -136,7 +136,8 @@ internal static class Hotkeys
                 CancelCapture();
                 return;
             }
-            if (MenuOpen) Actions.Run("menu.escape", "key Escape");
+            // A page that shares input with the game (the Stash tab's) still closes on Esc; only the folded menu leaves it.
+            if (MenuOpen || InputGate.MenuShared) Actions.Run("menu.escape", "key Escape");
         }
         if (CaptureActive)
         {
