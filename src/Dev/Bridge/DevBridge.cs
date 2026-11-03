@@ -194,7 +194,25 @@ internal sealed class DevBridgeFeature : Feature
     };
     public override Type[] PatchClasses => new[] { typeof(MapCommands.StampPatch), typeof(MapCommands.StampSingularPatch), typeof(MapCommands.ZoomPatch), typeof(GameUiPointer.ScreenPositionPatch), typeof(GameUiPointer.WheelPatch),
         typeof(GameActions.ButtonPatch), typeof(GameActions.ButtonDownPatch), typeof(GameActions.ButtonUpPatch), typeof(GameActions.MousePositionPatch),
-        typeof(GameFocus.IsFocusedPatch) };
+        typeof(GameFocus.IsFocusedPatch) }.Where(t => !SkippedPatches.Contains(t.Name)).ToArray();
+
+    // Patch classes named one per line in dev/skip-patches.txt (MousePositionPatch, say) aren't applied: for finding
+    // which dev patch changes the game's behaviour, a `reload` per change.
+    private static HashSet<string> SkippedPatches
+    {
+        get
+        {
+            try
+            {
+                string file = Path.Combine(DevBridge.Dir, "skip-patches.txt");
+                return File.Exists(file) ? File.ReadAllLines(file).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#')).ToHashSet() : new HashSet<string>();
+            }
+            catch (Exception)
+            {
+                return new HashSet<string>();
+            }
+        }
+    }
     public override IReadOnlyDictionary<Type, string> PatchGroups { get; } = new Dictionary<Type, string>
     {
         [typeof(MapCommands.StampPatch)] = MapCommands.StampGroup,

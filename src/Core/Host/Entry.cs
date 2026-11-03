@@ -87,7 +87,7 @@ public static class Runtime
         FeatureHost.Register(Modules.CreateChosen());
 #if DEV
         // Dev code isn't compiled into release builds (src/Dev/).
-        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature(), new DevWindowFeature());
+        if (hosted) FeatureHost.Register(new DevBridgeFeature(), new CrashTestFeature(), new DevWindowFeature(), new FrameWatchFeature());
 #endif
         FeatureHost.StartAll();
         Log.Info($"{BuildInfo.Name} {BuildInfo.Version} build {BuildId} loaded{(hosted ? " (dev)" : string.Empty)}");
