@@ -7,9 +7,9 @@ using S = EpochAssist.Features.InteractSettings;
 namespace EpochAssist.Features;
 
 /// <summary>
-/// Uses what the character is already within the game's own reach of: shrines, chests and chosen loot, one at a time
-/// at a varying pace, through the dispatcher, never moving the character. It only picks; the dispatcher checks reach
-/// again and makes the game's own click call.
+/// Uses what the character is already within the game's own reach of: shrines, chests and chosen loot, at a varying
+/// pace, through the dispatcher, never moving the character. Objects go one at a time; an item's pick-up is checked
+/// while the next one goes out. It only picks; the dispatcher checks reach again and makes the game's own click call.
 /// </summary>
 internal static partial class Interact
 {
@@ -41,6 +41,10 @@ internal static partial class Interact
     // stackable takes the ones lying near it too, so each of these that goes counts.
     private readonly record struct Swept(GroundItemVisuals Visual, uint Id, InteractKind Kind);
 
+    // An item pick-up the game took (the dispatcher pressed it) and that hasn't left the ground yet. The next one is asked
+    // for without waiting on it; it counts once its item is gone, and as a refusal if it's still there after a second.
+    private sealed record InFlight(Candidate Candidate, InteractTarget Target, Swept[] Sweep, float ConfirmBy);
+
     // Everything one run changes. Made in Start, dropped in Shutdown, cleared on zone change.
     private sealed class Run
     {
@@ -51,6 +55,7 @@ internal static partial class Interact
         public InteractTarget? Target;
         public float AskedAt, ConfirmBy, NextAt;
         public readonly List<Swept> Sweep = new();
+        public readonly Dictionary<long, InFlight> InFlight = new();
         public readonly Dictionary<IntPtr, WorldObjectClickListener?> Listeners = new();
         public readonly Dictionary<IntPtr, InteractKind?> ListedKinds = new();
         public readonly List<(WorldObjectClickListener Listener, InteractKind Kind)> Listed = new();
@@ -90,6 +95,20 @@ internal static partial class Interact
         Actions.Register(feature.Id, "interact.toggle", "Proximity interact", () => S.Enabled.Value = !S.Enabled.Value, () => S.Enabled.Value);
     }
 
+    /// <summary>
+    /// Every frame: while the last scan found something in reach, a press's result is read at once and the next use goes
+    /// out on the frame its wait ends, rather than at the next scan, so a pile of loot isn't paced by the scan's tick on
+    /// top of the wait.
+    /// </summary>
+    public static void Frame()
+    {
+        if (s_run is not { } run || !run.HasBest) return;
+        // A press's result is read the frame after it, so an item's wait starts then and not at the next scan.
+        if (run.Phase == Phase.Pending) Advance(run);
+        if (run.Phase != Phase.Idle || Clock.Now < run.NextAt) return;
+        Scan(run);
+    }
+
     public static void Shutdown()
     {
         if (s_run?.Client is { } client) Dispatcher.Unregister(client);
@@ -101,6 +120,7 @@ internal static partial class Interact
         run.Phase = Phase.Idle;
         run.Target = null;
         run.Sweep.Clear();
+        run.InFlight.Clear();
         run.Listeners.Clear();
         run.ListedKinds.Clear();
         run.Listed.Clear();
@@ -146,6 +166,7 @@ internal static partial class Interact
     {
         if (GameState.Kind == SceneKind.Menu) s_sessionCounts.Clear();
         Advance(run);
+        SettleInFlight(run);
         if (run.ItemsHeld && run.Feature.Has(InventoryGroup) && InventoryCount() is int count && count != run.HeldCount)
         {
             run.ItemsHeld = false;
@@ -168,6 +189,13 @@ internal static partial class Interact
                 if (now - run.AskedAt > RequestTimeoutSeconds) End(run, now);
                 return;
             }
+            if (result.Pressed && run.Current.Kind.IsItem && run.Target != null)
+            {
+                // An item frees the loop now; its pick-up is checked by SettleInFlight while the next one goes out.
+                run.InFlight[run.Current.Key] = new InFlight(run.Current, run.Target, run.Sweep.ToArray(), now + ConfirmSeconds);
+                End(run, now);
+                return;
+            }
             if (result.Pressed)
             {
                 run.Phase = Phase.Confirming;
@@ -175,21 +203,39 @@ internal static partial class Interact
                 return;
             }
             // Gone, used, out of reach, capped or a rule: picked again at a later scan. Only a failed call is a refusal.
-            if (result.Refused == "failed") Refuse(run, "failed");
+            if (result.Refused == "failed") Refuse(run, run.Current, "failed");
             End(run, now);
             return;
         }
         if (run.Phase != Phase.Confirming || run.Target == null) return;
         if (run.Target.Used())
         {
-            Confirmed(run);
+            Confirmed(run, run.Current, run.Sweep);
             End(run, now);
         }
         else if (now >= run.ConfirmBy)
         {
-            Refuse(run, "no effect");
+            Refuse(run, run.Current, "no effect");
             End(run, now);
         }
+    }
+
+    // Item pick-ups already sent: gone counts as picked up, still there after a second as a refusal.
+    private static readonly List<long> s_settled = new();
+
+    private static void SettleInFlight(Run run)
+    {
+        if (run.InFlight.Count == 0) return;
+        float now = Clock.Now;
+        s_settled.Clear();
+        foreach (var (key, flight) in run.InFlight)
+        {
+            if (flight.Target.Used()) Confirmed(run, flight.Candidate, flight.Sweep);
+            else if (now >= flight.ConfirmBy) Refuse(run, flight.Candidate, "no effect");
+            else continue;
+            s_settled.Add(key);
+        }
+        foreach (long key in s_settled) run.InFlight.Remove(key);
     }
 
     // The next request waits the minimum wait and up to half of it again at random, so uses don't fall into a rhythm.
@@ -201,19 +247,19 @@ internal static partial class Interact
         run.NextAt = now + S.MinWait.Value * (1f + UnityEngine.Random.Range(0f, 0.5f));
     }
 
-    private static void Confirmed(Run run)
+    private static void Confirmed(Run run, Candidate current, IReadOnlyList<Swept> sweep)
     {
-        var kind = run.Current.Kind;
-        foreach (var swept in run.Sweep)
+        var kind = current.Kind;
+        foreach (var swept in sweep)
         {
             if (ItemGone(swept.Visual, swept.Id)) Count(run, swept.Kind, 1);
         }
         Count(run, kind, 1);
         if (kind.IsItem) run.ItemRefusals = 0;
         // An object used once is left alone for the rest of the zone, even one the game would let trigger again.
-        else run.Skipped[run.Current.Key] = "used";
+        else run.Skipped[current.Key] = "used";
         if (!S.NotifyEach.Value) return;
-        string name = run.Current.Name ?? kind.One;
+        string name = current.Name ?? kind.One;
         Toasts.Show("interact", kind.IsItem ? $"Picked up {name}" : $"Used {name}", ToastKind.Info, repeats: true);
     }
 
@@ -225,11 +271,11 @@ internal static partial class Interact
 
     // An object the game refused or didn't act on is left alone for the rest of the zone. Three item refusals in a row
     // mean the bag is full: every item kind waits until the bag's count changes or the zone does.
-    private static void Refuse(Run run, string reason)
+    private static void Refuse(Run run, Candidate current, string reason)
     {
-        run.Skipped[run.Current.Key] = reason;
-        Log.Info($"Interact: {run.Current.Kind.Id} {run.Current.Name ?? "?"} skipped for this zone: {reason}");
-        if (!run.Current.Kind.IsItem || ++run.ItemRefusals < RefusalsToHold) return;
+        run.Skipped[current.Key] = reason;
+        Log.Info($"Interact: {current.Kind.Id} {current.Name ?? "?"} skipped for this zone: {reason}");
+        if (!current.Kind.IsItem || ++run.ItemRefusals < RefusalsToHold) return;
         run.ItemsHeld = true;
         run.HeldCount = run.Feature.Has(InventoryGroup) ? InventoryCount() : null;
         if (run.NotifiedFull) return;
@@ -282,7 +328,7 @@ internal static partial class Interact
     // Nearest wins; within a centimetre, the one that came into reach first.
     private static void Offer(Run run, in Candidate c)
     {
-        if (run.Skipped.ContainsKey(c.Key)) return;
+        if (run.Skipped.ContainsKey(c.Key) || run.InFlight.ContainsKey(c.Key)) return;
         if (!run.InReachSince.TryGetValue(c.Key, out float since)) run.InReachSince[c.Key] = since = Clock.Now;
         if (run.HasBest)
         {

@@ -61,6 +61,7 @@ internal sealed class InteractFeature : Feature
 
     public override void RegisterSettings() => S.Register();
     public override void Start() => Interact.Start(this);
+    public override void Update() => Interact.Frame();
     public override void OnGUI() => Interact.OnGUI();
     public override void Shutdown() => Interact.Shutdown();
 

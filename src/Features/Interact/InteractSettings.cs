@@ -5,7 +5,7 @@ namespace EpochAssist.Features;
 internal static class InteractSettings
 {
     // Stored ids are a contract. Renaming or retyping one raises the version and adds a migration for it.
-    public static readonly SettingsGroup Group = new("EpochAssist_Interact", "Proximity Interact", version: 1) { ActionKey = "interact", Module = "interact" };
+    public static readonly SettingsGroup Group = new("EpochAssist_Interact", "Proximity Interact", version: 2) { ActionKey = "interact", Module = "interact" };
 
     public static readonly Section Main = Group.Section("main", "Proximity Interact");
     // Off until the player turns it on. The quick label offers it on the HUD panel.
@@ -71,7 +71,7 @@ internal static class InteractSettings
     {
         Step = 0.1f, Unit = " m", Slider = true, Help = "Never farther than the game allows.",
     };
-    public static readonly Number MinWait = new(Pace, "MinWait", "Wait between uses", 0.25f, 0.15f, 2f)
+    public static readonly Number MinWait = new(Pace, "MinWait", "Wait between uses", 0.15f, 0.15f, 2f)
     {
         Step = 0.05f, Unit = " s", Help = "Plus a little at random.",
     };
@@ -117,5 +117,20 @@ internal static class InteractSettings
         Help = "Shrines, chests and events.",
     };
 
-    public static void Register() => Group.Register();
+    // Version 2 made the fastest pace the default: a wait still on the old default (0.25 s) moves to it; a wait the player
+    // chose stays as it is.
+    private const float OldDefaultWait = 0.25f, NewDefaultWait = 0.15f;
+
+    public static void Register()
+    {
+        Group.Migration(2, _ =>
+        {
+            if (Math.Abs(MinWait.Value - OldDefaultWait) < 0.001f) MinWait.Value = NewDefaultWait;
+        });
+        Group.StoredMigration(2, values =>
+        {
+            if (values[MinWait.Id] is { } wait && Math.Abs(wait.GetValue<double>() - OldDefaultWait) < 0.001) values[MinWait.Id] = NewDefaultWait;
+        });
+        Group.Register();
+    }
 }
