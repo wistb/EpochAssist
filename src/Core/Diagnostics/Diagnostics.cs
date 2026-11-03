@@ -84,6 +84,9 @@ internal static class Diagnostics
             Overlaps = overlap.OverlapLines.ToList(),
             KnownOverlaps = overlap.KnownLines.ToList(),
             NotLoaded = Modules.All.Where(m => !Modules.Loaded(m.Id)).Select(m => m.Name).ToList(),
+            HiccupSummary = MovementWatch.Summary,
+            Hiccups = MovementWatch.Lines(),
+            RecentActions = ModActions.Lines(),
         };
     }
 

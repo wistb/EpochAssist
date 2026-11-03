@@ -72,12 +72,17 @@ internal static class InputGate
             if (input != null && !input.forceDisableInput)
             {
                 input.forceDisableInput = true;
+                if (!s_ownsLock) ModActions.Note(Menu ? "input lock on (menu)" : "input lock on (HUD)");
                 s_ownsLock = true;
             }
             return;
         }
 
-        if (s_ownsLock && input != null) input.forceDisableInput = false;
+        if (s_ownsLock && input != null)
+        {
+            input.forceDisableInput = false;
+            ModActions.Note("input lock off");
+        }
         s_ownsLock = false;
         s_blocking = false;
     }
@@ -144,6 +149,7 @@ internal static class InputGate
             if (!input.blockMouseMovementInput)
             {
                 input.blockMouseMovementInput = true;
+                if (!s_ownsMouseMoveBlock) ModActions.Note("click-to-move blocked (pointer on HUD)");
                 s_ownsMouseMoveBlock = true;
             }
         }
@@ -151,6 +157,7 @@ internal static class InputGate
         {
             input.blockMouseMovementInput = false;
             s_ownsMouseMoveBlock = false;
+            ModActions.Note("click-to-move unblocked");
         }
     }
 
@@ -168,6 +175,7 @@ internal static class InputGate
             // StopActiveMovement does not, but it does end a click-to-move.
             movement.ProcessKeyboardMovement(UnityEngine.Vector2.zero, false);
             if (!keyboardOnly) movement.StopActiveMovement();
+            ModActions.Note(keyboardOnly ? "stopped keyboard walk (HUD press)" : "stopped movement (menu opened)");
             Log.Info($"input: stopped movement ({(keyboardOnly ? "HUD" : "menu")}{(keyHeld ? ", key held" : string.Empty)})");
         }
         catch (Exception e)

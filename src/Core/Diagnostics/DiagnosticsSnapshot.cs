@@ -58,6 +58,10 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
     public IReadOnlyList<string> KnownOverlaps { get; init; } = Array.Empty<string>();
     /// <summary>Names of the modules this start didn't load, in catalogue order.</summary>
     public IReadOnlyList<string> NotLoaded { get; init; } = Array.Empty<string>();
+    /// <summary>The movement watch's counts, its kept hiccups and the mod's recent actions, oldest first.</summary>
+    public string HiccupSummary { get; init; } = string.Empty;
+    public IReadOnlyList<string> Hiccups { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> RecentActions { get; init; } = Array.Empty<string>();
 
     public string ChangesText => $"edits {Edits.Count}, patched methods {PatchedMethods}, textures {Textures}";
 
@@ -95,6 +99,9 @@ internal sealed record DiagnosticsSnapshot(DateTime BuiltAt, string Mode, string
         Section(text, "known overlaps", KnownOverlaps);
         Section(text, "problem files", ProblemFiles);
         Section(text, "reports", Reports);
+        text.Append("movement: ").Append(HiccupSummary.Length > 0 ? HiccupSummary : "not watched").Append('\n');
+        Section(text, "movement hiccups (while movement held)", Hiccups);
+        Section(text, "recent mod actions", RecentActions);
         return Diagnostics.Scrub(text.ToString().TrimEnd('\n'));
     }
 

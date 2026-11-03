@@ -53,6 +53,7 @@ internal static partial class Dispatcher
         try
         {
             processor.UseBarAbilityCommand(keyDown, slot + 1, -1, target, hit, false);
+            ModActions.SkillKey(slot, keyDown);
             if (keyDown) CountPress();
         }
         catch (Exception e)
@@ -75,6 +76,7 @@ internal static partial class Dispatcher
     // manager's potion with the charge check kept (GF-18, GF-80), since the online objects are gone offline.
     private static void SendDrink()
     {
+        ModActions.Note("drink");
         try
         {
             switch (PlayerModel.Online)
@@ -111,6 +113,7 @@ internal static partial class Dispatcher
             var state = Game.AbilityProcessor?.PlayerAbilityState;
             if (state == null) return false;
             state.UsePortalCommand(target, false);
+            ModActions.Note("town portal");
             return true;
         }
         catch (Exception e)
@@ -126,6 +129,7 @@ internal static partial class Dispatcher
 
     private static void SendStopChannel(int slot)
     {
+        ModActions.ChannelStop(slot);
         try
         {
             var clientState = Game.AbilityProcessor?.PlayerAbilityState?.TryCast<ClientUsingAbilityState>();
@@ -152,6 +156,7 @@ internal static partial class Dispatcher
 
     private static void SendRetarget(Vector3 target)
     {
+        ModActions.Note("channel retarget");
         try
         {
             AbilityState()?.TryUpdateTargetLocationIfChannelling(target);

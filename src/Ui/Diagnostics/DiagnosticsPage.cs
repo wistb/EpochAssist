@@ -19,9 +19,26 @@ internal sealed class DiagnosticsFeature : Feature
     {
         Actions.Register(Id, "diagnostics.copy", "Copy diagnostics", () => DiagnosticsPage.Copy(Diagnostics.Build().ToText(), "Diagnostics copied."));
         Actions.Register(Id, "diagnostics.open", "Open diagnostics", () => Ui.Menu.Open(MenuRoutes.Overview));
+        MovementWatch.SecondsSinceCast = SecondsSinceCast;
     }
 
-    public override void Shutdown() => DiagnosticsPage.Reset();
+    // Every frame: the movement watch for the copy's hiccups section.
+    public override void Update() => MovementWatch.Frame();
+
+    public override void Shutdown()
+    {
+        MovementWatch.SecondsSinceCast = null;
+        DiagnosticsPage.Reset();
+    }
+
+    // The newest cast of any bar skill, by the cast signal; null while the player model can't say.
+    private static float? SecondsSinceCast()
+    {
+        if (!PlayerModel.Exists) return null;
+        float latest = float.NegativeInfinity;
+        for (int slot = 1; slot <= PlayerModel.SlotCount; slot++) latest = Math.Max(latest, PlayerModel.LastCastAt(slot));
+        return Time.unscaledTime - latest;
+    }
 }
 
 internal static class DiagnosticsPage

@@ -41,8 +41,16 @@ internal sealed class MacrosFeature : Feature
         State == FeatureState.Running && SlotMacros.Client is { } client ? SlotMacros.StatusOf(client) : base.Status;
 
     public override void RegisterSettings() => MacroSettings.Register();
-    public override void Start() => SlotMacros.Start(this);
+    public override void Start()
+    {
+        SlotMacros.Start(this);
+        MovementWatch.RunningMacro = () => Macros.RunningName;
+    }
     public override void Update() => SlotMacros.OnUpdate();
     public override void OnGUI() => SlotMacros.OnGUI();
-    public override void Shutdown() => SlotMacros.Shutdown();
+    public override void Shutdown()
+    {
+        MovementWatch.RunningMacro = null;
+        SlotMacros.Shutdown();
+    }
 }

@@ -145,6 +145,7 @@ internal static partial class Dispatcher
                 if (target.Used()) return UiResult.No("used");
                 if (!(InteractDistance(target) <= target.Reach)) return UiResult.No("out of reach");
                 target.Use();
+                ModActions.Note("interact");
                 CountPress();
                 return UiResult.Done;
             }
@@ -155,6 +156,7 @@ internal static partial class Dispatcher
                 var container = ContainerUi(id);
                 if (container == null) return UiResult.No("container not open");
                 if (!container.TryQuickMove(move.Position, out bool _)) return UiResult.No("not moved");
+                ModActions.Note("quick move");
                 CountPress();
                 return UiResult.Done;
             }
@@ -169,6 +171,7 @@ internal static partial class Dispatcher
         if (!Game.Alive(button)) return UiResult.No("button missing");
         if (!button!.isActiveAndEnabled || !button.interactable) return UiResult.No("not interactable");
         button.onClick.Invoke();
+        ModActions.Note("button press");
         CountPress();
         return UiResult.Done;
     }
