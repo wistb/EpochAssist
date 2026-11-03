@@ -1,6 +1,6 @@
 # Epoch Assist
 
-Fully modular macro suite, build planner overlay, map reveal, session tracking, and much more. A
+Fully modular macro suite, build planner overlay, stash filters, map reveal, session tracking, and much more. A
 [MelonLoader](https://github.com/LavaGang/MelonLoader) mod for Last Epoch.
 
 > Using mods online is against Last Epoch's terms of service.
@@ -13,8 +13,8 @@ Fully modular macro suite, build planner overlay, map reveal, session tracking, 
   - **Macros**: sets per class or all classes. Start alone, on key press, while held or on toggle; steps cast, drink,
     town portal, wait, wait until, message.
   - **Targets**: cursor, nearest, rarest, weakest or pack centre, limited by range, rarity, mod, ailment.
-  - **Conditions**: health, mana, ward, buffs, skills, potions, enemies (health, rarity, mods, ailments), zone and
-    more; all of, any of, none of, optional hold time.
+  - **Conditions**: health, mana, ward, buffs, skills (ready, cooldown, toggle switched on), potions, enemies (health,
+    rarity, mods, ailments), zone and more; all of, any of, none of, optional hold time.
   - **Named conditions**: lines written once under a name (Worth fighting, In danger, Boss nearby) and used by any
     macro, slot or Shared Conditions; one edit reaches every user. Optional keep-true time; six starters included.
   - **Sharing**: **Copy share code** and **Import set**, named conditions included.
@@ -67,13 +67,28 @@ Fully modular macro suite, build planner overlay, map reveal, session tracking, 
   - **Apply**: one step at a time, or all after summary of changes and gold; step count known up front.
   - **Items in wrong tab**: count per tab, outlines in stash window, target tab on hover. Items never moved.
   - **Edit**: copy preset, drag folders and tabs, rename, recolour, remove with cost shown first, undo; save stash as preset.
-  - **Search**: every tab by affix tier, value and roll quality, implicits, unique rolls and totals; stat groups (and, not, if, count, weighted sum); results beside stash window, click opens item's tab; saved searches and share codes. Items never moved.
-  - **Search box**: text starting with `~` in stash's own search box uses same search, e.g. `~fire res 30+ & helmet`, `~t6+ health q80`, `~2of(fire res 20+, cold res 20+, void res 20+)`; game's own words still work.
   <details><summary>Screenshots</summary>
 
   ![Stash: preset beside stash at a budget](nexus/media/stash-page.png)
 
   ![Stash: Apply all building layout step by step](nexus/media/stash-apply.webp)
+
+  </details>
+- **Stash Filter**: find items in every stash tab by affix tier, value and roll quality. Items never moved.
+  - **Stat filters**: affixes, implicits, unique rolls and totals; tier, value and roll quality ranges; groups of and,
+    not, if, count and weighted sum.
+  - **Item filters**: type and rarity, legendary potential and weaver's will, requirements, prefix and suffix slots,
+    corrupted and sealed.
+  - **Results**: panel beside stash window with tooltips; click opens item's tab; matches outlined, other items dimmed,
+    matched value shown on each.
+  - **Search box**: text starting with `~` in stash's own search box uses same search, e.g. `~fire res 30+ & helmet`,
+    `~t6+ health q80`, `~2of(fire res 20+, cold res 20+, void res 20+)`; game's own words still work.
+  - **Saved**: named filters, recent filters, share codes.
+  <details><summary>Screenshots</summary>
+
+  ![Stash Filter: stat and item filters with results](nexus/media/stash-filter.png)
+
+  ![Stash Filter: results panel beside stash window](nexus/media/stash-filter-results.png)
 
   </details>
 - **Session**: dashboard of each game session statistics.
@@ -118,7 +133,7 @@ Fully modular macro suite, build planner overlay, map reveal, session tracking, 
   </details>
 - **Proximity Interact**: automatically interact with objects as they come into range.
   - **Use**: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
-  - **Pick up**: keys, crafting materials, loot filter picks.
+  - **Pick up**: keys, woven echoes, crafting materials, loot filter picks; about 5 a second.
   - **In reach**: never moves the character or reaches past game range.
   - **Options**: hold key, mini HUD count, per-use notice, reach rings.
   <details><summary>Screenshot</summary>
@@ -150,7 +165,8 @@ Highly configurable settings available via the Config tab. General options:
 
   </details>
 - **Diagnostics**: **Features** lists each part and module with its state. **Copy diagnostics** copies mod state for
-  bug reports, without names or paths. **Mods** lists other loaded mods and shared patch targets. Nothing sent anywhere.
+  bug reports, without names or paths, with recent movement hiccups and mod actions. **Mods** lists other loaded mods
+  and shared patch targets. Nothing sent anywhere.
   <details><summary>Screenshot</summary>
 
   ![Config: Diagnostics](nexus/media/diagnostics.png)

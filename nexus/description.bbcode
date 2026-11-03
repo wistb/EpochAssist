@@ -1,5 +1,5 @@
 [center]{{image:logo}}
-[size=3]Fully modular macro suite, planner overlay, stash presets, session stats, map mods and more.[/size]
+[size=3]Fully modular macro suite, planner overlay, stash presets and search, session stats, map mods and more.[/size]
 [size=2][color=#8e96a4]Version {{version}} · a [url=https://github.com/LavaGang/MelonLoader]MelonLoader[/url] mod · tested on Last Epoch {{game_version}}[/color][/size]
 
 [b][color=#ee5396]Using mods online is against Last Epoch's terms of service.[/color][/b]
@@ -11,7 +11,7 @@ Highly configurable macro editor with various condition rules.
 [*][b][color=#25be6a]Skill Slots[/color][/b]: [font=Courier New]Left Ctrl[/font] + skill key toggles a slot. Per-slot conditions, plus [b]Shared Conditions[/b] (e.g. enemy gate) for all.
 [*][b][color=#25be6a]Macros[/color][/b]: sets per class or all classes. Start alone, on key press, while held or on toggle; steps cast, drink, town portal, wait, wait until, message.
 [*][b][color=#25be6a]Targets[/color][/b]: cursor, nearest, rarest, weakest or pack centre, limited by range, rarity, mod, ailment.
-[*][b][color=#25be6a]Conditions[/color][/b]: health, mana, ward, buffs, skills, potions, enemies (health, rarity, mods, ailments), zone and more; all of, any of, none of, optional hold time.
+[*][b][color=#25be6a]Conditions[/color][/b]: health, mana, ward, buffs, skills (ready, cooldown, toggle switched on), potions, enemies (health, rarity, mods, ailments), zone and more; all of, any of, none of, optional hold time.
 [*][b][color=#25be6a]Named conditions[/color][/b]: lines written once under a name (Worth fighting, In danger, Boss nearby) and used by any macro, slot or Shared Conditions; one edit reaches every user. Optional keep-true time; six starters included.
 [*][b][color=#25be6a]Sharing[/color][/b]: [b]Copy share code[/b] and [b]Import set[/b], named conditions included.
 [*][b][color=#25be6a]Potions[/color][/b]: ready-made Auto potion for low health or a full potion's missing heal.
@@ -57,6 +57,18 @@ Create or use stash tab presets and easily apply them.
 {{media:stash-page}}
 {{media:stash-apply}}
 [line]
+[size=5][b][color=#5ba8a4]Stash Filter[/color][/b][/size]
+Find items in every stash tab by affix tier, value and other advanced filter options.
+[list]
+[*][b][color=#25be6a]Stat filters[/color][/b]: affixes, implicits, unique rolls and totals; tier, value and roll quality ranges; groups of and, not, if, count and weighted sum.
+[*][b][color=#25be6a]Item filters[/color][/b]: type and rarity, legendary potential and weaver's will, requirements, prefix and suffix slots, corrupted and sealed.
+[*][b][color=#25be6a]Results[/color][/b]: panel beside stash window with tooltips; click opens item's tab; matches outlined, other items dimmed, matched value shown on each.
+[*][b][color=#25be6a]Search box[/color][/b]: text starting with [font=Courier New]~[/font] in stash's own search box uses same search, e.g. [font=Courier New]~fire res 30+ & helmet[/font], [font=Courier New]~t6+ health q80[/font], [font=Courier New]~2of(fire res 20+, cold res 20+, void res 20+)[/font]; game's own words still work.
+[*][b][color=#25be6a]Saved[/color][/b]: named filters, recent filters, share codes.
+[/list]
+{{media:stash-filter}}
+{{media:stash-filter-results}}
+[line]
 [size=5][b][color=#5ba8a4]Session[/color][/b][/size]
 Dashboard of each game session statistics.
 [list]
@@ -94,7 +106,7 @@ Reveal entire map on overlay and minimap. Customize map appearance.
 Automatically interact with objects as they come into range.
 [list]
 [*][b][color=#25be6a]Use[/color][/b]: shrines, chests, caches, rune prisons, forges, unstable rifts, blood crystals.
-[*][b][color=#25be6a]Pick up[/color][/b]: keys, crafting materials, loot filter picks.
+[*][b][color=#25be6a]Pick up[/color][/b]: keys, woven echoes, crafting materials, loot filter picks; about 5 a second.
 [*][b][color=#25be6a]In reach[/color][/b]: never moves the character or reaches past game range.
 [*][b][color=#25be6a]Options[/color][/b]: hold key, mini HUD count, per-use notice, reach rings.
 [/list]
@@ -109,7 +121,7 @@ Highly configurable settings available via the Config tab. General options:
 {{media:settings-hud}}
 [*][b][color=#25be6a]Appearance[/color][/b]: themes (Carbonfox, Slate, Ember, Epoch, Glass), fonts, animations. [b]Colour vision[/b]: rarity and danger colours kept apart for deuteranopia, protanopia, tritanopia in mod overlays.
 {{media:appearance}}
-[*][b][color=#25be6a]Diagnostics[/color][/b]: [b]Features[/b] lists each part and module with its state. [b]Copy diagnostics[/b] copies mod state for bug reports, without names or paths. [b]Mods[/b] lists other loaded mods and shared patch targets. Nothing sent anywhere.
+[*][b][color=#25be6a]Diagnostics[/color][/b]: [b]Features[/b] lists each part and module with its state. [b]Copy diagnostics[/b] copies mod state for bug reports, without names or paths, with recent movement hiccups and mod actions. [b]Mods[/b] lists other loaded mods and shared patch targets. Nothing sent anywhere.
 {{media:diagnostics}}
 [*][b][color=#25be6a]Profiles[/color][/b]: one setup per character; export and import to share.
 {{media:profiles}}
