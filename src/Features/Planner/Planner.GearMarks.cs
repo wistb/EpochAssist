@@ -512,6 +512,7 @@ internal static partial class Planner
             else
             {
                 HidePrompts();
+                SizeTip();
             }
             return;
         }
@@ -693,6 +694,7 @@ internal static partial class Planner
                 tooltips.ShowComparison(shown);
             s_tipItem = item;
             HidePrompts();
+            SizeTip();
             return true;
         }
         catch (Exception e)
@@ -723,6 +725,7 @@ internal static partial class Planner
     private static void ForgetTip(TooltipItemManager? tooltips)
     {
         s_tipItem = null;
+        UnsizeTip();
         if (s_hiddenPrompts is { } prompts && Game.Alive(prompts)) prompts.SetActive(true);
         s_hiddenPrompts = null;
     }
@@ -765,6 +768,61 @@ internal static partial class Planner
         var go = prompts!.gameObject;
         if (go.activeSelf) go.SetActive(false);
         s_hiddenPrompts = go;
+    }
+
+    // The planned item's tooltip at its own size: the game's tooltip (the planned item and the equipped one beside it are
+    // one object) scaled on top of the scale the game gives it, about the game's own pivot, and kept on screen. The game
+    // sets its scale only when the tooltip turns on or its scaling setting changes, so the scale it holds that isn't the
+    // one written here is the game's, and goes back when the planned item closes.
+    private static RectTransform? s_sizedTip;
+    private static Vector3 s_tipGameScale = Vector3.one;
+    private static Vector3 s_tipWritten;
+    // Opened to the right of the menu: the tooltip grows away from it, its left edge kept (the game's pivot is its right).
+    private static bool s_tipKeepLeft;
+
+    private static void SizeTip()
+    {
+        float size = S.InventoryTooltipSize.Value;
+        var rect = UITooltipItem.instance?.transform.TryCast<RectTransform>();
+        if (!Game.Alive(rect))
+        {
+            s_sizedTip = null;
+            return;
+        }
+        if (Mathf.Abs(size - 1f) < 0.001f && s_sizedTip == null) return;
+        var now = rect!.localScale;
+        if (s_sizedTip?.Pointer != rect.Pointer || (now - s_tipWritten).sqrMagnitude > 1e-6f) s_tipGameScale = now;
+        s_sizedTip = rect;
+        var scale = s_tipGameScale * size;
+        if ((now - scale).sqrMagnitude > 1e-6f)
+        {
+            rect.GetWorldCorners(s_tipCorners);
+            float left = s_tipCorners[0].x;
+            rect.localScale = scale;
+            if (s_tipKeepLeft)
+            {
+                rect.GetWorldCorners(s_tipCorners);
+                rect.position += new Vector3(left - s_tipCorners[0].x, 0f, 0f);
+            }
+        }
+        s_tipWritten = scale;
+        KeepOnScreen(rect);
+    }
+
+    // Moves the tooltip back inside the screen when its new size takes it past an edge.
+    private static void KeepOnScreen(RectTransform rect)
+    {
+        rect.GetWorldCorners(s_tipCorners);
+        float dx = s_tipCorners[0].x < 0f ? -s_tipCorners[0].x : s_tipCorners[2].x > Screen.width ? Screen.width - s_tipCorners[2].x : 0f;
+        float dy = s_tipCorners[0].y < 0f ? -s_tipCorners[0].y : s_tipCorners[2].y > Screen.height ? Screen.height - s_tipCorners[2].y : 0f;
+        if (dx != 0f || dy != 0f) rect.position += new Vector3(dx, dy, 0f);
+    }
+
+    private static void UnsizeTip()
+    {
+        if (s_sizedTip is { } rect && Game.Alive(rect) && (rect.localScale - s_tipWritten).sqrMagnitude < 1e-6f) rect.localScale = s_tipGameScale;
+        s_sizedTip = null;
+        s_tipKeepLeft = false;
     }
 
     // Whether the game carries an item on the cursor, and that item. Only read: the mod never picks up, drops or moves

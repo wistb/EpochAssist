@@ -116,6 +116,11 @@ internal static class PlannerSettings
     {
         Step = 0.05f, Slider = true, Unit = " s", Help = "How long the pointer rests on an icon before the planned item shows.",
     };
+    public static readonly Number InventoryTooltipSize = new(Inventory, "InventoryTooltipSize", "Tooltip size", 1f, 0.5f, 2f)
+    {
+        Step = 0.05f, Slider = true, Percent = true,
+        Help = "Size of a planned item's tooltip and the equipped item beside it, on top of the game's own tooltip scaling (Settings › Interface › UI Scaling).",
+    };
     public static readonly Toggle InventoryHidePrompts = new(Inventory, "InventoryHidePrompts", "Hide prompts on planned items", true)
     {
         Help = "Hides the game's prompts (equip, drop, compare) under a planned item's tooltip; they act on the real item under the pointer.",

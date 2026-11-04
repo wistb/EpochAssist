@@ -178,8 +178,10 @@ internal static partial class Planner
     {
         if (s_run is { } run0) ClearHint(run0);
         s_hovered = null;
-        // The tooltip manager goes with the scene: nothing to close.
+        // The tooltip manager goes with the scene: nothing to close. The tooltip itself stays (it outlives scenes), at
+        // the game's own size again.
         s_tipItem = null;
+        UnsizeTip();
         ClearGearMarks();
         s_gearHover = null;
         Marks.ClearAll();

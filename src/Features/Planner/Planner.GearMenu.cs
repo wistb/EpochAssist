@@ -158,6 +158,7 @@ internal static partial class Planner
         float half = TipWidth() / 2f;
         rect.position = new Vector3(right ? menu.xMax + MenuTooltipGap + half : menu.x - MenuTooltipGap - half, Screen.height - y, 0f);
         anchor.SetActive(true);
+        s_tipKeepLeft = right;
         if (!OpenPlanned(hovered, anchor, null, alone: true)) s_menuShown = null;
     }
 
