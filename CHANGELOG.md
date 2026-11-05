@@ -2,6 +2,14 @@
 
 Generated from the commit history by `tools/release.sh`
 
+## 0.2.1 - 2026-11-04
+
+Tested on Last Epoch 1.5.3.
+
+### Added
+
+- Planned items' tooltips have their own size setting (Planner › Interfaces › Inventory).
+
 ## 0.2.0 - 2026-11-02
 
 Tested on Last Epoch 1.5.3.
